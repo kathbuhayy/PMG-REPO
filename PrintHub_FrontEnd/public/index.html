@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <script>
+    // Suppress ResizeObserver loop error before dev overlay loads
+    window.addEventListener('error', function (e) {
+      if (e && e.message && e.message.indexOf('ResizeObserver') !== -1) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    }, true);
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Poppins"
+  >
+
+  <title>PMG Printing House</title>
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
+</html>

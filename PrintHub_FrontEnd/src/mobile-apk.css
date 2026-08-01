@@ -1,0 +1,577 @@
+/* Android customer APK responsive layer.
+   Scoped to Capacitor only so the desktop website keeps its current layout. */
+
+html.printhub-native-app,
+body.printhub-native-app {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  background: #f8f4e8;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body.printhub-native-app * {
+  max-width: 100%;
+}
+
+body.printhub-native-app img,
+body.printhub-native-app canvas,
+body.printhub-native-app video {
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  body.printhub-native-app {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  body.printhub-native-app .uh-nav {
+    position: sticky;
+    top: 0;
+    min-height: 64px;
+    height: auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  body.printhub-native-app .uh-brand-row {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  body.printhub-native-app .uh-back-btn,
+  body.printhub-native-app .uh-icon-btn,
+  body.printhub-native-app .uh-profile {
+    width: 42px;
+    height: 42px;
+    min-height: 42px;
+    flex: 0 0 42px;
+    border-radius: 14px;
+  }
+
+  body.printhub-native-app .uh-logo-mark {
+    width: clamp(72px, 24vw, 118px);
+    height: 38px;
+    margin-left: 0;
+  }
+
+  body.printhub-native-app .uh-actions {
+    gap: 6px;
+  }
+
+  body.printhub-native-app .uh-login-btn {
+    width: auto;
+    min-width: 70px;
+    height: 42px;
+    min-height: 42px;
+    padding: 0 12px;
+    border-radius: 16px;
+    font-size: 13px;
+  }
+
+  body.printhub-native-app .mfn-nav {
+    left: 14px;
+    right: 14px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    height: 74px;
+    padding: 8px 8px;
+    border: 1px solid rgba(44, 62, 80, 0.08);
+    border-radius: 28px;
+    box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.14);
+    align-items: center;
+  }
+
+  body.printhub-native-app .mfn-tab {
+    height: 58px;
+    min-width: 0;
+    border-radius: 20px;
+    padding: 7px 2px;
+  }
+
+  body.printhub-native-app .mfn-tab--active {
+    background: rgba(69, 80, 115, 0.09);
+  }
+
+  body.printhub-native-app .mfn-tab--active::before {
+    display: none;
+  }
+
+  body.printhub-native-app .mfn-icon {
+    font-size: 21px;
+  }
+
+  body.printhub-native-app .mfn-label {
+    font-size: clamp(10px, 2.6vw, 12px);
+    font-weight: 800;
+  }
+
+  body.printhub-native-app .phc-fab {
+    right: 22px;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+  }
+
+  body.printhub-native-app .phc-window {
+    left: 10px;
+    right: 10px;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-height: min(620px, calc(100vh - 124px));
+    border-radius: 20px;
+  }
+
+  body.printhub-native-app .phc-body {
+    padding: 12px;
+  }
+
+  body.printhub-native-app .phc-footer {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  body.printhub-native-app .phc-input {
+    min-width: 0;
+    font-size: 14px;
+  }
+
+  body.printhub-native-app .phc-send {
+    min-width: 68px;
+    padding: 10px 14px;
+  }
+
+  body.printhub-native-app .user-login-container {
+    align-items: stretch;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    background: linear-gradient(135deg, #f8fafc, #ffffff);
+  }
+
+  body.printhub-native-app .login-split {
+    display: block;
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
+  }
+
+  body.printhub-native-app .login-image-section {
+    display: none;
+  }
+
+  body.printhub-native-app .login-form-section {
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 72px 16px 28px;
+    align-items: flex-start;
+  }
+
+  body.printhub-native-app .login-card {
+    width: 100%;
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 28px 22px;
+    border-radius: 24px;
+  }
+
+  body.printhub-native-app .auth-back-button,
+  body.printhub-native-app .back-button {
+    top: 18px;
+    left: 14px;
+    width: auto;
+    max-width: 104px;
+    min-height: 42px;
+    padding: 8px 12px;
+    border-radius: 14px;
+  }
+
+  body.printhub-native-app .login-header h1 {
+    font-size: clamp(30px, 10vw, 44px);
+    line-height: 1.02;
+  }
+
+  body.printhub-native-app .login-header p {
+    font-size: clamp(16px, 4.8vw, 21px);
+    line-height: 1.35;
+  }
+
+  body.printhub-native-app .form-group input,
+  body.printhub-native-app .form-group select,
+  body.printhub-native-app .form-group textarea {
+    min-height: 50px;
+    font-size: 16px;
+    border-radius: 16px;
+  }
+
+  body.printhub-native-app .form-options {
+    gap: 12px;
+    align-items: center;
+  }
+
+  body.printhub-native-app .login-button {
+    min-height: 52px;
+    border-radius: 16px;
+    font-size: 17px;
+  }
+
+  body.printhub-native-app .uh-page,
+  body.printhub-native-app .po-page,
+  body.printhub-native-app .pd-page,
+  body.printhub-native-app .ucart-page,
+  body.printhub-native-app .uo-page,
+  body.printhub-native-app .ui-page,
+  body.printhub-native-app .upay-page,
+  body.printhub-native-app .upr-page {
+    width: 100%;
+    overflow-x: hidden;
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.printhub-native-app .uh-hero-modern,
+  body.printhub-native-app .uh-hero {
+    min-height: auto;
+    height: auto;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 44px 18px 54px;
+  }
+
+  body.printhub-native-app .uh-hero-modern .uh-hero-content,
+  body.printhub-native-app .uh-hero-content {
+    width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+
+  body.printhub-native-app .uh-hero-modern .uh-hero-content h1,
+  body.printhub-native-app .uh-hero-content h1 {
+    font-size: clamp(34px, 11vw, 48px);
+    line-height: 1.04;
+  }
+
+  body.printhub-native-app .uh-hero-modern .uh-hero-content p,
+  body.printhub-native-app .uh-hero-content p {
+    font-size: clamp(15px, 4.2vw, 18px);
+    line-height: 1.45;
+  }
+
+  body.printhub-native-app .uh-hero-preview {
+    display: none;
+  }
+
+  body.printhub-native-app .uh-section,
+  body.printhub-native-app .uh-lineup-section,
+  body.printhub-native-app .uh-explore-strip {
+    padding: 48px 16px;
+  }
+
+  body.printhub-native-app .uh-section-title {
+    margin-bottom: 26px;
+    text-align: center;
+  }
+
+  body.printhub-native-app .uh-section-title h2 {
+    font-size: clamp(26px, 8vw, 36px);
+    line-height: 1.12;
+  }
+
+  body.printhub-native-app .uh-section-title p {
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  body.printhub-native-app .uh-bestseller-showcase {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  body.printhub-native-app .uh-bestseller-copy,
+  body.printhub-native-app .uh-bestseller-media {
+    border-radius: 24px;
+  }
+
+  body.printhub-native-app .uh-bestseller-copy {
+    padding: 24px;
+  }
+
+  body.printhub-native-app .uh-bestseller-copy h3 {
+    font-size: clamp(34px, 11vw, 48px);
+  }
+
+  body.printhub-native-app .uh-bestseller-copy p {
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  body.printhub-native-app .uh-bestseller-media {
+    min-height: 250px;
+    padding: 18px;
+  }
+
+  body.printhub-native-app .uh-bestseller-media img {
+    height: 220px;
+  }
+
+  body.printhub-native-app .uh-quick-grid,
+  body.printhub-native-app .uh-cards,
+  body.printhub-native-app .po-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  body.printhub-native-app .uh-quick-card {
+    min-height: 170px;
+    padding: 24px;
+  }
+
+  body.printhub-native-app .uh-quick-card strong {
+    margin-top: 28px;
+    font-size: 24px;
+  }
+
+  body.printhub-native-app .uh-card,
+  body.printhub-native-app .po-card {
+    border-radius: 22px;
+  }
+
+  body.printhub-native-app .uh-card-img,
+  body.printhub-native-app .po-img {
+    height: 210px;
+  }
+
+  body.printhub-native-app .po-page {
+    padding: 30px 14px calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.printhub-native-app .po-top {
+    margin-bottom: 24px;
+    text-align: left;
+  }
+
+  body.printhub-native-app .po-title {
+    font-size: clamp(36px, 12vw, 48px);
+    line-height: 1;
+  }
+
+  body.printhub-native-app .po-heading p {
+    font-size: 15px;
+  }
+
+  body.printhub-native-app .po-search-wrap {
+    margin-bottom: 18px;
+  }
+
+  body.printhub-native-app .po-search-wrap input {
+    min-height: 56px;
+    border-radius: 20px;
+    font-size: 16px;
+  }
+
+  body.printhub-native-app .po-category-pills {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 10px;
+    margin-bottom: 22px;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+  }
+
+  body.printhub-native-app .po-category-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.printhub-native-app .po-category-pills button {
+    flex: 0 0 auto;
+    padding: 12px 20px;
+  }
+
+  body.printhub-native-app .po-controls {
+    display: block;
+    margin-bottom: 18px;
+  }
+
+  body.printhub-native-app .po-select {
+    min-height: 48px;
+    border-radius: 14px;
+    padding: 0 12px;
+    font-size: 16px;
+  }
+
+  body.printhub-native-app .pd-page {
+    padding: 18px 12px calc(150px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.printhub-native-app .pd-breadcrumb {
+    margin: 8px 0 14px;
+    padding: 0 2px;
+    overflow-x: auto;
+  }
+
+  body.printhub-native-app .pd-top,
+  body.printhub-native-app .pd-gallery {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    width: 100%;
+  }
+
+  body.printhub-native-app .pd-img-reel {
+    border-radius: 18px;
+  }
+
+  body.printhub-native-app .pd-img-slide {
+    min-height: 260px;
+    border-radius: 18px;
+  }
+
+  body.printhub-native-app .pd-img-slide img {
+    max-height: 240px;
+    object-fit: contain;
+  }
+
+  body.printhub-native-app .pd-info h1 {
+    font-size: clamp(28px, 9vw, 38px);
+  }
+
+  body.printhub-native-app .pd-tabs {
+    overflow-x: auto;
+  }
+
+  body.printhub-native-app .pd-tabs button {
+    flex: 0 0 auto;
+  }
+
+  body.printhub-native-app .pd-sticky-cta {
+    left: 14px;
+    right: 14px;
+    bottom: calc(94px + env(safe-area-inset-bottom, 0px));
+    border-radius: 22px;
+    padding: 10px;
+    z-index: 1900;
+  }
+
+  body.printhub-native-app .ucart-page {
+    padding: 16px 12px calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.printhub-native-app .ucart-wrap,
+  body.printhub-native-app .ucart-item {
+    min-width: 0;
+  }
+
+  body.printhub-native-app .ucart-card,
+  body.printhub-native-app .ucart-summary,
+  body.printhub-native-app .uo-order-card {
+    border-radius: 22px;
+  }
+
+  body.printhub-native-app .uo-page {
+    padding: 26px 12px calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.printhub-native-app .uo-top {
+    margin-bottom: 16px;
+    gap: 10px;
+  }
+
+  body.printhub-native-app .uo-title {
+    width: 100%;
+    font-size: clamp(34px, 12vw, 48px);
+    line-height: 1;
+    letter-spacing: 0;
+    font-weight: 800;
+  }
+
+  body.printhub-native-app .uo-subtitle {
+    margin: 0;
+    width: 100%;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  body.printhub-native-app .uo-tabs {
+    position: relative;
+    top: auto;
+    margin-bottom: 16px;
+    border-radius: 22px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  body.printhub-native-app .uo-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  body.printhub-native-app .uo-tab {
+    flex: 0 0 auto;
+    padding: 11px 14px;
+  }
+
+  body.printhub-native-app .uo-orders {
+    padding: 0;
+    gap: 16px;
+  }
+
+  body.printhub-native-app .uo-order-header,
+  body.printhub-native-app .uo-items,
+  body.printhub-native-app .uo-shipping,
+  body.printhub-native-app .uo-order-footer {
+    padding: 16px;
+  }
+
+  body.printhub-native-app .uo-modal {
+    z-index: 3600;
+    padding: 14px;
+  }
+
+  body.printhub-native-app .uo-modal-card {
+    max-height: calc(100vh - 28px);
+    border-radius: 22px;
+    padding: 24px 18px;
+  }
+
+  body.printhub-native-app .uo-qr-frame {
+    width: min(280px, 82vw);
+  }
+
+  body.printhub-native-app .uo-item-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  body.printhub-native-app .uo-item-price {
+    grid-column: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  body.printhub-native-app .uh-icon-btn,
+  body.printhub-native-app .uh-profile {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    flex-basis: 38px;
+  }
+
+  body.printhub-native-app .uh-logo-mark {
+    width: 74px;
+  }
+
+  body.printhub-native-app .mfn-nav {
+    left: 10px;
+    right: 10px;
+  }
+
+  body.printhub-native-app .mfn-label {
+    font-size: 9px;
+  }
+}

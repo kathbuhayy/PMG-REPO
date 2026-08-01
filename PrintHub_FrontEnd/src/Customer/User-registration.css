@@ -1,0 +1,223 @@
+/* User-registration.css (Cleaned to only include register-specific additions) */
+
+.success-message {
+  background-color: #d4edda;
+  color: #155724;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  border-left: 4px solid #28a745;
+  font-size: 14px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+.form-group.field-missing label {
+  color: #9f1d1d;
+}
+
+.form-group.field-missing input {
+  border-color: #c21111;
+  background: #fff7f7;
+  box-shadow: 0 0 0 4px rgba(194, 17, 17, 0.12);
+}
+
+.form-group.field-missing::after {
+  content: "Required";
+  position: absolute;
+  right: 10px;
+  top: 2px;
+  color: #9f1d1d;
+  background: #ffe1e1;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.form-agreement {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  cursor: pointer;
+  color: #1f2838;
+  font-size: 13px;
+  margin-top: 15px;
+}
+
+.checkbox-label input {
+  margin-right: 10px;
+  margin-top: 3px;
+  cursor: pointer;
+  width: auto;
+  border: none;
+  min-width: 18px;
+}
+
+.checkbox-label a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 900;
+  transition: color 0.3s ease;
+}
+
+.checkbox-label a:hover {
+  color: #06b6d4;
+}
+
+.password-criteria {
+  margin-top: -12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.password-criteria p {
+  margin: 2px 0;
+}
+
+/* ===== LEGAL MODAL ===== */
+.legal-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 18px;
+}
+
+.legal-modal {
+  width: 100%;
+  max-width: 720px;
+  background: #fff;
+  border-radius: 28px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+}
+
+.legal-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.legal-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #343d5c;
+}
+
+.legal-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: #333;
+  padding: 0 6px;
+}
+
+.legal-modal-body {
+  padding: 16px 18px;
+  max-height: 65vh;
+  overflow: auto;
+  color: #333;
+  font-size: 14px;
+}
+
+.legal-modal-body h3 {
+  margin: 14px 0 6px;
+  font-size: 14px;
+  color: #343d5c;
+}
+
+.legal-modal-body p {
+  margin: 8px 0;
+  line-height: 1.55;
+}
+
+.legal-modal-body ul {
+  margin: 8px 0 8px 18px;
+  padding: 0;
+}
+
+.legal-modal-body li {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+.legal-modal-footer {
+  padding: 14px 18px;
+  border-top: 1px solid #eaeaea;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.legal-modal-btn {
+  padding: 10px 14px;
+  min-height: 48px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(90deg, #06b6d4, #3b82f6);
+  color: #fff;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.15);
+}
+
+.legal-modal-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.25);
+}
+
+/* Make registration card wider and inputs more compact */
+.registration-card {
+  max-width: 600px;
+  padding: 32px;
+}
+
+.registration-card .form-group {
+  margin-bottom: 14px;
+}
+
+.registration-card .form-group input {
+  min-height: 48px;
+}
+
+.registration-card .login-button {
+  min-height: 52px;
+  margin-bottom: 16px;
+}
+
+.registration-card .login-header {
+  margin-bottom: 20px;
+}
+
+.registration-card .login-header h1 {
+  font-size: 32px;
+}
+
+.registration-card .auth-mini-brand {
+  margin-bottom: 16px;
+}

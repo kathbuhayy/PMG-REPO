@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PrintHub Customer</string>
+    <string name="title_activity_main">PrintHub Customer</string>
+    <string name="package_name">com.printhub.customer</string>
+    <string name="custom_url_scheme">com.printhub.customer</string>
+</resources>

@@ -1,0 +1,323 @@
+.user-settings-dashboard {
+  display: flex;
+  min-height: 100vh;
+  background: #f6f8fb;
+}
+
+/* SIDEBAR */
+.us-sidebar {
+  width: 260px;
+  background: linear-gradient(180deg, #214b2f 0%, #163323 100%);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 14px;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+}
+
+.us-sidebar.collapsed {
+  width: 88px;
+  padding: 18px 10px;
+}
+
+.us-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.us-sidebar-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.us-collapse-btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.us-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  margin-bottom: 16px;
+}
+
+.us-user-avatar .us-avatar-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+}
+
+.us-user-details h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.us-user-details p {
+  margin: 2px 0 0;
+  opacity: 0.85;
+  font-size: 12px;
+}
+
+.us-user-collapsed {
+  display: grid;
+  place-items: center;
+  margin-bottom: 16px;
+}
+
+.us-avatar-small {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+}
+
+/* ✅ Make menu buttons uniform (fix uneven letters in collapsed mode) */
+.us-sidebar-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  align-items: stretch;
+}
+
+/* Base menu button */
+.us-menu-item {
+  border: none;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  padding: 12px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  opacity: 0.9;
+
+  /* ✅ always same height */
+  min-height: 44px;
+
+  /* ✅ align label nicely in normal mode too */
+  display: flex;
+  align-items: center;
+}
+
+/* Hover + active */
+.us-menu-item:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+.us-menu-item.active {
+  background: rgba(255, 255, 255, 0.16);
+  opacity: 1;
+}
+
+/* ✅ Collapsed state: make each button a centered square-ish */
+.us-sidebar.collapsed .us-menu-item {
+  padding: 0;               /* remove uneven left padding */
+  justify-content: center;  /* center the letter */
+  width: 56px;              /* consistent width */
+  height: 44px;             /* consistent height */
+  margin: 0 auto;           /* center button inside sidebar */
+  border-radius: 14px;
+}
+
+/* Collapsed letter styling */
+.us-menu-label-collapsed {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-weight: 900;
+  font-size: 14px;
+  line-height: 1;           /* ✅ prevents vertical misalignment */
+}
+
+.us-sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.us-back-btn,
+.us-logout-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 12px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.us-back-btn {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.us-logout-btn {
+  background: rgba(255, 140, 80, 0.18);
+  color: #ffb38a;
+}
+
+/* MAIN CONTENT */
+.us-content {
+  flex: 1;
+  padding: 22px;
+}
+
+.us-header {
+  padding: 12px 4px 18px;
+  border-bottom: 1px solid #e7edf3;
+}
+
+.us-header h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 900;
+  color: #1b2b22;
+}
+
+.us-subtitle {
+  margin: 6px 0 0;
+  color: #6f7c86;
+  font-size: 14px;
+}
+
+.us-wrapper {
+  margin-top: 18px;
+}
+
+/* CARD */
+.us-card {
+  background: #fff;
+  border-radius: 18px;
+  border: 1px solid #e8eef3;
+  padding: 18px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.08);
+  max-width: 980px;
+}
+
+.us-card h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 900;
+  color: #1b2b22;
+}
+
+.us-muted {
+  margin: 0 0 14px;
+  color: #6f7c86;
+  font-size: 13px;
+}
+
+.us-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px;
+  border-radius: 14px;
+  background: #f6f8fb;
+  border: 1px solid #e8eef3;
+  margin-bottom: 10px;
+}
+
+.us-setting-row h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 900;
+  color: #1b2b22;
+}
+
+.us-actions-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.us-primary-btn {
+  border: none;
+  background: #214b2f;
+  color: #fff;
+  padding: 11px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.us-primary-btn:hover {
+  background: #193a25;
+}
+
+.us-secondary-btn {
+  border: 1px solid #dbe3ea;
+  background: #fff;
+  padding: 11px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.us-note {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(33, 75, 47, 0.08);
+  border: 1px solid rgba(33, 75, 47, 0.18);
+  color: #214b2f;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.us-select {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #dbe3ea;
+  background: #fff;
+  font-weight: 700;
+}
+
+.us-danger-box {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 60, 60, 0.06);
+  border: 1px solid rgba(255, 60, 60, 0.18);
+}
+
+.us-danger-box h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 900;
+  color: #7a1b1b;
+}
+
+.us-danger-btn {
+  margin-top: 10px;
+  border: none;
+  background: #c0392b;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.us-danger-btn:hover {
+  background: #a53024;
+}

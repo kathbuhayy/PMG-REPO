@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: printhub-api
+    env: node
+    plan: free
+    numInstances: 1
+    buildCommand: npm install --production && npx prisma generate && npx prisma migrate deploy
+    startCommand: node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: PORT
+        value: 3000

@@ -1,0 +1,86 @@
+.upr-page {
+  min-height: calc(100vh - 88px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  padding: 24px;
+}
+
+.upr-card {
+  width: 100%;
+  max-width: 560px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  padding: 24px;
+}
+
+.upr-title {
+  margin: 0 0 12px;
+  color: #0f172a;
+  font-size: 1.6rem;
+}
+
+.upr-message {
+  margin: 0;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.upr-email {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 10px;
+  text-align: left;
+  border: 1px solid #dbe4ef;
+  background: #f8fafc;
+}
+
+.upr-email.success {
+  border-color: rgba(39, 174, 96, 0.28);
+  background: rgba(39, 174, 96, 0.08);
+}
+
+.upr-email.failed {
+  border-color: rgba(230, 126, 34, 0.28);
+  background: rgba(230, 126, 34, 0.08);
+}
+
+.upr-email strong {
+  color: #343d5c;
+}
+
+.upr-email p {
+  color: #334155;
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+
+.upr-actions {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.upr-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.upr-btn-primary {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+
+.upr-btn:hover {
+  opacity: 0.95;
+}

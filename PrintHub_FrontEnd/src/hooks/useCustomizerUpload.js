@@ -1,0 +1,255 @@
+import { useState, useCallback } from "react";
+import { buildApiUrl } from "../config/api";
+import { saveGuestDesign } from "../utils/guestDesigns";
+
+const GUEST_GEN_KEY = "ai_guest_generations";
+const GUEST_LIMIT = 3;
+
+function getGuestGenCount() {
+  try {
+    return parseInt(localStorage.getItem(GUEST_GEN_KEY) || "0", 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function incrementGuestGenCount() {
+  try {
+    const v = getGuestGenCount() + 1;
+    localStorage.setItem(GUEST_GEN_KEY, String(v));
+  } catch {
+    /* ignore */
+  }
+}
+
+function getUserId() {
+  try {
+    const u = localStorage.getItem("user");
+    if (u) return JSON.parse(u).id;
+  } catch {
+    /* ignore */
+  }
+  return parseInt(localStorage.getItem("userId"), 10) || null;
+}
+
+export function useCustomizerUpload(productLabel = "Product", initialGallery = []) {
+  const [gallery, setGallery] = useState(initialGallery);
+  const [selectedGalleryId, setSelectedGalleryId] = useState(null);
+  const [uploadError, setUploadError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
+
+  // Convert file to Base64 asynchronously if it fits within safe localStorage limits
+  const convertFileToBase64 = (file, callback) => {
+    if (file.size > 1.5 * 1024 * 1024) return; // 1.5MB safe limit for localStorage
+    const reader = new FileReader();
+    reader.onloadend = () => callback(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileChange = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return null;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("File must be 5MB or smaller.");
+      return null;
+    }
+
+    const allowed = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif"
+    ];
+    if (!allowed.includes(file.type)) {
+      setUploadError(
+        "Only JPG, PNG, WEBP, and GIF images are allowed."
+      );
+      return null;
+    }
+
+    setUploadError("");
+    const url = URL.createObjectURL(file);
+    const id = `upload-${Date.now()}`;
+    const item = {
+      id,
+      url,
+      originalBlobUrl: url,
+      label: file.name.slice(0, 30),
+      file,
+    };
+
+    setGallery((prev) => [...prev, item]);
+    setSelectedGalleryId(id);
+
+    convertFileToBase64(file, (base64Url) => {
+      setGallery((prev) =>
+        prev.map((g) => (g.id === id ? { ...g, url: base64Url } : g))
+      );
+    });
+
+    return item;
+  }, []);
+
+  const handleGenerate = useCallback(async (prompt, activeZone) => {
+    if (!prompt.trim()) {
+      setGenError("Please enter a prompt.");
+      return null;
+    }
+
+    const isGuest = !getUserId();
+    if (isGuest && getGuestGenCount() >= GUEST_LIMIT) {
+      setGenError(
+        "Guests are limited to 3 AI generations. Please sign up to continue.",
+      );
+      return null;
+    }
+
+    setGenerating(true);
+    setGenError("");
+
+    try {
+      // Purely prompt for the graphic design without item context to avoid confusing the AI
+      const fullPrompt = `${prompt.trim()}, flat graphic design, transparent background, high quality`;
+
+      const userId = getUserId();
+      const res = await fetch(buildApiUrl("/api/builder/generate-image"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(userId ? { "X-User-Id": String(userId) } : {}),
+        },
+        body: JSON.stringify({ prompt: fullPrompt, imageSize: "square_hd" }),
+      });
+      const data = await res.json();
+      if (res.status === 429) {
+        setGenError(data.message || "Please wait before generating again.");
+        return null;
+      }
+      if (!res.ok) throw new Error(data.message || "Generation failed");
+
+      const imageUrl = data.imageUrl || data.url;
+      if (!imageUrl) throw new Error("No image returned. Please try again.");
+
+      if (isGuest) {
+        incrementGuestGenCount();
+        saveGuestDesign({
+          id: `gen-${Date.now()}`,
+          imageUrl,
+          prompt: prompt.trim(),
+          productLabel,
+          generatedAt: new Date().toISOString(),
+        });
+      }
+
+      const id = `gen-${Date.now()}`;
+      const item = {
+        id,
+        url: imageUrl,
+        label: prompt.trim().slice(0, 30),
+      };
+      setGallery((prev) => [...prev, item]);
+      setSelectedGalleryId(id);
+      return item;
+    } catch (err) {
+      setGenError(err.message || "Something went wrong. Please try again.");
+      return null;
+    } finally {
+      setGenerating(false);
+    }
+  }, [productLabel]);
+
+  const uploadUsedImages = useCallback(async (zoneDesigns) => {
+    setUploading(true);
+    setUploadError("");
+
+    const userId = getUserId();
+    const updatedZones = { ...zoneDesigns };
+
+    try {
+      for (const [zoneId, zoneData] of Object.entries(updatedZones)) {
+        if (!zoneData?.imageUrl) continue;
+
+        if (zoneData.imageUrl.startsWith("blob:")) {
+          const galleryItem = gallery.find((g) => g.url === zoneData.imageUrl);
+          if (!galleryItem?.file) continue;
+
+          const formData = new FormData();
+          formData.append("file", galleryItem.file);
+
+          const res = await fetch(buildApiUrl("/api/builder/upload"), {
+            method: "POST",
+            headers: userId ? { "X-User-Id": String(userId) } : {},
+            body: formData,
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || "Upload failed");
+
+          updatedZones[zoneId] = {
+            ...zoneData,
+            imageUrl: data.url,
+          };
+        } else if (
+          userId &&
+          (zoneData.imageUrl.includes("pollinations.ai") ||
+            zoneData.imageUrl.includes("fal.run") ||
+            zoneData.imageUrl.includes("fal.media"))
+        ) {
+          // Late upload of remote AI generated design to Supabase (non-fatal fallback)
+          try {
+            const res = await fetch(buildApiUrl("/api/builder/upload-url"), {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-User-Id": String(userId),
+              },
+              body: JSON.stringify({ imageUrl: zoneData.imageUrl }),
+            });
+            const data = await res.json();
+
+            if (res.ok && data.url) {
+              updatedZones[zoneId] = {
+                ...zoneData,
+                imageUrl: data.url,
+              };
+            } else {
+              console.warn(
+                "Supabase late upload failed (non-fatal):",
+                data.message
+              );
+            }
+          } catch (uploadErr) {
+            console.warn(
+              "Supabase late upload failed (non-fatal):",
+              uploadErr.message
+            );
+          }
+        }
+      }
+      return updatedZones;
+    } catch (err) {
+      setUploadError(err.message || "Upload failed. Please try again.");
+      throw err;
+    } finally {
+      setUploading(false);
+    }
+  }, [gallery]);
+
+  return {
+    gallery,
+    setGallery,
+    selectedGalleryId,
+    setSelectedGalleryId,
+    uploading,
+    uploadError,
+    setUploadError,
+    generating,
+    genError,
+    setGenError,
+    handleFileChange,
+    handleGenerate,
+    uploadUsedImages,
+  };
+}
