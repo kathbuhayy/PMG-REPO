@@ -21,35 +21,35 @@ const OAUTH_REFRESH_TOKEN = process.env.OAUTH_REFRESH_TOKEN?.trim();
 const useOAuth2 =
   OAUTH_CLIENT_ID && OAUTH_CLIENT_SECRET && OAUTH_REFRESH_TOKEN;
 
-if (SMTP_ENABLED && EMAIL_USER && (useOAuth2 || EMAIL_PASS)) {
-  const authConfig = useOAuth2
-    ? {
-        type: "OAuth2",
-        user: EMAIL_USER,
-        clientId: OAUTH_CLIENT_ID,
-        clientSecret: OAUTH_CLIENT_SECRET,
-        refreshToken: OAUTH_REFRESH_TOKEN,
-      }
-    : {
+if (SMTP_ENABLED && EMAIL_USER) {
+  if (useOAuth2) {
+    console.log("✅ Gmail OAuth2 API ready (sends via HTTPS REST API)");
+  } else if (EMAIL_PASS) {
+    transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
         user: EMAIL_USER,
         pass: EMAIL_PASS,
-      };
+      },
+    });
 
-  transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: authConfig,
-  });
-
-  transporter.verify((err, success) => {
-    if (err) console.log("Email transporter verify failed:", err);
-    else console.log("Email transporter ready:", success);
-  });
+    transporter.verify((err, success) => {
+      if (err) console.log("Email transporter verify failed:", err);
+      else console.log("Email transporter ready:", success);
+    });
+  } else {
+    console.log(
+      "SMTP disabled or missing EMAIL_PASS/OAuth2 credentials. " +
+        "OTP will be logged to console (dev mode)."
+    );
+  }
 } else {
   console.log(
-    "SMTP disabled or missing EMAIL_USER/EMAIL_PASS/OAuth2 credentials. " +
+    "SMTP disabled or missing EMAIL_USER. " +
       "OTP will be logged to console (dev mode)."
   );
 }
+
 
 
 // Saves an OTP code and expiration metadata for a specific email.
@@ -137,7 +137,73 @@ function renderBaseEmailTemplate({ title, category, contentHtml }) {
   );
 }
 
-// Sends an email using nodemailer or logs to console if in development.
+// Exchanges the Google OAuth2 refresh token for a fresh access token.
+async function getAccessToken() {
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: OAUTH_CLIENT_ID,
+      client_secret: OAUTH_CLIENT_SECRET,
+      refresh_token: OAUTH_REFRESH_TOKEN,
+      grant_type: "refresh_token",
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error_description || data.error);
+  }
+
+  return data.access_token;
+}
+
+// Sends an email using the Gmail REST API over HTTPS port 443.
+async function sendGmailApiEmail({ to, subject, text, html }) {
+  const accessToken = await getAccessToken();
+
+  const mimeParts = [
+    `From: ${EMAIL_USER}`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    "Mime-Version: 1.0",
+    "Content-Type: text/html; charset=utf-8",
+    "Content-Transfer-Encoding: 7bit",
+    "",
+    html || text,
+  ];
+
+  const mime = mimeParts.join("\r\n");
+
+  const raw = Buffer.from(mime)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  const response = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ raw }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.error?.message || "Failed to send email");
+  }
+
+  return result;
+}
+
+// Sends an email using nodemailer or Gmail REST API, or logs to console.
 async function sendSystemEmail({ to, subject, text, html }) {
   const emojiPattern =
     "[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}" +
@@ -149,26 +215,35 @@ async function sendSystemEmail({ to, subject, text, html }) {
     to,
     subject: cleanSubject,
     body: text,
-    status: transporter ? "queued" : "mock",
+    status: transporter || useOAuth2 ? "queued" : "mock",
   };
 
   if (!to) {
     return { ...payload, status: "skipped", reason: "missing recipient" };
   }
 
-  if (!transporter) {
+  if (!transporter && !useOAuth2) {
     console.log(`System email mock to ${to}: ${cleanSubject}`);
     return payload;
   }
 
   try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to,
-      subject: cleanSubject,
-      text,
-      html,
-    });
+    if (useOAuth2) {
+      await sendGmailApiEmail({
+        to,
+        subject: cleanSubject,
+        text,
+        html,
+      });
+    } else {
+      await transporter.sendMail({
+        from: EMAIL_USER,
+        to,
+        subject: cleanSubject,
+        text,
+        html,
+      });
+    }
 
     return { ...payload, status: "sent" };
   } catch (err) {
