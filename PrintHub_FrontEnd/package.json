@@ -29,7 +29,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "set CI=false&& react-scripts build",
+    "build": "cross-env CI=false react-scripts build",
     "test": "react-scripts test",
     "test:e2e": "playwright test",
     "eject": "react-scripts eject"
@@ -53,6 +53,7 @@
     ]
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1"
+    "@playwright/test": "^1.61.1",
+    "cross-env": "^10.1.0"
   }
 }
