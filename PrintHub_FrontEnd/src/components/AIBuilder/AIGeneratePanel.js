@@ -15,9 +15,20 @@ export default function AIGeneratePanel({
   generating,
   genError,
   setGenError,
+  prompt: propPrompt,
+  onPromptChange,
+  lastPrompt: propLastPrompt,
+  onLastPromptChange,
 }) {
-  const [prompt, setPrompt] = useState("");
-  const [lastPrompt, setLastPrompt] = useState("");
+  const [localPrompt, setLocalPrompt] = useState("");
+  const [localLastPrompt, setLocalLastPrompt] = useState("");
+
+  const prompt = propPrompt !== undefined ? propPrompt : localPrompt;
+  const setPrompt = onPromptChange || setLocalPrompt;
+
+  const lastPrompt =
+    propLastPrompt !== undefined ? propLastPrompt : localLastPrompt;
+  const setLastPrompt = onLastPromptChange || setLocalLastPrompt;
 
   /**
    * Triggers the AI generation handler and appends the resulting image

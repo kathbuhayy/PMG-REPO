@@ -210,24 +210,20 @@ function Header() {
           {cartCount > 0 && <span className="uh-cart-badge">{cartCount}</span>}
         </button>
 
-        {!isLoggedIn && (
-          <>
-            <button
-              className="uh-link uh-desktop-only"
-              type="button"
-              onClick={() => goToLandingSection("about")}
-            >
-              About
-            </button>
-            <button
-              className="uh-link uh-desktop-only"
-              type="button"
-              onClick={() => goToLandingSection("contact")}
-            >
-              Contact
-            </button>
-          </>
-        )}
+        <button
+          className="uh-link uh-desktop-only"
+          type="button"
+          onClick={() => goToLandingSection("about")}
+        >
+          About
+        </button>
+        <button
+          className="uh-link uh-desktop-only"
+          type="button"
+          onClick={() => goToLandingSection("contact")}
+        >
+          Contact
+        </button>
 
         <button
           className="uh-icon-btn uh-mobile-only"
@@ -404,30 +400,26 @@ function Header() {
               >
                 Orders
               </button>
-              {!isLoggedIn && (
-                <>
-                  <button
-                    className="uh-mobile-item"
-                    type="button"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      goToLandingSection("about");
-                    }}
-                  >
-                    About
-                  </button>
-                  <button
-                    className="uh-mobile-item"
-                    type="button"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      goToLandingSection("contact");
-                    }}
-                  >
-                    Contact
-                  </button>
-                </>
-              )}
+              <button
+                className="uh-mobile-item"
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  goToLandingSection("about");
+                }}
+              >
+                About
+              </button>
+              <button
+                className="uh-mobile-item"
+                type="button"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  goToLandingSection("contact");
+                }}
+              >
+                Contact
+              </button>
             </div>
           )}
         </div>
