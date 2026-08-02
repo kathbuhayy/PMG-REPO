@@ -83,6 +83,7 @@ function UserCartPage() {
     }
 
     setEditQtyMap(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartItems]);
 
   const toggleSelection = (id) => {

@@ -1872,7 +1872,10 @@
 }
 
 .pd-customizer-page-header {
-  padding: 12px 20px;
+  position: relative;
+  z-index: 1000;
+  pointer-events: auto !important;
+  padding: 14px 24px;
   background: #ffffff !important;
   background-image: none !important;
   box-shadow: none !important;
@@ -1890,22 +1893,22 @@
 }
 
 .pd-customizer-back-btn {
-  background: #ffffff !important;
-  color: var(--text) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 50% !important;
-  padding: 8px 16px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 13px;
   font-weight: 700;
-  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
+  pointer-events: auto !important;
 }
 
 .pd-customizer-back-btn:hover {
-  background: var(--panel-soft) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-  transform: translateY(-1px);
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
 }
 
 .pd-customizer-page-header h2 {
@@ -2570,7 +2573,6 @@ body.embed-mode .navbar,
 body.embed-mode .po-top,
 body.embed-mode .app-header,
 body.embed-mode footer,
-body.embed-mode .pd-customizer-page-header,
 body.embed-mode .login-modal-overlay,
 body.embed-mode .phc-fab,
 body.embed-mode .phc-window,
@@ -2672,55 +2674,12 @@ body.embed-mode .printhub-chatbot-btn {
   background: #ffffff !important;
 }
 
-.pd-customizer-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
-  background: #ffffff !important;
-  background-image: none !important;
-  border-bottom: 1px solid #e2e8f0;
-  box-shadow: none !important;
-}
-
-.pd-customizer-header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.pd-customizer-header-left h2 {
-  font-size: 18px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0;
-}
-
-.pd-customizer-back-btn {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.pd-customizer-back-btn:hover {
-  background: #0f172a;
-  color: #ffffff;
-  border-color: #0f172a;
-}
-
-
 @media (max-width: 768px) {
   .pd-customizer-page-header {
     padding: 12px 14px;
   }
 
-  .pd-customizer-header-left h2 {
+  .pd-customizer-page-header h2 {
     font-size: 15px;
   }
 
@@ -2739,60 +2698,7 @@ body.embed-mode .printhub-chatbot-btn {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.tsc-use-btn-header {
-  padding: 10px 24px !important;
-  background: #10b981 !important;
-  color: #ffffff !important;
-  border: none !important;
-  border-radius: 50px !important;
-  font-size: 13.5px !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.6px !important;
-  cursor: pointer !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 8px !important;
-  box-shadow: none !important;
-  transition: all 0.2s ease !important;
-  text-transform: uppercase !important;
-  outline: none !important;
-}
-
-.tsc-use-btn-header:hover:not(:disabled) {
-  background: #059669 !important;
-  transform: translateY(-1px) !important;
-}
-
-.tsc-use-btn-header:active:not(:disabled) {
-  transform: translateY(0) !important;
-}
-
-.tsc-use-btn-header:disabled {
-  background: #e2e8f0 !important;
-  color: #94a3b8 !important;
-  box-shadow: none !important;
-  cursor: not-allowed !important;
-  transform: none !important;
-}
-
-.tsc-clear-btn {
-  padding: 8px 18px !important;
-  background: #f1f5f9 !important;
-  color: #64748b !important;
-  border: 1px solid #cbd5e1 !important;
-  border-radius: 50px !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  outline: none !important;
-}
-
-.tsc-clear-btn:hover {
-  background: #fee2e2 !important;
-  color: #ef4444 !important;
-  border-color: #fca5a5 !important;
+  position: relative;
+  z-index: 1001;
+  pointer-events: auto !important;
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./User-password-security.css";
-import { FaArrowLeft, FaLock, FaShieldAlt } from "react-icons/fa";
+import { FaLock, FaShieldAlt } from "react-icons/fa";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { buildApiUrl } from "../config/api";
 

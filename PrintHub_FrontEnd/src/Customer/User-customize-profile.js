@@ -57,7 +57,7 @@ function UserCustomizeProfile() {
     message: "",
   });
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [avatarError, setAvatarError] = useState("");
+  const [, setAvatarError] = useState("");
   const [avatarPreview, setAvatarPreview] = useState("");
 
   const [showDiscardModal, setShowDiscardModal] = useState(false);
@@ -184,6 +184,7 @@ function UserCustomizeProfile() {
       .catch((err) => {
         console.error("Failed to load user profile statistics:", err);
       });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRegionChange = async (regionName) => {
@@ -418,16 +419,7 @@ function UserCustomizeProfile() {
     setAvatarPreview(initialForm.avatar_url || ""); // Reset avatar preview to original
   };
 
-  const handleBackOrCancel = () => {
-    if (isEditing && isDirty) {
-      setShowDiscardModal(true);
-    } else if (isEditing && !isDirty) {
-      setIsEditing(false);
-      setForm(initialForm);
-    } else {
-      navigate(-1);
-    }
-  };
+
 
   return (
     <div className="ucp-adminlike-page fade-in-up">

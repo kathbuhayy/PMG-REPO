@@ -20,8 +20,6 @@ import {
   FaMoneyBillWave,
   FaUserPlus,
   FaShoppingBag,
-  FaChartLine,
-  FaCog,
   FaPlus,
   FaCheckCircle,
   FaExclamationTriangle,
@@ -185,7 +183,7 @@ function AdminDashboard() {
     pendingOrders: 0,
     totalUsers: 0,
   });
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [, setStatsLoading] = useState(true);
   // Low stock state
   const [lowStock, setLowStock] = useState({ products: [], pagination: {} });
   const [outOfStockCount, setOutOfStockCount] = useState(0);
@@ -193,11 +191,11 @@ function AdminDashboard() {
   const [lowStockFilter, setLowStockFilter] = useState(null);
 
   // Out of stock state
-  const [outOfStock, setOutOfStock] = useState({
+  const [, setOutOfStock] = useState({
     products: [],
     pagination: {},
   });
-  const [outOfStockLoading, setOutOfStockLoading] = useState(true);
+  const [, setOutOfStockLoading] = useState(true);
 
   // ✅ close mobile sidebar if resized to desktop
   useEffect(() => {

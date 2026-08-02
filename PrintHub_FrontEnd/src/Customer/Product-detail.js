@@ -1,12 +1,22 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { FaCheckCircle, FaMagic } from "react-icons/fa";
 import "./Product-detail.css";
 import { getProductCategory } from "../config/categoryDefaults";
 import { useCart } from "../hooks/useCart";
 import { extractNumericPrice, formatPrice } from "../utils/appUtils";
 import { buildApiUrl } from "../config/api";
-import AIBuilderPanel from "../components/AIBuilder/AIBuilderPanel";
 import TshirtCustomizerPanel from "../components/TshirtCustomizer/TshirtCustomizerPanel";
 import NotebookCustomizerPanel from "../components/NotebookCustomizer/NotebookCustomizerPanel";
 import BusinessCardCustomizerPanel from "../components/BusinessCardCustomizer/BusinessCardCustomizerPanel";
@@ -20,7 +30,6 @@ import ThankYouCardCustomizerPanel from "../components/ThankYouCardCustomizer/Th
 import StickerCustomizerPanel from "../components/StickerCustomizer/StickerCustomizerPanel";
 import HangTagCustomizerPanel from "../components/HangTagCustomizer/HangTagCustomizerPanel";
 import TarpaulinCustomizerPanel from "../components/TarpaulinCustomizer/TarpaulinCustomizerPanel";
-import FlatCustomizerPanel from "../components/FlatCustomizer/FlatCustomizerPanel";
 import AppModal from "../components/AppModal";
 
 const RECENTLY_VIEWED_KEY = "printhub_recently_viewed_products";
@@ -202,10 +211,9 @@ function mapApiProduct(data) {
     category: data.category,
     name: data.name,
   });
-  const printZones =
-    data.print_zones?.length > 0
-      ? data.print_zones
-      : getDefaultPrintZones(dbCategory);
+  const printZones = Array.isArray(data.print_zones)
+    ? data.print_zones
+    : getDefaultPrintZones(dbCategory);
 
   return {
     id: data.id,
@@ -216,9 +224,7 @@ function mapApiProduct(data) {
     images: data.images || [],
     gallery: data.images?.length > 0 ? data.images : [],
     price: data.price,
-    sizes: (data.size_options || []).filter(
-      (s) => !/contact\s*us/i.test(s)
-    ),
+    sizes: (data.size_options || []).filter((s) => !/contact\s*us/i.test(s)),
     materials: parseOptions(data.material_options),
     sides: data.side_options || [],
     finishing: data.finishing_options || [],
@@ -234,6 +240,23 @@ function mapApiProduct(data) {
     stock: data.stock !== undefined ? Number(data.stock) : 0,
   };
 }
+
+const getSessionValue = (id, key, fallback) => {
+  try {
+    const saved = sessionStorage.getItem(`pd_${id}_${key}`);
+    return saved ? JSON.parse(saved) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const setSessionValue = (id, key, value) => {
+  try {
+    sessionStorage.setItem(`pd_${id}_${key}`, JSON.stringify(value));
+  } catch (e) {
+    console.warn("sessionStorage failed", e);
+  }
+};
 
 function ProductDetail() {
   const navigate = useNavigate();
@@ -265,23 +288,37 @@ function ProductDetail() {
   const [selectedImage, setSelectedImage] = useState(
     product?.gallery?.[0] || "",
   );
-  const [selectedSize, setSelectedSize] = useState(product?.sizes?.[0] || "");
-  const [selectedMaterial, setSelectedMaterial] = useState(
-    product?.materials?.[0] || null,
+  const [selectedSize, setSelectedSize] = useState(() =>
+    getSessionValue(id, "selectedSize", product?.sizes?.[0] || ""),
   );
-  const [selectedSide, setSelectedSide] = useState(product?.sides?.[0] || "");
-  const [selectedFinish, setSelectedFinish] = useState(
-    product?.finishing?.[0] || "",
+  const [selectedMaterial, setSelectedMaterial] = useState(() =>
+    getSessionValue(id, "selectedMaterial", product?.materials?.[0] || null),
   );
-  const [selectedQty, setSelectedQty] = useState(
-    product?.quantities?.[0] || null,
+  const [selectedSide, setSelectedSide] = useState(() =>
+    getSessionValue(id, "selectedSide", product?.sides?.[0] || ""),
   );
-  const [selectedColor, setSelectedColor] = useState(
-    product?.colors?.[0] || "",
+  const [selectedFinish, setSelectedFinish] = useState(() =>
+    getSessionValue(id, "selectedFinish", product?.finishing?.[0] || ""),
   );
-  const [customQty, setCustomQty] = useState("");
+  const [selectedQty, setSelectedQty] = useState(() =>
+    getSessionValue(id, "selectedQty", null),
+  );
+  const [selectedColor, setSelectedColor] = useState(() =>
+    getSessionValue(id, "selectedColor", product?.colors?.[0] || ""),
+  );
+  const [customQty, setCustomQty] = useState(() =>
+    getSessionValue(id, "customQty", ""),
+  );
   const [searchParams] = useSearchParams();
-  const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
+  const location = useLocation();
+  const isCustomizerOpen = location.pathname.endsWith("/customize");
+
+  const getBackUrl = () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("customizer");
+    const searchStr = params.toString();
+    return `/product/${id}${searchStr ? `?${searchStr}` : ""}`;
+  };
 
   const isJerseyProduct = useMemo(() => {
     return String(product?.dbCategory || product?.title || "")
@@ -305,34 +342,53 @@ function ProductDetail() {
 
   useEffect(() => {
     if (!product) return;
-    const isCustomizerRequested =
-      searchParams.get("customizer") === "true" ||
-      searchParams.get("embed") === "true";
-
-    if (isCustomizerRequested) {
-      setIsCustomizerOpen(true);
-
-      const sizeParam = searchParams.get("size");
-      if (sizeParam) setSelectedSize(sizeParam);
-
-      const materialParam = searchParams.get("material");
-      if (materialParam && product.materials) {
-        const matched = product.materials.find(
-          (m) => (m.label || m) === materialParam,
-        );
-        if (matched) setSelectedMaterial(matched);
-      }
-
-      const sideParam = searchParams.get("side");
-      if (sideParam) setSelectedSide(sideParam);
-
-      const finishParam = searchParams.get("finishing");
-      if (finishParam) setSelectedFinish(finishParam);
-
-      const colorParam = searchParams.get("color");
-      if (colorParam) setSelectedColor(colorParam);
+    const hasCust = searchParams.get("customizer") === "true";
+    const isCustomizePath = location.pathname.endsWith("/customize");
+    if (hasCust && !isCustomizePath) {
+      navigate(
+        {
+          pathname: `/product/${id}/customize`,
+          search: searchParams.toString(),
+        },
+        { replace: true },
+      );
     }
-  }, [product, searchParams]);
+
+    const sizeParam = searchParams.get("size");
+    if (sizeParam) {
+      setSelectedSize(sizeParam);
+      setSessionValue(id, "selectedSize", sizeParam);
+    }
+
+    const materialParam = searchParams.get("material");
+    if (materialParam && product.materials) {
+      const matched = product.materials.find(
+        (m) => (m.label || m) === materialParam,
+      );
+      if (matched) {
+        setSelectedMaterial(matched);
+        setSessionValue(id, "selectedMaterial", matched);
+      }
+    }
+
+    const sideParam = searchParams.get("side");
+    if (sideParam) {
+      setSelectedSide(sideParam);
+      setSessionValue(id, "selectedSide", sideParam);
+    }
+
+    const finishParam = searchParams.get("finishing");
+    if (finishParam) {
+      setSelectedFinish(finishParam);
+      setSessionValue(id, "selectedFinish", finishParam);
+    }
+
+    const colorParam = searchParams.get("color");
+    if (colorParam) {
+      setSelectedColor(colorParam);
+      setSessionValue(id, "selectedColor", colorParam);
+    }
+  }, [product, searchParams, id, location.pathname, navigate]);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [isSpecsOpen, setIsSpecsOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -343,15 +399,16 @@ function ProductDetail() {
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [noticeModal, setNoticeModal] = useState(null);
   const [showOosConfirmModal, setShowOosConfirmModal] = useState(false);
+  const [showNoDesignConfirmModal, setShowNoDesignConfirmModal] =
+    useState(false);
 
   // AI Builder
   const [activeDesign, setActiveDesign] = useState(null); // designMeta | null
 
-  // WIP Customizer state persistence (survives page refresh)
   const [customizerWip, setCustomizerWip] = useState(() => {
-    if (!product?.id) return null;
+    if (!id) return null;
     try {
-      const saved = localStorage.getItem(`customizer_wip_${product.id}`);
+      const saved = sessionStorage.getItem(`customizer_wip_${id}`);
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -360,43 +417,46 @@ function ProductDetail() {
 
   // Sync state if product ID changes
   useEffect(() => {
-    if (!product?.id) return;
+    if (!id) return;
     try {
-      const saved = localStorage.getItem(`customizer_wip_${product.id}`);
+      const saved = sessionStorage.getItem(`customizer_wip_${id}`);
       setCustomizerWip(saved ? JSON.parse(saved) : null);
     } catch {
       setCustomizerWip(null);
     }
-  }, [product?.id]);
+  }, [id]);
 
   // Handle sync updates of customizer WIP
-  const handleWipChange = (wip) => {
-    if (!product?.id) return;
-    setCustomizerWip(wip);
-    try {
-      if (wip) {
-        localStorage.setItem(
-          `customizer_wip_${product.id}`,
-          JSON.stringify(wip)
-        );
-      } else {
-        localStorage.removeItem(`customizer_wip_${product.id}`);
+  const handleWipChange = useCallback(
+    (wip) => {
+      if (!product?.id) return;
+      setCustomizerWip(wip);
+      try {
+        if (wip) {
+          sessionStorage.setItem(
+            `customizer_wip_${product.id}`,
+            JSON.stringify(wip),
+          );
+        } else {
+          sessionStorage.removeItem(`customizer_wip_${product.id}`);
+        }
+      } catch (e) {
+        console.warn("Could not save WIP to session storage", e);
       }
-    } catch (e) {
-      console.warn("Could not save WIP to local storage", e);
-    }
-  };
+    },
+    [product?.id],
+  );
 
   // Helper to clear the customizer WIP state for the current product
-  const clearWip = () => {
+  const clearWip = useCallback(() => {
     if (!product?.id) return;
     setCustomizerWip(null);
     try {
-      localStorage.removeItem(`customizer_wip_${product.id}`);
+      sessionStorage.removeItem(`customizer_wip_${product.id}`);
     } catch (e) {
-      console.warn("Could not clear WIP from local storage", e);
+      console.warn("Could not clear WIP from session storage", e);
     }
-  };
+  }, [product?.id]);
   const CustomizerPanel = useMemo(() => {
     return getCustomizerPanel(product?.dbCategory);
   }, [product?.dbCategory]);
@@ -464,13 +524,37 @@ function ProductDetail() {
     if (!product) return;
 
     setSelectedImage(product.gallery?.[0] || "");
-    setSelectedSize(product.sizes?.[0] || "");
-    setSelectedMaterial(product.materials?.[0] || null);
-    setSelectedSide(displaySides?.[0] || "");
-    setSelectedColor(product.colors?.[0] || "");
-    setSelectedFinish(product.finishing?.[0] || "");
-    setSelectedQty(product.quantities?.[0] || null);
-    setCustomQty("");
+
+    const savedSize = getSessionValue(id, "selectedSize", null);
+    setSelectedSize(savedSize !== null ? savedSize : product.sizes?.[0] || "");
+
+    const savedMat = getSessionValue(id, "selectedMaterial", null);
+    setSelectedMaterial(
+      savedMat !== null ? savedMat : product.materials?.[0] || null,
+    );
+
+    const savedSide = getSessionValue(id, "selectedSide", null);
+    setSelectedSide(savedSide !== null ? savedSide : displaySides?.[0] || "");
+
+    const savedColor = getSessionValue(id, "selectedColor", null);
+    setSelectedColor(
+      savedColor !== null ? savedColor : product.colors?.[0] || "",
+    );
+
+    const savedFinish = getSessionValue(id, "selectedFinish", null);
+    setSelectedFinish(
+      savedFinish !== null ? savedFinish : product.finishing?.[0] || "",
+    );
+
+    const savedQty = getSessionValue(id, "selectedQty", null);
+    setSelectedQty(savedQty);
+
+    const savedCustomQty = getSessionValue(id, "customQty", null);
+    setCustomQty(savedCustomQty !== null ? savedCustomQty : "");
+
+    const savedDesign = getSessionValue(id, "activeDesign", null);
+    setActiveDesign(savedDesign !== null ? savedDesign : null);
+
     setCustomSizeSelected(false);
 
     setQuoteForm({
@@ -489,7 +573,7 @@ function ProductDetail() {
       processing: product.processing?.[0] || "",
       other: "",
     });
-  }, [product, displaySides]);
+  }, [product, displaySides, id]);
 
   useEffect(() => {
     if (!product?.id) return;
@@ -547,8 +631,8 @@ function ProductDetail() {
   );
 
   const grandTotal = useMemo(
-    () => quantityPrice + materialSurcharge,
-    [quantityPrice, materialSurcharge],
+    () => (selectedQty ? quantityPrice + materialSurcharge : 0),
+    [selectedQty, quantityPrice, materialSurcharge],
   );
 
   const selectedSideLower = String(selectedSide || "").toLowerCase();
@@ -589,7 +673,6 @@ function ProductDetail() {
     },
     { label: "Finalize Order", complete: Boolean(selectedQty || customQty) },
   ];
-  const completedSteps = progressSteps.filter((step) => step.complete).length;
 
   useEffect(() => {
     if (!product?.gallery?.length) return;
@@ -703,6 +786,21 @@ function ProductDetail() {
     setTimeout(() => {
       setSuccessMessage("");
     }, 2000);
+
+    try {
+      sessionStorage.removeItem(`pd_${id}_selectedSize`);
+      sessionStorage.removeItem(`pd_${id}_selectedMaterial`);
+      sessionStorage.removeItem(`pd_${id}_selectedSide`);
+      sessionStorage.removeItem(`pd_${id}_selectedFinish`);
+      sessionStorage.removeItem(`pd_${id}_selectedColor`);
+      sessionStorage.removeItem(`pd_${id}_selectedQty`);
+      sessionStorage.removeItem(`pd_${id}_customQty`);
+      sessionStorage.removeItem(`pd_${id}_activeDesign`);
+    } catch (e) {
+      console.warn("Failed to clear sessionStorage on addToCart", e);
+    }
+    setActiveDesign(null);
+    clearWip();
   };
 
   const handleAddToCart = () => {
@@ -717,6 +815,13 @@ function ProductDetail() {
 
     if (product.stock === 0) {
       setShowOosConfirmModal(true);
+      return;
+    }
+
+    // Cart guard: warn if always-printed product has no design filled
+    const hasPrintZones = product.print_zones?.length > 0;
+    if (hasPrintZones && !activeDesign) {
+      setShowNoDesignConfirmModal(true);
       return;
     }
 
@@ -752,7 +857,7 @@ function ProductDetail() {
             <button
               type="button"
               className="pd-customizer-back-btn"
-              onClick={() => setIsCustomizerOpen(false)}
+              onClick={() => navigate(getBackUrl())}
             >
               ←
             </button>
@@ -768,18 +873,30 @@ function ProductDetail() {
             product={filteredProductForCustomizer || product}
             activeDesign={activeDesign}
             selectedSize={selectedSize}
-            onSizeChange={setSelectedSize}
+            onSizeChange={(val) => {
+              setSelectedSize(val);
+              setSessionValue(id, "selectedSize", val);
+            }}
             selectedMaterial={selectedMaterial}
-            onMaterialChange={setSelectedMaterial}
+            onMaterialChange={(val) => {
+              setSelectedMaterial(val);
+              setSessionValue(id, "selectedMaterial", val);
+            }}
             selectedSide={selectedSide}
-            onSideChange={setSelectedSide}
+            onSideChange={(val) => {
+              setSelectedSide(val);
+              setSessionValue(id, "selectedSide", val);
+            }}
             selectedFinish={selectedFinish}
-            onFinishChange={setSelectedFinish}
+            onFinishChange={(val) => {
+              setSelectedFinish(val);
+              setSessionValue(id, "selectedFinish", val);
+            }}
             initialWip={customizerWip}
             onWipChange={handleWipChange}
             onDesignReady={(meta) => {
               setActiveDesign(meta);
-              setIsCustomizerOpen(false);
+              setSessionValue(id, "activeDesign", meta);
               clearWip();
 
               // Notify React Native WebView if embedded in mobile app
@@ -792,7 +909,7 @@ function ProductDetail() {
                 );
               }
 
-              // Auto-select the corresponding side option based on customized zones
+              // Auto-select corresponding side based on customized zones
               if (meta?.zones && Object.keys(meta.zones).length > 0) {
                 const activeZoneIds = Object.entries(meta.zones)
                   .filter(([_, z]) => z?.imageUrl)
@@ -814,6 +931,7 @@ function ProductDetail() {
                     );
                     if (matchedSide) {
                       setSelectedSide(matchedSide);
+                      setSessionValue(id, "selectedSide", matchedSide);
                     }
                   } else {
                     const hasFront = activeZoneIds.includes("front");
@@ -828,14 +946,20 @@ function ProductDetail() {
                           s.toLowerCase().includes("360") ||
                           s.toLowerCase().includes("double"),
                       );
-                      if (bothSide) setSelectedSide(bothSide);
+                      if (bothSide) {
+                        setSelectedSide(bothSide);
+                        setSessionValue(id, "selectedSide", bothSide);
+                      }
                     }
                   }
                 }
               }
+
+              navigate(getBackUrl());
             }}
             onClear={() => {
               setActiveDesign(null);
+              setSessionValue(id, "activeDesign", null);
               clearWip();
             }}
           />
@@ -952,6 +1076,46 @@ function ProductDetail() {
           <div className="pd-right-col">
             <div className="pd-info-header">
               <h1>{product.title}</h1>
+
+              {/* Print tier badge — plain vs. printed indicator */}
+              {product.print_zones?.length === 0 ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    background: "rgba(100,100,100,0.12)",
+                    color: "#555",
+                    fontWeight: "600",
+                    fontSize: "12px",
+                    padding: "4px 12px",
+                    borderRadius: "20px",
+                    marginBottom: "8px",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  ✦ Plain / Undecorated
+                </span>
+              ) : product.print_zones?.length > 0 ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    background: "rgba(14,165,233,0.13)",
+                    color: "#0369a1",
+                    fontWeight: "600",
+                    fontSize: "12px",
+                    padding: "4px 12px",
+                    borderRadius: "20px",
+                    marginBottom: "8px",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  Includes Custom Print
+                </span>
+              ) : null}
+
               <div className="pd-perk-badges">
                 <span className="pd-perk-badge">Premium Quality</span>
                 <span className="pd-perk-badge">Fade Resistant</span>
@@ -1042,6 +1206,7 @@ function ProductDetail() {
                   value={selectedSize}
                   onChange={(e) => {
                     setSelectedSize(e.target.value);
+                    setSessionValue(id, "selectedSize", e.target.value);
                     setCustomSizeSelected(false);
                   }}
                 >
@@ -1071,7 +1236,10 @@ function ProductDetail() {
                         const mat = product.materials.find(
                           (m) => m.label === e.target.value,
                         );
-                        if (mat) setSelectedMaterial(mat);
+                        if (mat) {
+                          setSelectedMaterial(mat);
+                          setSessionValue(id, "selectedMaterial", mat);
+                        }
                       }}
                     >
                       {product.materials.map((material) => (
@@ -1101,7 +1269,9 @@ function ProductDetail() {
                       value={selectedSide}
                       onChange={(e) => {
                         setSelectedSide(e.target.value);
+                        setSessionValue(id, "selectedSide", e.target.value);
                         setActiveDesign(null);
+                        setSessionValue(id, "activeDesign", null);
                         clearWip();
                       }}
                     >
@@ -1125,7 +1295,10 @@ function ProductDetail() {
                       id="pd-finish-select"
                       className="pd-select-control"
                       value={selectedFinish}
-                      onChange={(e) => setSelectedFinish(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedFinish(e.target.value);
+                        setSessionValue(id, "selectedFinish", e.target.value);
+                      }}
                     >
                       {product.finishing.map((finish) => (
                         <option key={finish} value={finish}>
@@ -1148,7 +1321,10 @@ function ProductDetail() {
                         id="pd-color-select"
                         className="pd-select-control"
                         value={selectedColor}
-                        onChange={(e) => setSelectedColor(e.target.value)}
+                        onChange={(e) => {
+                          setSelectedColor(e.target.value);
+                          setSessionValue(id, "selectedColor", e.target.value);
+                        }}
                       >
                         {product.colors.map((color) => (
                           <option key={color} value={color}>
@@ -1195,7 +1371,9 @@ function ProductDetail() {
                               <button
                                 type="button"
                                 className="pd-design-edit-btn"
-                                onClick={() => setIsCustomizerOpen(true)}
+                                onClick={() =>
+                                  navigate(`/product/${id}/customize`)
+                                }
                               >
                                 Edit
                               </button>
@@ -1204,6 +1382,7 @@ function ProductDetail() {
                                 className="pd-design-remove-btn"
                                 onClick={() => {
                                   setActiveDesign(null);
+                                  setSessionValue(id, "activeDesign", null);
                                   clearWip();
                                 }}
                               >
@@ -1216,7 +1395,7 @@ function ProductDetail() {
                         <button
                           type="button"
                           className="pd-btn-open-modal-customizer"
-                          onClick={() => setIsCustomizerOpen(true)}
+                          onClick={() => navigate(`/product/${id}/customize`)}
                         >
                           Design Your Own / Customize...
                         </button>
@@ -1237,8 +1416,13 @@ function ProductDetail() {
                           const handleQtyChange = (val) => {
                             const v = String(val);
                             setCustomQty(v);
+                            setSessionValue(id, "customQty", v);
                             const n = parseInt(v, 10) || 0;
-                            if (n <= 0) return;
+                            if (n <= 0) {
+                              setSelectedQty(null);
+                              setSessionValue(id, "selectedQty", null);
+                              return;
+                            }
 
                             if (
                               product.quantity_count &&
@@ -1247,23 +1431,43 @@ function ProductDetail() {
                               setCustomSizeSelected(true);
                               scrollToQuote();
                             } else {
-                              setSelectedQty({
+                              const qtyObj = {
                                 label: `${n} pcs`,
                                 price: formatPrice(
                                   extractNumericPrice(product.price) * n,
                                 ),
                                 quantityNumber: n,
-                              });
+                              };
+                              setSelectedQty(qtyObj);
+                              setSessionValue(id, "selectedQty", qtyObj);
                               setCustomSizeSelected(false);
                             }
                           };
 
                           return (
-                            <div style={{ display: "flex", alignItems: "center" }}>
+                            <div
+                              style={{ display: "flex", alignItems: "center" }}
+                            >
                               <button
                                 type="button"
-                                onClick={() => handleQtyChange(Math.max(1, (parseInt(customQty, 10) || 1) - 1))}
-                                style={{ width: "38px", height: "38px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "6px 0 0 6px", cursor: "pointer", fontWeight: "bold", color: "#475569" }}
+                                onClick={() =>
+                                  handleQtyChange(
+                                    Math.max(
+                                      1,
+                                      (parseInt(customQty, 10) || 1) - 1,
+                                    ),
+                                  )
+                                }
+                                style={{
+                                  width: "38px",
+                                  height: "38px",
+                                  background: "#f1f5f9",
+                                  border: "1px solid #cbd5e1",
+                                  borderRadius: "6px 0 0 6px",
+                                  cursor: "pointer",
+                                  fontWeight: "bold",
+                                  color: "#475569",
+                                }}
                               >
                                 -
                               </button>
@@ -1273,14 +1477,38 @@ function ProductDetail() {
                                 min={1}
                                 className="pd-qty-input-text"
                                 value={customQty}
-                                onChange={(e) => handleQtyChange(e.target.value)}
+                                onChange={(e) =>
+                                  handleQtyChange(e.target.value)
+                                }
                                 placeholder="Qty"
-                                style={{ borderRadius: "0", borderLeft: "none", borderRight: "none", textAlign: "center", width: "60px", height: "38px", margin: 0, MozAppearance: "textfield" }}
+                                style={{
+                                  borderRadius: "0",
+                                  borderLeft: "none",
+                                  borderRight: "none",
+                                  textAlign: "center",
+                                  width: "60px",
+                                  height: "38px",
+                                  margin: 0,
+                                  MozAppearance: "textfield",
+                                }}
                               />
                               <button
                                 type="button"
-                                onClick={() => handleQtyChange((parseInt(customQty, 10) || 0) + 1)}
-                                style={{ width: "38px", height: "38px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "0 6px 6px 0", cursor: "pointer", fontWeight: "bold", color: "#475569" }}
+                                onClick={() =>
+                                  handleQtyChange(
+                                    (parseInt(customQty, 10) || 0) + 1,
+                                  )
+                                }
+                                style={{
+                                  width: "38px",
+                                  height: "38px",
+                                  background: "#f1f5f9",
+                                  border: "1px solid #cbd5e1",
+                                  borderRadius: "0 6px 6px 0",
+                                  cursor: "pointer",
+                                  fontWeight: "bold",
+                                  color: "#475569",
+                                }}
                               >
                                 +
                               </button>
@@ -1302,12 +1530,22 @@ function ProductDetail() {
                           data-no-realtime-validation="true"
                           value={selectedQty?.label || ""}
                           onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "") {
+                              setSelectedQty(null);
+                              setSessionValue(id, "selectedQty", null);
+                              return;
+                            }
                             const qty = product.quantities.find(
-                              (q) => q.label === e.target.value,
+                              (q) => q.label === val,
                             );
-                            if (qty) setSelectedQty(qty);
+                            if (qty) {
+                              setSelectedQty(qty);
+                              setSessionValue(id, "selectedQty", qty);
+                            }
                           }}
                         >
+                          <option value="">Select Quantity</option>
                           {product.quantities.map((qty) => {
                             const numeric =
                               parseInt(qty.label, 10) || qty.label;
@@ -1647,6 +1885,23 @@ function ProductDetail() {
           executeAddToCart();
         }}
         onCancel={() => setShowOosConfirmModal(false)}
+      />
+
+      <AppModal
+        open={showNoDesignConfirmModal}
+        title="No design added"
+        message={
+          "You haven't added a design yet. This product requires a " +
+          "custom print. Do you want to continue without a design?"
+        }
+        confirmText="Add to Cart"
+        cancelText="Cancel"
+        tone="warning"
+        onConfirm={() => {
+          setShowNoDesignConfirmModal(false);
+          executeAddToCart();
+        }}
+        onCancel={() => setShowNoDesignConfirmModal(false)}
       />
     </div>
   );

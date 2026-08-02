@@ -11,7 +11,6 @@ import {
   FaTimes,
   FaHome,
   FaCubes,
-  FaArrowLeft,
 } from "react-icons/fa";
 import { useCart } from "../hooks/useCart";
 import "./Header.css";
@@ -23,7 +22,6 @@ function Header() {
   const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef(null);
   const { cartItems } = useCart();
 
@@ -127,16 +125,7 @@ function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleSearch = () => {
-    const q = searchQuery.trim();
-    if (!q) return;
-    navigate(`/product-overview?search=${encodeURIComponent(q)}`);
-    setSearchQuery("");
-  };
 
-  const handleSearchKey = (e) => {
-    if (e.key === "Enter") handleSearch();
-  };
 
   const handleLogout = () => {
     localStorage.clear();

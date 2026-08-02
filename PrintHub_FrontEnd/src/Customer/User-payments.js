@@ -63,6 +63,10 @@ function UserPayments() {
         })
       : "Not paid yet";
 
+  const displayLogs = logs.filter(
+    (log) => log.paymentStatus !== "cancelled"
+  );
+
   return (
     <>
       <div className="uo-page fade-in-up">
@@ -110,16 +114,16 @@ function UserPayments() {
         {loading && <div className="uo-loading">Loading payment logs...</div>}
         {error && <div className="uo-error">{error}</div>}
 
-        {!loading && !error && logs.length === 0 && (
+        {!loading && !error && displayLogs.length === 0 && (
           <div className="uo-empty">
             <FaFileInvoiceDollar size={36} />
             <p>No payment logs yet.</p>
           </div>
         )}
 
-        {!loading && !error && logs.length > 0 && (
+        {!loading && !error && displayLogs.length > 0 && (
           <div className="upay-list">
-            {logs.map((log) => (
+            {displayLogs.map((log) => (
               <article key={log.orderId} className="upay-card">
                 <div className="upay-card-main">
                   <span

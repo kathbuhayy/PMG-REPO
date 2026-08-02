@@ -92,13 +92,6 @@ const AdminRegistrationPage = CUSTOMER_ONLY_BUILD
 const AdminDashboard = CUSTOMER_ONLY_BUILD
   ? CustomerOnlyRedirect
   : lazy(() => import("./Admin/Admin-dashboard"));
-const AdminManageAccounts = CUSTOMER_ONLY_BUILD
-  ? CustomerOnlyRedirect
-  : lazy(() => import("./Admin/Admin-manageacc"));
-
-const RECENTLY_VIEWED_KEY = "printhub_recently_viewed_products";
-const fallbackProductImage = "https://via.placeholder.com/300x200?text=No+Image";
-const homeHeroWords = ["Vision", "Packaging", "Merch", "Marketing"];
 
 function RealtimeInputValidation() {
   useEffect(() => {
@@ -142,25 +135,7 @@ function RealtimeInputValidation() {
   return null;
 }
 
-function AnimatedWords({ text, highlight = "" }) {
-  return (
-    <>
-      {text.split(" ").map((word, index) => {
-        const cleanWord = word.replace(/[!.,]/g, "");
-        const isHighlight = cleanWord.toLowerCase() === highlight.toLowerCase();
-        return (
-          <span
-            className={`kinetic-word ${isHighlight ? "kinetic-highlight" : ""}`}
-            key={`${word}-${index}`}
-            style={{ "--word-delay": `${index * 0.075}s` }}
-          >
-            {word}
-          </span>
-        );
-      })}
-    </>
-  );
-}
+
 
 // Routes where the mobile footer nav should appear
 const CUSTOMER_ROUTES = [
@@ -212,8 +187,14 @@ function WebOnly({ children }) {
 }
 
 function RootRouteGuard() {
+  const location = useLocation();
   if (isCustomerApk()) {
     return <CustomerOnlyRedirect />;
+  }
+
+  // Bypass redirect if explicitly viewing a landing page section
+  if (location.state?.scrollTo) {
+    return <HomePage />;
   }
   
   const userStr = localStorage.getItem("user");
@@ -237,6 +218,14 @@ function AppRoutes() {
   const isEmbed = searchParams.get("embed") === "true";
   const customerApk = isCustomerApk();
   const currentPath = location.pathname.toLowerCase();
+
+  useEffect(() => {
+    document.body.classList.toggle("embed-mode", isEmbed);
+    return () => {
+      document.body.classList.remove("embed-mode");
+    };
+  }, [isEmbed]);
+
   const showHeader =
     !isEmbed &&
     (SHOW_HEADER_ROUTES.some((r) => r.toLowerCase() === currentPath) ||
@@ -375,7 +364,14 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
-            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route
+              path="/product/:id"
+              element={<ProductDetail key="product-detail-view" />}
+            />
+            <Route
+              path="/product/:id/customize"
+              element={<ProductDetail key="product-customizer-view" />}
+            />
             {customerApk && (
               <Route path="*" element={<CustomerOnlyRedirect />} />
             )}

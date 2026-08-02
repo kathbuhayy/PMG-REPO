@@ -143,6 +143,7 @@ function CheckoutModal({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const handleRegionChange = async (e, type = "shipping") => {
@@ -377,6 +378,14 @@ function CheckoutModal({
       });
 
       const data = await response.json();
+
+      if (response.status === 404 && data.message === "User not found") {
+        console.warn("User not found (stale session). Logging out...");
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = "/user-login";
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(data.message || "Failed to create order");

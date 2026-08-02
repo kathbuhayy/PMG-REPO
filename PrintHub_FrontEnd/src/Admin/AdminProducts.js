@@ -7,8 +7,6 @@ import {
   FaExclamationTriangle,
   FaEdit,
   FaTrash,
-  FaToggleOn,
-  FaToggleOff,
   FaPlus,
   FaCloudUploadAlt,
   FaTrashAlt,
@@ -190,14 +188,17 @@ function AdminProducts({
   const [editProductTab, setEditProductTab] = useState("details");
 
   const GridOptionEditor = ({ field, label }) => {
+    const fieldValue = editForm[field];
+
     const items = useMemo(() => {
-      const arr = editForm[field] || [];
+      const arr = fieldValue || [];
       return arr.map((item) => {
         const parts = String(item).split("|");
         const rawLabel = parts[0] || "";
-        const lbl = field === "quantity_options"
-          ? rawLabel.replace(/\s*pcs\s*/i, "")
-          : rawLabel;
+        const lbl =
+          field === "quantity_options"
+            ? rawLabel.replace(/\s*pcs\s*/i, "")
+            : rawLabel;
 
         const rawPrice = parts[1] || "";
         let prc = "";
@@ -213,15 +214,16 @@ function AdminProducts({
           price: prc,
         };
       });
-    }, [editForm[field]]);
+    }, [fieldValue, field]);
 
     const updateItem = (index, key, val) => {
       const newItems = [...items];
       newItems[index] = { ...newItems[index], [key]: val };
       const serialized = newItems.map((it) => {
-        const finalLabel = field === "quantity_options" && it.label
-          ? `${it.label.trim()} pcs`
-          : it.label.trim();
+        const finalLabel =
+          field === "quantity_options" && it.label
+            ? `${it.label.trim()} pcs`
+            : it.label.trim();
 
         let finalPrice = it.price.trim();
         if (finalPrice) {
@@ -246,10 +248,7 @@ function AdminProducts({
     };
 
     const addItem = () => {
-      const serialized = [
-        ...(editForm[field] || []),
-        "|",
-      ];
+      const serialized = [...(editForm[field] || []), "|"];
       setEditForm((prev) => ({
         ...prev,
         [field]: serialized,
@@ -259,9 +258,10 @@ function AdminProducts({
     const removeItem = (index) => {
       const newItems = items.filter((_, idx) => idx !== index);
       const serialized = newItems.map((it) => {
-        const finalLabel = field === "quantity_options" && it.label
-          ? `${it.label.trim()} pcs`
-          : it.label.trim();
+        const finalLabel =
+          field === "quantity_options" && it.label
+            ? `${it.label.trim()} pcs`
+            : it.label.trim();
 
         let finalPrice = it.price.trim();
         if (finalPrice) {
@@ -326,9 +326,7 @@ function AdminProducts({
                     type="number"
                     value={item.label}
                     placeholder="Quantity"
-                    onChange={(e) =>
-                      updateItem(i, "label", e.target.value)
-                    }
+                    onChange={(e) => updateItem(i, "label", e.target.value)}
                     style={{
                       flex: 1,
                       padding: "8px 12px",
@@ -346,9 +344,7 @@ function AdminProducts({
                   type="text"
                   value={item.label}
                   placeholder="Option Label"
-                  onChange={(e) =>
-                    updateItem(i, "label", e.target.value)
-                  }
+                  onChange={(e) => updateItem(i, "label", e.target.value)}
                   style={{
                     flex: 2,
                     padding: "8px 12px",
@@ -371,9 +367,7 @@ function AdminProducts({
                   step="0.01"
                   value={item.price}
                   placeholder="Price"
-                  onChange={(e) =>
-                    updateItem(i, "price", e.target.value)
-                  }
+                  onChange={(e) => updateItem(i, "price", e.target.value)}
                   style={{
                     flex: 1,
                     padding: "8px 12px",
@@ -382,9 +376,7 @@ function AdminProducts({
                     fontSize: "13px",
                   }}
                 />
-                <span style={{ fontSize: "13px", color: "#64748b" }}>
-                  PHP
-                </span>
+                <span style={{ fontSize: "13px", color: "#64748b" }}>PHP</span>
               </div>
               <button
                 type="button"
@@ -472,9 +464,7 @@ function AdminProducts({
   };
 
   const addAddStockOption = () => {
-    const serialized = addStockOptionsText
-      ? `${addStockOptionsText}\n|`
-      : "|";
+    const serialized = addStockOptionsText ? `${addStockOptionsText}\n|` : "|";
     setAddStockOptionsText(serialized);
   };
 
@@ -1425,9 +1415,8 @@ function AdminProducts({
               <div className="modal-tabs-header" style={{ marginTop: "16px" }}>
                 <button
                   type="button"
-                  className={`modal-tab-btn ${
-                    editProductTab === "details" ? "active" : ""
-                  }`}
+                  className={`modal-tab-btn ${editProductTab === "details" ? "active" : ""
+                    }`}
                   onClick={() => setEditProductTab("details")}
                 >
                   Details
@@ -1441,9 +1430,8 @@ function AdminProducts({
                 </button>
                 <button
                   type="button"
-                  className={`modal-tab-btn ${
-                    editProductTab === "images" ? "active" : ""
-                  }`}
+                  className={`modal-tab-btn ${editProductTab === "images" ? "active" : ""
+                    }`}
                   style={{
                     opacity: isEditDetailsValid ? 1 : 0.6,
                     cursor: isEditDetailsValid ? "pointer" : "not-allowed",
@@ -1465,12 +1453,10 @@ function AdminProducts({
                 </button>
                 <button
                   type="button"
-                  className={`modal-tab-btn ${
-                    editProductTab === "specifications" ? "active" : ""
-                  }`}
+                  className={`modal-tab-btn ${editProductTab === "specifications" ? "active" : ""
+                    }`}
                   style={{
-                    opacity:
-                      isEditDetailsValid && isEditImagesValid ? 1 : 0.6,
+                    opacity: isEditDetailsValid && isEditImagesValid ? 1 : 0.6,
                     cursor:
                       isEditDetailsValid && isEditImagesValid
                         ? "pointer"
@@ -2009,77 +1995,126 @@ function AdminProducts({
                           ? CUSTOMIZER_ZONES[zoneKey]
                           : null;
                         if (customizerZones) {
+                          const hasCustomPrint =
+                            editForm.print_zones?.length > 0;
                           return (
                             <div
                               className="dashform-group"
                               style={{ marginBottom: "16px" }}
                             >
-                              <label>
-                                Printable Areas (Customizer Zones) *
-                              </label>
-                              <p
-                                style={{
-                                  fontSize: "11px",
-                                  color: "#64748b",
-                                  marginTop: "2px",
-                                  marginBottom: "8px",
-                                }}
-                              >
-                                Select which areas can be printed.
-                              </p>
-                              <div
+                              <label
                                 style={{
                                   display: "flex",
-                                  flexWrap: "wrap",
-                                  gap: "12px",
-                                  background: "#f8fafc",
-                                  padding: "10px",
-                                  borderRadius: "8px",
-                                  border: "1px solid #cbd5e1",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  cursor: "pointer",
+                                  marginBottom: "12px",
+                                  fontWeight: "bold",
                                 }}
                               >
-                                {customizerZones.map((z) => {
-                                  const isChecked =
-                                    editForm.print_zones.includes(z.id);
-                                  return (
-                                    <label
-                                      key={z.id}
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                        color: "#334155",
-                                        margin: 0,
-                                      }}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={() => {
-                                          const updatedZones = isChecked
-                                            ? editForm.print_zones.filter(
-                                              (id) => id !== z.id,
-                                            )
-                                            : [...editForm.print_zones, z.id];
-                                          const updatedSides =
-                                            generateSideOptions(
-                                              editForm.category,
-                                              updatedZones,
-                                            );
-                                          setEditForm({
-                                            ...editForm,
-                                            print_zones: updatedZones,
-                                            side_options: updatedSides,
-                                          });
-                                        }}
-                                      />
-                                      {z.label}
-                                    </label>
-                                  );
-                                })}
-                              </div>
+                                <input
+                                  type="checkbox"
+                                  checked={hasCustomPrint}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    if (checked) {
+                                      const allZoneIds = customizerZones.map(
+                                        (z) => z.id,
+                                      );
+                                      const updatedSides = generateSideOptions(
+                                        editForm.category,
+                                        allZoneIds,
+                                      );
+                                      setEditForm({
+                                        ...editForm,
+                                        print_zones: allZoneIds,
+                                        side_options: updatedSides,
+                                      });
+                                    } else {
+                                      setEditForm({
+                                        ...editForm,
+                                        print_zones: [],
+                                        side_options: [],
+                                      });
+                                    }
+                                  }}
+                                />
+                                Enable Custom Printing (Allow Customizer)
+                              </label>
+
+                              {hasCustomPrint && (
+                                <>
+                                  <label>
+                                    Printable Areas (Customizer Zones) *
+                                  </label>
+                                  <p
+                                    style={{
+                                      fontSize: "11px",
+                                      color: "#64748b",
+                                      marginTop: "2px",
+                                      marginBottom: "8px",
+                                    }}
+                                  >
+                                    Select which areas can be printed.
+                                  </p>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      flexWrap: "wrap",
+                                      gap: "12px",
+                                      background: "#f8fafc",
+                                      padding: "10px",
+                                      borderRadius: "8px",
+                                      border: "1px solid #cbd5e1",
+                                    }}
+                                  >
+                                    {customizerZones.map((z) => {
+                                      const isChecked =
+                                        editForm.print_zones.includes(z.id);
+                                      return (
+                                        <label
+                                          key={z.id}
+                                          style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "6px",
+                                            cursor: "pointer",
+                                            fontSize: "13px",
+                                            color: "#334155",
+                                            margin: 0,
+                                          }}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => {
+                                              const updatedZones = isChecked
+                                                ? editForm.print_zones.filter(
+                                                  (id) => id !== z.id,
+                                                )
+                                                : [
+                                                  ...editForm.print_zones,
+                                                  z.id,
+                                                ];
+                                              const updatedSides =
+                                                generateSideOptions(
+                                                  editForm.category,
+                                                  updatedZones,
+                                                );
+                                              setEditForm({
+                                                ...editForm,
+                                                print_zones: updatedZones,
+                                                side_options: updatedSides,
+                                              });
+                                            }}
+                                          />
+                                          {z.label}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              )}
                             </div>
                           );
                         } else {
@@ -2156,23 +2191,19 @@ function AdminProducts({
                         opacity:
                           (editProductTab === "details" &&
                             !isEditDetailsValid) ||
-                          (editProductTab === "images" &&
-                            !isEditImagesValid)
+                            (editProductTab === "images" && !isEditImagesValid)
                             ? 0.5
                             : 1,
                         cursor:
                           (editProductTab === "details" &&
                             !isEditDetailsValid) ||
-                          (editProductTab === "images" &&
-                            !isEditImagesValid)
+                            (editProductTab === "images" && !isEditImagesValid)
                             ? "not-allowed"
                             : "pointer",
                       }}
                       disabled={
-                        (editProductTab === "details" &&
-                          !isEditDetailsValid) ||
-                        (editProductTab === "images" &&
-                          !isEditImagesValid)
+                        (editProductTab === "details" && !isEditDetailsValid) ||
+                        (editProductTab === "images" && !isEditImagesValid)
                       }
                       onClick={() => {
                         if (editProductTab === "details") {
@@ -2264,7 +2295,7 @@ function AdminProducts({
                     marginBottom: "10px",
                   }}
                 >
-                  ⚡ Batch Price Calculator (Auto 5% Discount)
+                  Batch Price Calculator (Auto 5% Discount)
                 </div>
                 <div
                   style={{
@@ -2315,13 +2346,10 @@ function AdminProducts({
                   >
                     <div>
                       Total: ₱
-                      {calculateBatchOption().rawTotal.toLocaleString(
-                        "en-PH",
-                        {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        },
-                      )}
+                      {calculateBatchOption().rawTotal.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </div>
                     <div style={{ fontWeight: "700", color: "#4ade80" }}>
                       5% Discounted Total: ₱
@@ -2386,11 +2414,7 @@ function AdminProducts({
                           value={item.label}
                           placeholder="Quantity"
                           onChange={(e) =>
-                            updateAddStockOption(
-                              i,
-                              "label",
-                              e.target.value,
-                            )
+                            updateAddStockOption(i, "label", e.target.value)
                           }
                           style={{
                             flex: 1,
@@ -2418,11 +2442,7 @@ function AdminProducts({
                           value={item.price}
                           placeholder="Price"
                           onChange={(e) =>
-                            updateAddStockOption(
-                              i,
-                              "price",
-                              e.target.value,
-                            )
+                            updateAddStockOption(i, "price", e.target.value)
                           }
                           style={{
                             flex: 1,

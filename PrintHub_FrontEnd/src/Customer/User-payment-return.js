@@ -118,7 +118,7 @@ function UserPaymentReturn() {
     };
 
     verifyPaymentStatus();
-  }, [orderId, returnStatus]);
+  }, [orderId, returnStatus, navigate]);
 
   return (
     <>

@@ -260,7 +260,10 @@ function AdminOrders() {
           total: parseFloat(order.total),
           status: order.status || "pending",
           proofApproved: Boolean(order.proofApproved),
-          paymentStatus: order.payment_status || "unpaid",
+          paymentStatus:
+            order.status === "cancelled"
+              ? "cancelled"
+              : order.payment_status || "unpaid",
           date: new Date(order.createdAt).toISOString().slice(0, 10),
           dbId: order.id,
           items: order.items || [],
@@ -415,8 +418,30 @@ function AdminOrders() {
       // ✅ Update local state
       setOrders((prev) =>
         prev.map((o) =>
-          o.dbId === order.dbId ? { ...o, status: newStatus } : o,
+          o.dbId === order.dbId
+            ? {
+                ...o,
+                status: newStatus,
+                paymentStatus:
+                  newStatus === "cancelled"
+                    ? "cancelled"
+                    : data.order?.payment_status || o.paymentStatus,
+              }
+            : o,
         ),
+      );
+
+      setDetailOrder((current) =>
+        current?.dbId === order.dbId
+          ? {
+              ...current,
+              status: newStatus,
+              paymentStatus:
+                newStatus === "cancelled"
+                  ? "cancelled"
+                  : data.order?.payment_status || current.paymentStatus,
+            }
+          : current,
       );
 
       const messages = {
@@ -649,7 +674,9 @@ function AdminOrders() {
                             Approve
                           </button>
                         )}
-                      {o.proofApproved && o.paymentStatus !== "paid" && (
+                      {o.proofApproved &&
+                        o.paymentStatus !== "paid" &&
+                        !["cancelled", "completed"].includes(o.status) && (
                         <span
                           title="Design approved; waiting for customer payment"
                           className="dashpage-pill status-completed"
@@ -1014,33 +1041,39 @@ function AdminOrders() {
                   {detailOrder.status}
                 </span>
               </div>
-              <div style={{ flex: 1, minWidth: 120 }}>
-                <div
-                  style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}
-                >
-                  DESIGN
+              {!["cancelled", "completed"].includes(detailOrder.status) && (
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#475569",
+                      marginBottom: 2,
+                    }}
+                  >
+                    DESIGN
+                  </div>
+                  <span
+                    className={`dashpage-pill ${
+                      detailOrder.proofApproved
+                        ? "status-completed"
+                        : "status-pending"
+                    }`}
+                    style={{ fontSize: 12 }}
+                  >
+                    {detailOrder.proofApproved ? (
+                      <>
+                        <FaCheckCircle style={{ marginRight: 5 }} />
+                        Approved
+                      </>
+                    ) : (
+                      <>
+                        <FaClock style={{ marginRight: 5 }} />
+                        Needs approval
+                      </>
+                    )}
+                  </span>
                 </div>
-                <span
-                  className={`dashpage-pill ${
-                    detailOrder.proofApproved
-                      ? "status-completed"
-                      : "status-pending"
-                  }`}
-                  style={{ fontSize: 12 }}
-                >
-                  {detailOrder.proofApproved ? (
-                    <>
-                      <FaCheckCircle style={{ marginRight: 5 }} />
-                      Approved
-                    </>
-                  ) : (
-                    <>
-                      <FaClock style={{ marginRight: 5 }} />
-                      Needs approval
-                    </>
-                  )}
-                </span>
-              </div>
+              )}
               <div style={{ flex: 1, minWidth: 120 }}>
                 <div
                   style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}

@@ -27,16 +27,7 @@ import { removeGuestDesign } from "../../utils/guestDesigns";
 import "./TshirtCustomizer.css";
 import { filterZonesBySide } from "../../config/categoryDefaults";
 
-const ZONE_META = [
-  { id: "front", label: "FRONT" },
-  { id: "back", label: "BACK" },
-  { id: "left_sleeve", label: "LEFT SLEEVE" },
-  { id: "right_sleeve", label: "RIGHT SLEEVE" },
-  { id: "front_cover", label: "FRONT COVER" },
-  { id: "back_cover", label: "BACK COVER" },
-  { id: "outside", label: "OUTSIDE" },
-  { id: "inside", label: "INSIDE" },
-];
+
 
 const TSHIRT_GLB = "/models/tshirt.glb";
 const QUICK_COLORS = [
@@ -193,7 +184,6 @@ export default function TshirtCustomizerPanel({
     setGallery,
     selectedGalleryId,
     setSelectedGalleryId,
-    uploading,
     uploadError,
     handleFileChange,
     handleGenerate,
@@ -201,7 +191,15 @@ export default function TshirtCustomizerPanel({
     genError,
     setGenError,
     uploadUsedImages,
-  } = useCustomizerUpload(productLabel, initialWip?.gallery ?? []);
+  } = useCustomizerUpload(
+    productLabel,
+    // Strip dead blob: URLs from restored gallery — blobs are
+    // released on unmount and cannot survive navigation.
+    // Only data: URLs (base64) are safe to restore from session.
+    (initialWip?.gallery ?? []).filter(
+      (g) => !g.url?.startsWith("blob:")
+    )
+  );
 
   // Per-zone file input refs
   const zoneFileRefs = useRef({});
@@ -212,12 +210,30 @@ export default function TshirtCustomizerPanel({
     return zoneFileRefs.current[zoneId];
   };
 
-  // Zone placement state
-  const [zoneDesigns, setZoneDesigns] = useState(initialWip?.zoneDesigns ?? {});
+  // Zone placement state — strip any blob: refs from restored
+  // zoneDesigns since those object URLs are dead after navigation.
+  const [zoneDesigns, setZoneDesigns] = useState(() => {
+    const saved = initialWip?.zoneDesigns ?? {};
+    const cleaned = {};
+    for (const [zoneId, zoneData] of Object.entries(saved)) {
+      if (zoneData?.imageUrl?.startsWith("blob:")) continue;
+      cleaned[zoneId] = zoneData;
+    }
+    return cleaned;
+  });
   const [activeZone, setActiveZone] = useState(zones[0] || null);
 
   // Progressive Disclosure Sidebar Tab state
-  const [activeTab, setActiveTab] = useState(initialWip?.activeTab ?? "specs"); // "specs" | "gallery" | "color" | "ai"
+  const [activeTab, setActiveTab] = useState(
+    initialWip?.activeTab ?? "specs"
+  );
+
+  const [aiPrompt, setAiPrompt] = useState(
+    initialWip?.aiPrompt ?? ""
+  );
+  const [aiLastPrompt, setAiLastPrompt] = useState(
+    initialWip?.aiLastPrompt ?? ""
+  );
 
   const prevZonesKeyRef = useRef(zones.join(","));
 
@@ -274,8 +290,18 @@ export default function TshirtCustomizerPanel({
       shirtColor,
       activeTab,
       gallery,
+      aiPrompt,
+      aiLastPrompt,
     });
-  }, [zoneDesigns, shirtColor, activeTab, gallery, onWipChange]);
+  }, [
+    zoneDesigns,
+    shirtColor,
+    activeTab,
+    gallery,
+    aiPrompt,
+    aiLastPrompt,
+    onWipChange,
+  ]);
 
   useEffect(() => {
     if (activeDesign?.type !== designType) return;
@@ -322,9 +348,7 @@ export default function TshirtCustomizerPanel({
     getZoneRef(zoneId).current?.click();
   };
 
-  const handleClearZone = (zoneId) => {
-    setZoneDesigns((prev) => ({ ...prev, [zoneId]: null }));
-  };
+
 
   // ── Gallery click — assign to active zone ───────────────────────────
   const handleGalleryClick = (item) => {
@@ -759,6 +783,10 @@ export default function TshirtCustomizerPanel({
             <AIGeneratePanel
               activeZone={activeZone}
               productLabel={productLabel}
+              prompt={aiPrompt}
+              onPromptChange={setAiPrompt}
+              lastPrompt={aiLastPrompt}
+              onLastPromptChange={setAiLastPrompt}
               onGenerated={(item) => {
                 if (activeZone) {
                   setZoneDesigns((prev) => ({

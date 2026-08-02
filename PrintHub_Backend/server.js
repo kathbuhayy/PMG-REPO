@@ -88,10 +88,12 @@ app.use(cors({
   credentials: true
 }));
 app.use(bodyParser.json({
+  limit: "50mb",
   verify: (req, res, buf) => {
     req.rawBody = buf;
   }
 }));
+app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 
 // =================================================
 // AI CHATBOT API (Gemini)
@@ -805,6 +807,15 @@ app.post("/api/orders", async (req, res) => {
     return res.status(400).json({ message: "Invalid order payload" });
 
   try {
+    // Verify user exists to prevent foreign key violation
+    const userExists = await prisma.user.findUnique({
+      where: { id: Number(userId) },
+    });
+
+    if (!userExists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     // Verify products exist and have sufficient stock
     const uniqueProductIds = [...new Set(items.map((i) => i.productId))];
     const products = await prisma.product.findMany({
@@ -839,6 +850,25 @@ app.post("/api/orders", async (req, res) => {
     }
 
     let itemsTotal = 0;
+
+    // Validate submitted unitPrice against product DB price to prevent spoofing
+    for (const it of items) {
+      const product = productMap.get(it.productId);
+      const submittedUnit = parseFloat(it.unitPrice || 0);
+      const dbPrice = parseFloat(product.price || 0);
+
+      // Allow unitPrice >= 50% of DB price (accommodates bulk batch
+      // discounts, material surcharges, and rounding)
+      if (dbPrice > 0 && submittedUnit < dbPrice * 0.5) {
+        return res.status(400).json({
+          message:
+            `Price mismatch for "${product.name}". ` +
+            "Submitted price is below acceptable range.",
+          productId: it.productId,
+        });
+      }
+    }
+
     const createItems = items.map((it) => {
       // Use unitPrice from frontend (what customer saw at checkout)
       const unit = parseFloat(it.unitPrice || 0);
@@ -997,6 +1027,15 @@ app.get("/api/user/:id/cart", async (req, res) => {
   if (!userId) return res.status(400).json({ message: "Invalid user id" });
 
   try {
+    // Verify user exists to detect stale local session
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!userExists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     const items = await prisma.cartItem.findMany({
       where: { userId },
       include: { product: { select: { id: true, name: true, images: true } } },
@@ -1029,6 +1068,15 @@ app.post("/api/user/:id/cart", async (req, res) => {
   }
 
   try {
+    // Verify user exists to avoid foreign key constraints violation
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!userExists) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     const normalizedCustomizations = normalizeCartCustomizations(customizations);
     const existingItems = await prisma.cartItem.findMany({
       where: { userId, productId: Number(productId) },
@@ -2044,6 +2092,7 @@ app.put("/api/orders/:id", async (req, res) => {
         where: { id: orderId },
         data: {
           ...(status && { status }),
+          ...(status === "cancelled" && { payment_status: "cancelled" }),
           ...(status === "delivered" && { delivered_at: new Date() }),
           ...(proofApproved !== undefined && { proofApproved }),
           ...(due_date && { due_date: new Date(due_date) }),
@@ -2060,7 +2109,9 @@ app.put("/api/orders/:id", async (req, res) => {
       if (uniqueProductIds.length > 0) {
         // Trigger notification asynchronously
         notifyLowStockProducts(uniqueProductIds).catch((err) =>
-          console.error("Low stock notification failed:", err)
+          console.error(
+            `[PutOrder] {NotifyLowStock}: ${err.message}`
+          )
         );
       }
     }
@@ -2075,7 +2126,7 @@ app.put("/api/orders/:id", async (req, res) => {
       stockDeducted: actionType === "deducted" ? totalPcsUpdated : 0,
     });
   } catch (e) {
-    console.error(e);
+    console.error(`[PutOrder] {UpdateStatus}: ${e.message}`);
     if (e.code === "P2025") {
       return res.status(404).json({ message: "Order not found" });
     }
@@ -2809,8 +2860,13 @@ app.get("/api/user/:id/payment-logs", async (req, res) => {
   if (isNaN(userId)) return res.status(400).json({ message: "Invalid userId" });
 
   try {
+    // Retrieve only orders that are not cancelled
     const orders = await prisma.order.findMany({
-      where: { userId, deleted_at: null },
+      where: {
+        userId,
+        deleted_at: null,
+        status: { not: "cancelled" },
+      },
       include: {
         user: true,
         items: { include: { product: true } },

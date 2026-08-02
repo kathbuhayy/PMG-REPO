@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { FaEdit, FaKey } from "react-icons/fa";
 import "./Admin-profile.css";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { buildApiUrl } from "../config/api";
 
 function AdminProfile() {
-  const navigate = useNavigate();
 
   const [admin, setAdmin] = useState({
     firstName: "",

@@ -213,9 +213,21 @@ function AdminRegistrationPage() {
             <div className="registration-footer">
               <p>
                 Already have an account?{" "}
-                <a href="#" onClick={() => navigate("/admin-login")}>
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin-login")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#3b82f6",
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                    padding: 0,
+                    font: "inherit",
+                  }}
+                >
                   Sign in here
-                </a>
+                </button>
               </p>
             </div>
           </div>

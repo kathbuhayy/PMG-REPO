@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { FaMagic, FaExclamationTriangle } from "react-icons/fa";
+import "./AIBuilder.css";
 
 /**
  * AIGeneratePanel renders the AI design generator section
@@ -45,7 +46,6 @@ export default function AIGeneratePanel({
           <FaMagic style={{ color: "#455073" }} />
           AI Generate
         </h4>
-        <span className="aib-badge">Beta</span>
       </div>
 
       <div className="ai-gen-field">

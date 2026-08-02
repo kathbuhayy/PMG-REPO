@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./User-orders.css";
 import "./User-inquiries.css";
-import { FaArrowLeft, FaFileInvoiceDollar } from "react-icons/fa";
+import { FaArrowLeft } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import { Capacitor } from "@capacitor/core";
 import AppModal from "../components/AppModal";
@@ -107,11 +107,7 @@ function UserOrders() {
     }
   };
 
-  // Inquiries tab state
-  const [inquiries, setInquiries] = useState([]);
-  const [inquiriesLoading, setInquiriesLoading] = useState(false);
-  const [inquiriesError, setInquiriesError] = useState(null);
-  const [expanded, setExpanded] = useState(null);
+
 
   useEffect(() => {
     fetchOrders();
@@ -185,16 +181,26 @@ function UserOrders() {
   }, [qrPayment, navigate]);
 
   const filteredOrders = useMemo(() => {
-    if (activeFilter === "all") return orders;
-    return orders.filter((order) => getOrderBucket(order) === activeFilter);
+    const activeOrders = orders.filter(
+      (order) => order.status !== "cancelled"
+    );
+    if (activeFilter === "all") return activeOrders;
+    return activeOrders.filter(
+      (order) => getOrderBucket(order) === activeFilter
+    );
   }, [activeFilter, orders]);
 
   const tabCounts = useMemo(() => {
+    const activeOrders = orders.filter(
+      (order) => order.status !== "cancelled"
+    );
     return ORDER_TABS.reduce((acc, tab) => {
       acc[tab.key] =
         tab.key === "all"
-          ? orders.length
-          : orders.filter((order) => getOrderBucket(order) === tab.key).length;
+          ? activeOrders.length
+          : activeOrders.filter(
+              (order) => getOrderBucket(order) === tab.key
+            ).length;
       return acc;
     }, {});
   }, [orders]);

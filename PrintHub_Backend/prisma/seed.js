@@ -696,6 +696,96 @@ const PRODUCT_SEEDS = [
       "Generate full sublimated jersey. Edge-to-edge colors. " +
       "Keep text/number within safe margin of 0.5in from seams. 300dpi.",
   },
+
+  // ─── Plain (undecorated) variants ──────────────────────────────────────────
+
+  {
+    name: "T-shirt Plain",
+    sku: "TS-PLAIN",
+    description:
+      "Plain undecorated T-shirts for personal or " +
+      "commercial use — no printing included.",
+    price: "200.00",
+    stock: 500,
+    // blank indicates plain/undecorated item to admin
+    print_type: "blank",
+    turnaround_hours: 48,
+    color_options: ["White", "Black", "Navy Blue", "Red", "Gray"],
+    size_options: ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL"],
+    material_options: [
+      "100% Cotton - 150gsm",
+      "100% Cotton - 180gsm",
+      "Cotton/Poly Blend - 160gsm",
+      "100% Polyester - 140gsm",
+    ],
+    side_options: [],
+    finishing_options: ["None"],
+    processing_options: ["Standard", "Rush", "Express"],
+    delivery_options: DELIVERY_OPTIONS,
+    quantity_options: [
+      "5 pcs|₱950.00",
+      "10 pcs|₱1,900.00",
+      "25 pcs|₱4,750.00",
+      "50 pcs|₱9,500.00",
+      "100 pcs|₱19,000.00",
+    ],
+    shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
+    // empty print_zones hides the customizer natively
+    print_zones: [],
+    ai_prompt_rules: null,
+  },
+  {
+    name: "Mug Plain",
+    sku: "MUG-PLAIN",
+    description:
+      "Plain blank ceramic mugs — no sublimation or printing included.",
+    price: "45.00",
+    stock: 300,
+    print_type: "blank",
+    turnaround_hours: 24,
+    color_options: ["White"],
+    size_options: ["11oz (Standard)", "15oz (Large)", "10oz (Travel)"],
+    material_options: ["Ceramic - 11oz", "Ceramic - 15oz", "Enamel - 12oz"],
+    side_options: [],
+    finishing_options: ["None"],
+    processing_options: ["Standard", "Rush", "Express"],
+    delivery_options: DELIVERY_OPTIONS,
+    quantity_options: [
+      "10 pcs|₱427.50",
+      "25 pcs|₱1,068.75",
+      "50 pcs|₱2,137.50",
+      "100 pcs|₱4,275.00",
+    ],
+    shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
+    print_zones: [],
+    ai_prompt_rules: null,
+  },
+  {
+    name: "Cap Plain",
+    sku: "CAP-PLAIN",
+    description:
+      "Plain undecorated caps and hats — no embroidery or printing included.",
+    price: "150.00",
+    stock: 200,
+    print_type: "blank",
+    turnaround_hours: 24,
+    color_options: ["Black", "White", "Navy Blue", "Red", "Gray"],
+    size_options: ["One Size (Adjustable)"],
+    material_options: ["Cotton Twill", "Polyester", "Mesh Back"],
+    side_options: [],
+    finishing_options: ["None"],
+    processing_options: ["Standard", "Rush", "Express"],
+    delivery_options: DELIVERY_OPTIONS,
+    quantity_options: [
+      "10 pcs|₱1,425.00",
+      "25 pcs|₱3,562.50",
+      "50 pcs|₱7,125.00",
+      "100 pcs|₱14,250.00",
+    ],
+    shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
+    print_zones: [],
+    ai_prompt_rules: null,
+  },
 ];
 
 // Seeding and updating all configured products in the database

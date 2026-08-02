@@ -126,6 +126,15 @@ export function CartProvider({ children }) {
 
     try {
       const res = await fetch(buildApiUrl(`/api/user/${userId}/cart`));
+
+      if (res.status === 404) {
+        console.warn("User not found (stale session). Logging out...");
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = "/user-login";
+        return;
+      }
+
       const cType = res.headers.get("content-type");
 
       if (!cType || !cType.includes("application/json")) {
@@ -173,6 +182,14 @@ export function CartProvider({ children }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(item),
     });
+
+    if (res.status === 404) {
+      console.warn("User not found (stale session). Logging out...");
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = "/user-login";
+      return null;
+    }
 
     const cType = res.headers.get("content-type");
 

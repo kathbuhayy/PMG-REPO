@@ -88,7 +88,9 @@ export const apiCall = async (endpoint, options = {}) => {
   }
 };
 
-export default {
+const api = {
   buildApiUrl,
   apiCall,
 };
+
+export default api;

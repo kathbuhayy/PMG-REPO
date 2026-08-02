@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import "./Admin-manageacc.css";
 import {
   FaEdit,
@@ -68,22 +68,25 @@ function AdminManageAccounts() {
     }
   }, []);
 
-  // fetch users from db
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
+  // Fetches the list of all users from the admin API endpoint
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch(buildApiUrl("/api/admin/users"));
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to fetch users");
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to fetch users");
+      }
       setUsers(data);
     } catch (err) {
       console.error(err);
       showToast(err.message || "Error fetching users", "error");
     }
-  };
+  }, []);
+
+  // Fetch users from db on mount
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const stats = useMemo(() => {
     const total = users.length;

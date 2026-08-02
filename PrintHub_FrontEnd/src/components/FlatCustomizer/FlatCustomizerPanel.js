@@ -27,14 +27,7 @@ import { removeGuestDesign } from "../../utils/guestDesigns";
 import "../TshirtCustomizer/TshirtCustomizer.css";
 import { filterZonesBySide } from "../../config/categoryDefaults";
 
-const FLAT_ZONE_META = [
-  { id: "front", label: "FRONT" },
-  { id: "back", label: "BACK" },
-  { id: "outside", label: "OUTSIDE" },
-  { id: "inside", label: "INSIDE" },
-  { id: "front_cover", label: "FRONT COVER" },
-  { id: "back_cover", label: "BACK COVER" },
-];
+
 
 const PANEL_CONFIG = {
   calling_card: {
@@ -80,16 +73,7 @@ function hueToHex(hue) {
   return `#${f(0)}${f(8)}${f(4)}`;
 }
 
-const GUEST_GEN_KEY = "ai_guest_generations";
-const GUEST_LIMIT = 3;
 
-function getGuestGenCount() {
-  try {
-    return parseInt(localStorage.getItem(GUEST_GEN_KEY) || "0", 10) || 0;
-  } catch {
-    return 0;
-  }
-}
 
 export default function FlatCustomizerPanel({
   product,
@@ -123,7 +107,6 @@ export default function FlatCustomizerPanel({
     setGallery,
     selectedGalleryId,
     setSelectedGalleryId,
-    uploading,
     uploadError,
     handleFileChange,
     handleGenerate,
@@ -131,7 +114,15 @@ export default function FlatCustomizerPanel({
     genError,
     setGenError,
     uploadUsedImages,
-  } = useCustomizerUpload(config.label, initialWip?.gallery ?? []);
+  } = useCustomizerUpload(
+    config.label,
+    // Strip dead blob: URLs from restored gallery — blobs are
+    // released on unmount and cannot survive navigation.
+    // Only data: URLs (base64) are safe to restore from session.
+    (initialWip?.gallery ?? []).filter(
+      (g) => !g.url?.startsWith("blob:")
+    )
+  );
 
   const zoneFileRefs = useRef({});
   const getZoneRef = (zoneId) => {
@@ -141,9 +132,28 @@ export default function FlatCustomizerPanel({
     return zoneFileRefs.current[zoneId];
   };
 
-  const [zoneDesigns, setZoneDesigns] = useState(initialWip?.zoneDesigns ?? {});
+  // Zone placement state — strip any blob: refs from restored
+  // zoneDesigns since those object URLs are dead after navigation.
+  const [zoneDesigns, setZoneDesigns] = useState(() => {
+    const saved = initialWip?.zoneDesigns ?? {};
+    const cleaned = {};
+    for (const [zoneId, zoneData] of Object.entries(saved)) {
+      if (zoneData?.imageUrl?.startsWith("blob:")) continue;
+      cleaned[zoneId] = zoneData;
+    }
+    return cleaned;
+  });
   const [activeZone, setActiveZone] = useState(zones[0] || null);
-  const [activeTab, setActiveTab] = useState("gallery");
+  const [activeTab, setActiveTab] = useState(
+    initialWip?.activeTab ?? "gallery"
+  );
+
+  const [aiPrompt, setAiPrompt] = useState(
+    initialWip?.aiPrompt ?? ""
+  );
+  const [aiLastPrompt, setAiLastPrompt] = useState(
+    initialWip?.aiLastPrompt ?? ""
+  );
 
   const prevZonesKeyRef = useRef(zones.join(","));
 
@@ -197,8 +207,19 @@ export default function FlatCustomizerPanel({
       shirtColor: baseColor,
       baseColor,
       gallery,
+      activeTab,
+      aiPrompt,
+      aiLastPrompt,
     });
-  }, [zoneDesigns, baseColor, gallery, onWipChange]);
+  }, [
+    zoneDesigns,
+    baseColor,
+    gallery,
+    activeTab,
+    aiPrompt,
+    aiLastPrompt,
+    onWipChange,
+  ]);
 
   useEffect(() => {
     if (activeDesign?.type !== productType) return;
@@ -242,9 +263,7 @@ export default function FlatCustomizerPanel({
     getZoneRef(zoneId).current?.click();
   };
 
-  const handleClearZone = (zoneId) => {
-    setZoneDesigns((prev) => ({ ...prev, [zoneId]: null }));
-  };
+
 
   const handleGalleryClick = (item) => {
     setSelectedGalleryId(item.id);
@@ -477,6 +496,10 @@ export default function FlatCustomizerPanel({
             <AIGeneratePanel
               activeZone={activeZone}
               productLabel={config.label}
+              prompt={aiPrompt}
+              onPromptChange={setAiPrompt}
+              lastPrompt={aiLastPrompt}
+              onLastPromptChange={setAiLastPrompt}
               onGenerated={(item) => {
                 if (activeZone) {
                   setZoneDesigns((prev) => ({

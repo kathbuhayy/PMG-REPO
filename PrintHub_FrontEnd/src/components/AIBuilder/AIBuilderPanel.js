@@ -392,7 +392,6 @@ export default function AIBuilderPanel({
       <div className="aib-header">
         <FaMagic style={{ color: "#455073", fontSize: 18 }} />
         <h3>AI Design Builder</h3>
-        <span className="aib-badge">Beta</span>
       </div>
 
       {/* Active design badge */}
