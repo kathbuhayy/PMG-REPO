@@ -283,6 +283,26 @@ function ProductDetail() {
   const [searchParams] = useSearchParams();
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
 
+  const isJerseyProduct = useMemo(() => {
+    return String(product?.dbCategory || product?.title || "")
+      .toLowerCase()
+      .includes("jersey");
+  }, [product]);
+
+  // Filter side options for Jersey to exclude sleeve/sublimation options
+  const displaySides = useMemo(() => {
+    if (!product?.sides) return [];
+
+    if (isJerseyProduct) {
+      return product.sides.filter((side) => {
+        const s = side.toLowerCase();
+        return !s.includes("sleeve") && !s.includes("sublimation");
+      });
+    }
+
+    return product.sides;
+  }, [product?.sides, isJerseyProduct]);
+
   useEffect(() => {
     if (!product) return;
     const isCustomizerRequested =
@@ -446,7 +466,7 @@ function ProductDetail() {
     setSelectedImage(product.gallery?.[0] || "");
     setSelectedSize(product.sizes?.[0] || "");
     setSelectedMaterial(product.materials?.[0] || null);
-    setSelectedSide(product.sides?.[0] || "");
+    setSelectedSide(displaySides?.[0] || "");
     setSelectedColor(product.colors?.[0] || "");
     setSelectedFinish(product.finishing?.[0] || "");
     setSelectedQty(product.quantities?.[0] || null);
@@ -465,11 +485,11 @@ function ProductDetail() {
       color: product.colors?.[0] || "",
       material: product.materials?.[0]?.label || "",
       finishing: product.finishing?.[0] || "",
-      printing: product.sides?.[0] || "",
+      printing: displaySides?.[0] || "",
       processing: product.processing?.[0] || "",
       other: "",
     });
-  }, [product]);
+  }, [product, displaySides]);
 
   useEffect(() => {
     if (!product?.id) return;
@@ -536,9 +556,6 @@ function ProductDetail() {
   const selectedMaterialLower = String(
     selectedMaterial?.label || "",
   ).toLowerCase();
-  const isJerseyProduct = String(product?.dbCategory || product?.title || "")
-    .toLowerCase()
-    .includes("jersey");
   const previewSurface = selectedSideLower.includes("back")
     ? "back"
     : selectedSideLower.includes("sleeve")
@@ -1088,7 +1105,7 @@ function ProductDetail() {
                         clearWip();
                       }}
                     >
-                      {product.sides.map((side) => (
+                      {displaySides.map((side) => (
                         <option key={side} value={side}>
                           {side}
                         </option>

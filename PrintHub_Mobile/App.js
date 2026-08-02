@@ -19,6 +19,10 @@ import InquiriesScreen from "./screens/InquiriesScreen";
 import PaymentScreen from "./screens/PaymentScreen";
 import EditProfileScreen from "./screens/EditProfileScreen";
 import PasswordSecurityScreen from "./screens/PasswordSecurityScreen";
+import RegisterScreen from "./screens/RegisterScreen";
+import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
+import OtpScreen from "./screens/OtpScreen";
+import ResetPasswordScreen from "./screens/ResetPasswordScreen";
 import { COLORS } from "./theme";
 
 const Stack = createNativeStackNavigator();
@@ -176,6 +180,26 @@ export default function App() {
           name="PasswordSecurity"
           component={PasswordSecurityScreen}
           options={{ title: "Passwords & Security" }}
+        />
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+          options={{ title: "Create Account" }}
+        />
+        <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+          options={{ title: "Forgot Password" }}
+        />
+        <Stack.Screen
+          name="Otp"
+          component={OtpScreen}
+          options={{ title: "Verify OTP" }}
+        />
+        <Stack.Screen
+          name="ResetPassword"
+          component={ResetPasswordScreen}
+          options={{ title: "Reset Password" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

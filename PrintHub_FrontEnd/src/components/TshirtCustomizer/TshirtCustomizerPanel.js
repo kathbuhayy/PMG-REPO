@@ -105,6 +105,20 @@ export default function TshirtCustomizerPanel({
     );
   }, [product?.print_zones, selectedSide, designType]);
 
+  // Filter side options for Jersey to exclude sleeve/sublimation options
+  const displaySides = useMemo(() => {
+    if (!product?.sides) return [];
+
+    if (designType === "jersey" || productLabel === "jersey") {
+      return product.sides.filter((side) => {
+        const s = side.toLowerCase();
+        return !s.includes("sleeve") && !s.includes("sublimation");
+      });
+    }
+
+    return product.sides;
+  }, [product?.sides, designType, productLabel]);
+
   // Merge parsed size into previewProps.flatShape for flat panels
   const mergedPreviewProps = useMemo(() => {
     if (!selectedSize || !previewProps.flatShape) return previewProps;
@@ -567,7 +581,7 @@ export default function TshirtCustomizerPanel({
                     value={selectedSide}
                     onChange={(e) => onSideChange?.(e.target.value)}
                   >
-                    {product.sides.map((side) => (
+                    {displaySides.map((side) => (
                       <option key={side} value={side}>
                         {side}
                       </option>

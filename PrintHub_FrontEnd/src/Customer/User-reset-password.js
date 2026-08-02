@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./User-reset-password.css";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
@@ -27,8 +27,14 @@ function UserResetPasswordPage() {
   const location = useLocation();
   const email = location.state?.email;
 
+  useEffect(() => {
+    if (!email) {
+      navigate("/user-login", { replace: true });
+    }
+  }, [email, navigate]);
+
   if (!email) {
-    navigate("/user-login");
+    return null;
   }
 
   // ✅ handle new password typing
@@ -107,7 +113,10 @@ function UserResetPasswordPage() {
       }
 
       setSuccess("Password changed successfully!");
-      setTimeout(() => navigate("/user-login"), 1200);
+      setTimeout(
+        () => navigate("/user-login", { replace: true }),
+        1200
+      );
     } catch (err) {
       setError("Network error");
     }

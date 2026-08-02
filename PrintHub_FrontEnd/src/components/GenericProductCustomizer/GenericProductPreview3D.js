@@ -123,6 +123,16 @@ export default function GenericProductPreview3D({
           node.material.map.dispose();
           node.material.map = null;
         }
+
+        // Reset metallic factors to allow proper diffuse color rendering
+        if (node.material.metalness !== undefined) {
+          node.material.metalness = 0.0;
+        }
+
+        if (node.material.roughness !== undefined) {
+          node.material.roughness = 0.7;
+        }
+
         if (node.material.color) {
           node.material.color = color;
           node.material.needsUpdate = true;

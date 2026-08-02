@@ -137,10 +137,11 @@
 .uo-loading,
 .uo-error,
 .uo-empty {
+  width: 100%;
   max-width: 800px;
   margin: 0 auto;
-  padding: 96px 32px;
-  min-height: 320px;
+  padding: 120px 48px;
+  min-height: 400px;
   display: flex;
   flex-direction: column;
   align-items: center;

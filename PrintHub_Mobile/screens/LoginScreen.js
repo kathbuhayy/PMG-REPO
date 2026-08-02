@@ -122,6 +122,13 @@ export default function LoginScreen({ navigation }) {
             </View>
           </View>
 
+          <TouchableOpacity
+            style={styles.forgotBtn}
+            onPress={() => navigation.navigate("ForgotPassword")}
+          >
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
           {/* Submit Button */}
           <TouchableOpacity
             style={styles.button}
@@ -138,10 +145,24 @@ export default function LoginScreen({ navigation }) {
           {/* Guest Return Link */}
           <TouchableOpacity
             style={styles.guestLink}
-            onPress={() => navigation.reset({ index: 0, routes: [{ name: "Main" }] })}
+            onPress={() =>
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Main" }],
+              })
+            }
           >
-            <Text style={styles.guestLinkText}>
-              Continue as Guest
+            <Text style={styles.guestLinkText}>Continue as Guest</Text>
+          </TouchableOpacity>
+
+          {/* Register Link */}
+          <TouchableOpacity
+            style={styles.registerLink}
+            onPress={() => navigation.navigate("Register")}
+          >
+            <Text style={styles.registerLinkText}>
+              Don't have an account?{" "}
+              <Text style={styles.registerHighlight}>Sign Up</Text>
             </Text>
           </TouchableOpacity>
         </View>
@@ -243,5 +264,26 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     fontSize: 12,
     fontWeight: "700",
+  },
+  forgotBtn: {
+    alignSelf: "flex-end",
+    marginBottom: 20,
+  },
+  forgotText: {
+    color: COLORS.accentCyan,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  registerLink: {
+    marginTop: 14,
+    alignItems: "center",
+  },
+  registerLinkText: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+  },
+  registerHighlight: {
+    color: COLORS.accentCyan,
+    fontWeight: "800",
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   FaClock,
@@ -17,8 +17,14 @@ function UserForgotOtpPage() {
 
   const email = location.state?.email;
 
+  useEffect(() => {
+    if (!email) {
+      navigate("/user-login", { replace: true });
+    }
+  }, [email, navigate]);
+
   if (!email) {
-    navigate("/user-login");
+    return null;
   }
 
   const handleVerify = async (e) => {
@@ -44,7 +50,10 @@ function UserForgotOtpPage() {
         return;
       }
 
-      navigate("/user-reset-password", { state: { email } });
+      navigate("/user-reset-password", {
+        replace: true,
+        state: { email },
+      });
     } catch (err) {
       setError("Network error");
     }
@@ -55,7 +64,7 @@ function UserForgotOtpPage() {
       <button
         className="otp-back-button"
         type="button"
-        onClick={() => navigate("/user-login")}
+        onClick={() => navigate("/user-login", { replace: true })}
       >
         Back
       </button>

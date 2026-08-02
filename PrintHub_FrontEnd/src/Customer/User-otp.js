@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   FaCheckCircle,
@@ -21,9 +21,16 @@ function UserOtpPage() {
   const location = useLocation();
 
   const email = location.state?.email;
+  const pendingReg = localStorage.getItem("pending_registration");
 
-  if (!email) {
-    navigate("/user-register");
+  useEffect(() => {
+    if (!email || !pendingReg) {
+      navigate("/user-register", { replace: true });
+    }
+  }, [email, pendingReg, navigate]);
+
+  if (!email || !pendingReg) {
+    return null;
   }
 
   const handleVerify = async (e) => {
@@ -124,7 +131,7 @@ function UserOtpPage() {
       <button
         className="otp-back-button"
         type="button"
-        onClick={() => navigate("/user-register")}
+        onClick={() => navigate("/user-register", { replace: true })}
       >
         Back
       </button>
@@ -195,7 +202,7 @@ function UserOtpPage() {
         title="Account verified"
         message="Your PMG account is ready. Please login to continue."
         tone="success"
-        onConfirm={() => navigate("/user-login")}
+        onConfirm={() => navigate("/user-login", { replace: true })}
       />
     </div>
   );

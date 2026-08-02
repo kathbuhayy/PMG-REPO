@@ -1009,8 +1009,8 @@
 
 .tsc-right-preview .tsc-preview-3d {
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  height: 520px;
+  max-height: 520px;
   background: #1e2433;
 }
 

@@ -631,7 +631,6 @@ const PRODUCT_SEEDS = [
       "Front",
       "Back",
       "Front & Back",
-      "Full Sublimation",
       "All Sides",
     ],
     finishing_options: [
@@ -674,7 +673,6 @@ const PRODUCT_SEEDS = [
       "Front",
       "Back",
       "Front & Back",
-      "Full Sublimation",
       "All Sides",
     ],
     finishing_options: [

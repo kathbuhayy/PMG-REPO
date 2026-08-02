@@ -51,6 +51,13 @@ const CustomDropdown = ({ label, options, selected, onSelect, isOpen, onToggle }
 export default function ProductDetailScreen({ route, navigation }) {
   const { product } = route.params;
   const [adding, setAdding] = useState(false);
+  const [activeDesign, setActiveDesign] = useState(null);
+
+  useEffect(() => {
+    if (route.params?.completedDesign) {
+      setActiveDesign(route.params.completedDesign);
+    }
+  }, [route.params?.completedDesign]);
 
   // Configuration options state
   const [sizes, setSizes] = useState([]);
@@ -130,6 +137,7 @@ export default function ProductDetailScreen({ route, navigation }) {
         finishing: selectedFinish,
         color: selectedColor,
         quantity: selectedQty?.label,
+        ...(activeDesign ? { design: activeDesign } : {}),
       };
 
       const response = await fetch(
@@ -267,6 +275,32 @@ export default function ProductDetailScreen({ route, navigation }) {
           {product.description || "No description available for this product."}
         </Text>
 
+        {activeDesign && (
+          <View style={styles.designAttachedCard}>
+            <View style={styles.designAttachedHeader}>
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color={COLORS.accentCyan}
+              />
+              <Text style={styles.designAttachedTitle}>
+                3D Design Attached
+              </Text>
+            </View>
+            <Text style={styles.designAttachedDesc} numberOfLines={2}>
+              {activeDesign.prompt
+                ? `"${activeDesign.prompt}"`
+                : "Custom 3D design ready"}
+            </Text>
+            <TouchableOpacity
+              style={styles.removeDesignBtn}
+              onPress={() => setActiveDesign(null)}
+            >
+              <Text style={styles.removeDesignText}>Remove Design</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.cartButton}
@@ -282,9 +316,24 @@ export default function ProductDetailScreen({ route, navigation }) {
 
           <TouchableOpacity
             style={styles.customizerButton}
-            onPress={() =>
+            onPress={async () => {
+              const userStr = await AsyncStorage.getItem("user");
+              if (!userStr) {
+                Alert.alert(
+                  "Login Required",
+                  "Please log in to customize this product in 3D.",
+                  [
+                    { text: "Cancel" },
+                    {
+                      text: "Log In",
+                      onPress: () => navigation.navigate("Login"),
+                    },
+                  ]
+                );
+                return;
+              }
               navigation.navigate("CustomizerWebView", {
-                productId: product.id,
+                product,
                 selectedOptions: {
                   size: selectedSize,
                   material: selectedMaterial?.label,
@@ -293,8 +342,8 @@ export default function ProductDetailScreen({ route, navigation }) {
                   color: selectedColor,
                   quantity: selectedQty?.label,
                 },
-              })
-            }
+              });
+            }}
           >
             <Ionicons
               name="cube-outline"
@@ -438,5 +487,37 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     fontSize: 14,
     fontWeight: "800",
+  },
+  designAttachedCard: {
+    backgroundColor: COLORS.cardBg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.accentCyan,
+    padding: 12,
+    marginBottom: 16,
+  },
+  designAttachedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  designAttachedTitle: {
+    color: COLORS.textPrimary,
+    fontWeight: "800",
+    fontSize: 14,
+    marginLeft: 6,
+  },
+  designAttachedDesc: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  removeDesignBtn: {
+    alignSelf: "flex-start",
+  },
+  removeDesignText: {
+    color: COLORS.danger,
+    fontWeight: "700",
+    fontSize: 12,
   },
 });

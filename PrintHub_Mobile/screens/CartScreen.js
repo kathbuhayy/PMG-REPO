@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useIsFocused } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "../config";
 import { COLORS } from "../theme";
 
@@ -128,15 +129,18 @@ export default function CartScreen({ navigation }) {
 
   const renderCartItem = ({ item }) => {
     const imageUrl = item.productImage || "https://via.placeholder.com/100";
+    const finishVal =
+      item.customizations?.finishing || item.customizations?.finish;
     const details = item.customizations
       ? [
           item.customizations.quantity &&
-            `Quantity: ${item.customizations.quantity}`,
+            `Qty: ${item.customizations.quantity}`,
           item.customizations.size && `Size: ${item.customizations.size}`,
           item.customizations.material &&
-            `Material: ${item.customizations.material}`,
-          item.customizations.finish &&
-            `Finish: ${item.customizations.finish}`,
+            `Mat: ${item.customizations.material}`,
+          finishVal && `Fin: ${finishVal}`,
+          item.customizations.side && `Side: ${item.customizations.side}`,
+          item.customizations.color && `Color: ${item.customizations.color}`,
         ]
           .filter(Boolean)
           .join(" · ")
@@ -172,9 +176,25 @@ export default function CartScreen({ navigation }) {
             )}
           </View>
           {!!details && (
-            <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+            <Text
+              style={{
+                fontSize: 11,
+                color: COLORS.textMuted,
+                marginTop: 2,
+              }}
+            >
               {details}
             </Text>
+          )}
+          {item.customizations?.design && (
+            <View style={styles.designBadge}>
+              <Ionicons
+                name="cube-outline"
+                size={12}
+                color={COLORS.accentCyan}
+              />
+              <Text style={styles.designBadgeText}>3D Design Attached</Text>
+            </View>
           )}
           <Text style={styles.price}>₱{Number(item.price).toFixed(2)}</Text>
 
@@ -445,5 +465,21 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     fontWeight: "bold",
     fontSize: 14,
-  }
+  },
+  designBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(6, 182, 212, 0.1)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  designBadgeText: {
+    color: COLORS.accentCyan,
+    fontSize: 10,
+    fontWeight: "700",
+    marginLeft: 4,
+  },
 });

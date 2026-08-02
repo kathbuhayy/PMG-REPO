@@ -444,7 +444,6 @@ export const CATEGORY_DEFAULTS = {
       "Front",
       "Back",
       "Front & Back",
-      "Full Sublimation",
       "All Sides"
     ],
     "finishing_options": [

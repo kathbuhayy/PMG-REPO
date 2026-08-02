@@ -6,7 +6,8 @@ import { WEB_APP_URL } from "../config";
 import { COLORS } from "../theme";
 
 export default function CustomizerWebViewScreen({ route, navigation }) {
-  const { productId, selectedOptions } = route.params || {};
+  const { product, selectedOptions } = route.params || {};
+  const productId = product?.id;
   const [loading, setLoading] = useState(true);
   const [userJson, setUserJson] = useState(null);
 
@@ -61,7 +62,8 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         ${
           userJson
             ? `localStorage.setItem("user", JSON.stringify(${userJson}));`
-            : `localStorage.setItem("user", JSON.stringify({ id: 999, role: "customer", email: "customer@printhub.com" }));`
+            : `localStorage.setItem("user", ` +
+              `JSON.stringify({ role: "guest" }));`
         }
       } catch (e) {}
     })();
@@ -77,7 +79,8 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         style.id = 'mobile-hide-web-chrome';
         style.innerHTML = \`
           header, nav, .navbar, .po-top, .app-header, footer,
-          .pd-customizer-page-header, .login-modal-overlay,
+          .pd-customizer-page-header, .po-back-btn, .po-breadcrumb,
+          .po-right-col, .po-left-col,
           button.login-btn, div.user-nav-actions, .mobile-navbar,
           .mobile-bottom-nav, .user-home-header, .phc-fab, .phc-window,
           .chatbot-container, .chatbot-toggle-btn, .ph-chatbot-fab,
@@ -115,7 +118,12 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
           [
             {
               text: "OK",
-              onPress: () => navigation.goBack(),
+              onPress: () => {
+                navigation.navigate("ProductDetail", {
+                  product,
+                  completedDesign: data.design,
+                });
+              },
             },
           ]
         );
