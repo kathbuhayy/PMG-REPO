@@ -857,7 +857,7 @@ function ProductDetail() {
             <button
               type="button"
               className="pd-customizer-back-btn"
-              onClick={() => navigate(getBackUrl())}
+              onClick={() => navigate(getBackUrl(), { replace: true })}
             >
               ←
             </button>
@@ -907,6 +907,7 @@ function ProductDetail() {
                     design: meta,
                   }),
                 );
+                return;
               }
 
               // Auto-select corresponding side based on customized zones
@@ -955,7 +956,7 @@ function ProductDetail() {
                 }
               }
 
-              navigate(getBackUrl());
+              navigate(getBackUrl(), { replace: true });
             }}
             onClear={() => {
               setActiveDesign(null);

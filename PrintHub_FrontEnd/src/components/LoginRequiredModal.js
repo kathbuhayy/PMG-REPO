@@ -1,21 +1,21 @@
 import React from "react";
-import "./LoginRequiredModal.css"; // create this for basic styling if you want
+import "./GenericModal.css";
 
 function LoginRequiredModal({ onClose, onLogin, onRegister }) {
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
+    <div className="generic-modal-overlay">
+      <div className="generic-modal-content">
         <h2>Login Required</h2>
         <p>You need to log in or create an account to continue.</p>
 
-        <div className="modal-buttons">
-          <button className="login-btn" onClick={onLogin}>
+        <div className="generic-modal-buttons stacked">
+          <button className="generic-modal-btn primary" onClick={onLogin}>
             Log In
           </button>
-          <button className="register-btn" onClick={onRegister}>
+          <button className="generic-modal-btn secondary" onClick={onRegister}>
             Create Account
           </button>
-          <button className="cancel-btn" onClick={onClose}>
+          <button className="generic-modal-btn secondary ghost" onClick={onClose}>
             Cancel
           </button>
         </div>

@@ -10,6 +10,7 @@ import {
   FaShoppingBag,
 } from "react-icons/fa";
 import CheckoutModal from "./CheckoutModal";
+import AlertModal from "../components/AlertModal";
 import { useCart } from "../hooks/useCart";
 import { buildApiUrl } from "../config/api";
 
@@ -19,6 +20,9 @@ function UserCartPage() {
   const [showCheckoutAuthModal, setShowCheckoutAuthModal] = useState(false);
   const { cartItems, removeFromCart, updateQuantity } = useCart();
   const [selectedItemIds, setSelectedItemIds] = useState([]);
+  
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
 
   // Stock lookup for out-of-stock validation
   const [productStockMap, setProductStockMap] = useState({});
@@ -142,7 +146,8 @@ function UserCartPage() {
 
   const handleCheckoutClick = () => {
     if (selectedItemIds.length === 0) {
-      alert("Please select at least one item to checkout.");
+      setAlertMessage("Please select at least one item to checkout.");
+      setAlertOpen(true);
       return;
     }
     if (!isCustomer) {
@@ -448,6 +453,12 @@ function UserCartPage() {
             </div>
           </div>
         )}
+        
+        <AlertModal 
+          isOpen={alertOpen} 
+          message={alertMessage} 
+          onClose={() => setAlertOpen(false)} 
+        />
       </div>
     </div>
   );

@@ -113,6 +113,7 @@ const PRODUCT_SEEDS = [
       "1000 pcs|₱3,800.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
+    print_zones: ["front", "back"],
     ai_prompt_rules:
       "Generate a professional business card design. " +
       "Use clean typography and ample white space. " +
@@ -156,6 +157,7 @@ const PRODUCT_SEEDS = [
       "1000 pcs|₱14,250.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
+    print_zones: ["front", "back"],
     ai_prompt_rules:
       "Generate a bold, attention-grabbing flyer design. " +
       "Headline must be the largest element. " +
@@ -206,6 +208,7 @@ const PRODUCT_SEEDS = [
       "1000 pcs|₱7,600.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱200.00"],
+    print_zones: ["front", "back"],
     ai_prompt_rules:
       "Generate a clean, structured brochure layout. " +
       "Each panel must have a clear purpose: cover, " +
@@ -260,6 +263,7 @@ const PRODUCT_SEEDS = [
       "1000 pcs|₱3,800.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱100.00"],
+    print_zones: ["front"],
     ai_prompt_rules:
       "Generate a compact, visually striking sticker or label design. " +
       "Design must be fully contained within the die-cut " +
@@ -311,6 +315,7 @@ const PRODUCT_SEEDS = [
       "1000 pcs|₱1,900.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
+    print_zones: ["front", "back"],
     ai_prompt_rules:
       "Generate an elegant, brand-consistent hang tag design. " +
       "Front: logo, product name, tagline. Back: barcode placeholder, " +
@@ -356,6 +361,7 @@ const PRODUCT_SEEDS = [
       "50 pcs|₱3,800.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱200.00"],
+    print_zones: ["front"],
     ai_prompt_rules:
       "Generate a high-impact poster with a dominant visual element " +
       "occupying at least 40% of the layout. Headline must be " +
@@ -408,6 +414,7 @@ const PRODUCT_SEEDS = [
       "10 pcs|₱3,078.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱300.00"],
+    print_zones: ["front"],
     ai_prompt_rules:
       "Generate a large format banner design viewable from a distance. " +
       "Text must be large — minimum 1in tall per 10ft viewing distance. " +
@@ -457,6 +464,7 @@ const PRODUCT_SEEDS = [
       "500 pcs|₱5,700.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
+    print_zones: ["front", "back"],
     ai_prompt_rules:
       "Generate a warm, elegant card design. Tone must be personal " +
       "and appreciative. Keep design minimal — focus on the message area. " +

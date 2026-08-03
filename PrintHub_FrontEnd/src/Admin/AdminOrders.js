@@ -490,7 +490,11 @@ function AdminOrders() {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Error downloading AI image:", err);
-      alert("Failed to download image");
+      setNoticeModal({
+        title: "Download failed",
+        message: "Failed to download image",
+        tone: "danger"
+      });
     }
   };
 

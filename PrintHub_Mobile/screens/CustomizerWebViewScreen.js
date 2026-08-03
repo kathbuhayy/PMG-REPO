@@ -2,13 +2,12 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, View, ActivityIndicator, Alert } from "react-native";
 import { WebView } from "react-native-webview";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { WEB_APP_URL } from "../config";
+import { WEB_APP_URL, API_BASE_URL } from "../config";
 import { COLORS } from "../theme";
 
 export default function CustomizerWebViewScreen({ route, navigation }) {
   const { product, selectedOptions } = route.params || {};
   const productId = product?.id;
-  const [loading, setLoading] = useState(true);
   const [userJson, setUserJson] = useState(null);
 
   useEffect(() => {
@@ -27,7 +26,11 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
   };
 
   // Build target URL with selected options as query params
-  const queryParts = ["customizer=true", "embed=true"];
+  const queryParts = [
+    "customizer=true",
+    "embed=true",
+    `apiUrl=${encodeURIComponent(API_BASE_URL)}`
+  ];
   if (selectedOptions) {
     if (selectedOptions.size) {
       queryParts.push(`size=${encodeURIComponent(selectedOptions.size)}`);
@@ -59,12 +62,11 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
     (function() {
       try {
         sessionStorage.setItem("pmg_splash_seen", "true");
-        ${
-          userJson
-            ? `localStorage.setItem("user", JSON.stringify(${userJson}));`
-            : `localStorage.setItem("user", ` +
-              `JSON.stringify({ role: "guest" }));`
-        }
+        ${userJson
+      ? `localStorage.setItem("user", JSON.stringify(${userJson}));`
+      : `localStorage.setItem("user", ` +
+      `JSON.stringify({ role: "guest" }));`
+    }
       } catch (e) {}
     })();
     true;
@@ -79,7 +81,7 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         style.id = 'mobile-hide-web-chrome';
         style.innerHTML = \`
           header, nav, .navbar, .po-top, .app-header, footer,
-          .pd-customizer-page-header, .po-back-btn, .po-breadcrumb,
+          .pd-customizer-header-left, .po-back-btn, .po-breadcrumb,
           .po-right-col, .po-left-col,
           button.login-btn, div.user-nav-actions, .mobile-navbar,
           .mobile-bottom-nav, .user-home-header, .phc-fab, .phc-window,
@@ -91,10 +93,29 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
             height: 0 !important;
             min-height: 0 !important;
           }
-          body, #root, .pd-page, .po-page {
-            padding-top: 0 !important;
-            margin-top: 0 !important;
-            background-color: #07111f !important;
+          html, body, #root, .pd-page, .po-page, .pd-customizer-page-wrapper {
+            padding: 0 !important;
+            margin: 0 !important;
+            background-color: #ffffff !important;
+            height: 100vh !important;
+            min-height: 100vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .tsc-root {
+            flex: 1 !important;
+            max-height: none !important;
+            height: 100% !important;
+            padding-bottom: 0 !important;
+            background-color: #ffffff !important;
+          }
+          .tsc-3col-layout, .tsc-4col-layout {
+            flex: 1 !important;
+            height: 100% !important;
+            padding-bottom: 16px !important;
+          }
+          .tsc-bottom-action-bar {
+            padding-bottom: 16px !important;
           }
         \`;
         if (!document.getElementById('mobile-hide-web-chrome')) {
@@ -119,9 +140,13 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
             {
               text: "OK",
               onPress: () => {
-                navigation.navigate("ProductDetail", {
-                  product,
-                  completedDesign: data.design,
+                navigation.navigate({
+                  name: "ProductDetail",
+                  params: {
+                    product,
+                    completedDesign: data.design,
+                  },
+                  merge: true,
                 });
               },
             },
@@ -140,8 +165,6 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         injectedJavaScriptBeforeContentLoaded={injectedPreLoadJS}
         injectedJavaScript={injectedPostLoadJS}
         onMessage={HandleWebViewMessage}
-        onLoadStart={() => setLoading(true)}
-        onLoadEnd={() => setLoading(false)}
         style={styles.webview}
         javaScriptEnabled={true}
         domStorageEnabled={true}
@@ -149,19 +172,11 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         mixedContentMode="always"
         allowFileAccess={true}
         allowUniversalAccessFromFileURLs={true}
-        startInLoadingState={true}
         onError={(syntheticEvent) => {
           const { nativeEvent } = syntheticEvent;
           console.warn("[WebViewError] {LoadUrl}: ", nativeEvent);
         }}
       />
-      {loading && (
-        <ActivityIndicator
-          size="large"
-          color={COLORS.accentCyan}
-          style={styles.loader}
-        />
-      )}
     </View>
   );
 }
@@ -173,12 +188,5 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
-  },
-  loader: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    marginLeft: -20,
-    marginTop: -20,
   },
 });

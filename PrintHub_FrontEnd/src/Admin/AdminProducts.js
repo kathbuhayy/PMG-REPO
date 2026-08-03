@@ -12,6 +12,7 @@ import {
   FaTrashAlt,
   FaInfoCircle,
 } from "react-icons/fa";
+import ConfirmModal from "../components/ConfirmModal";
 import "./Admin-dashboard.css";
 import { buildApiUrl } from "../config/api";
 import {
@@ -139,6 +140,7 @@ function AdminProducts({
 
   // ✅ NEW: Edit product states
   const [showEditModal, setShowEditModal] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -624,40 +626,44 @@ function AdminProducts({
       showToast("No products selected", "error");
       return;
     }
-    if (
-      !window.confirm(`Set ${selectedIds.size} product(s) to dropdown mode?`)
-    ) {
-      return;
-    }
-    try {
-      const promises = Array.from(selectedIds).map((id) =>
-        fetch(buildApiUrl(`/api/products/${id}`), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantity_mode: "dropdown" }),
-        }),
-      );
+    setConfirmModalConfig({
+      isOpen: true,
+      title: "Bulk Update",
+      message: `Set ${selectedIds.size} product(s) to dropdown mode?`,
+      onCancel: () => setConfirmModalConfig(null),
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
+        try {
+          const promises = Array.from(selectedIds).map((id) =>
+            fetch(buildApiUrl(`/api/products/${id}`), {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ quantity_mode: "dropdown" }),
+            }),
+          );
 
-      const results = await Promise.all(promises);
-      const failed = [];
-      for (let i = 0; i < results.length; i++) {
-        if (!results[i].ok) {
-          failed.push(Array.from(selectedIds)[i]);
+          const results = await Promise.all(promises);
+          const failed = [];
+          for (let i = 0; i < results.length; i++) {
+            if (!results[i].ok) {
+              failed.push(Array.from(selectedIds)[i]);
+            }
+          }
+
+          if (failed.length > 0) {
+            showToast(`Failed to update ${failed.length} product(s).`, "error");
+          } else {
+            showToast("Updated selected products to dropdown mode.", "success");
+          }
+
+          setSelectedIds(new Set());
+          setLocalRefreshKey((k) => k + 1);
+        } catch (err) {
+          console.error(err);
+          showToast("Bulk update failed", "error");
         }
       }
-
-      if (failed.length > 0) {
-        showToast(`Failed to update ${failed.length} product(s).`, "error");
-      } else {
-        showToast("Updated selected products to dropdown mode.", "success");
-      }
-
-      setSelectedIds(new Set());
-      setLocalRefreshKey((k) => k + 1);
-    } catch (err) {
-      console.error(err);
-      showToast("Bulk update failed", "error");
-    }
+    });
   };
 
   // ✅ NEW: Open edit modal with selected product
@@ -1082,30 +1088,31 @@ function AdminProducts({
   };
 
   // ✅ NEW: Delete product
-  const handleDeleteProduct = async (product) => {
-    if (
-      !window.confirm(
-        `Delete product "${product.name}"? This cannot be undone.`,
-      )
-    ) {
-      return;
-    }
+  const handleDeleteProduct = (product) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: "Delete Product",
+      message: `Delete product "${product.name}"? This cannot be undone.`,
+      onCancel: () => setConfirmModalConfig(null),
+      onConfirm: async () => {
+        setConfirmModalConfig(null);
+        try {
+          const res = await fetch(buildApiUrl(`/api/products/${product.dbId}`), {
+            method: "DELETE",
+          });
 
-    try {
-      const res = await fetch(buildApiUrl(`/api/products/${product.dbId}`), {
-        method: "DELETE",
-      });
+          if (!res.ok) throw new Error("Failed to delete product");
 
-      if (!res.ok) throw new Error("Failed to delete product");
+          // ✅ Immediately remove from UI
+          setProducts((prev) => prev.filter((p) => p.dbId !== product.dbId));
 
-      // ✅ Immediately remove from UI
-      setProducts((prev) => prev.filter((p) => p.dbId !== product.dbId));
-
-      showToast("Product deleted successfully!", "success");
-    } catch (err) {
-      console.error("Error deleting product:", err);
-      showToast(err.message || "Error deleting product", "error");
-    }
+          showToast("Product deleted successfully!", "success");
+        } catch (err) {
+          console.error("Error deleting product:", err);
+          showToast(err.message || "Error deleting product", "error");
+        }
+      }
+    });
   };
 
   if (loading) {
@@ -1132,6 +1139,17 @@ function AdminProducts({
           <span>{toast.message}</span>
         </div>
       )}
+
+      {confirmModalConfig && (
+        <ConfirmModal
+          isOpen={confirmModalConfig.isOpen}
+          title={confirmModalConfig.title}
+          message={confirmModalConfig.message}
+          onConfirm={confirmModalConfig.onConfirm}
+          onCancel={confirmModalConfig.onCancel}
+        />
+      )}
+
       {/* ✅ Top row - Header with Title and Add Button */}
       <div className="dashpage-top">
         <div>

@@ -38,7 +38,24 @@ export default function LoginScreen({ navigation }) {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data.message === "Email not found" || data.message === "User not found") {
+          Alert.alert("Account Not Found", "Would you like to register?", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Register", onPress: () => navigation.navigate("Register") }
+          ]);
+          setLoading(false);
+          return;
+        }
         throw new Error(data.message || "Failed to log in");
+      }
+
+      if (data.user?.role === "admin") {
+        Alert.alert(
+          "Access Denied",
+          "Admins cannot log in via the mobile app. Please use the web dashboard."
+        );
+        setLoading(false);
+        return;
       }
 
       await AsyncStorage.setItem("user", JSON.stringify(data.user));

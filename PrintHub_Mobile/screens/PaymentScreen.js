@@ -104,8 +104,6 @@ export default function PaymentScreen({ route, navigation }) {
         method: "DELETE",
       }).catch((err) => console.error("Failed to clear cart:", err));
 
-      setProcessing(false);
-
       Alert.alert(
         "Order Placed Successfully!",
         "Your order was sent to admin for approval. " +
@@ -121,6 +119,7 @@ export default function PaymentScreen({ route, navigation }) {
     } catch (err) {
       console.error("[PaymentScreen] {PlaceOrder}: " + err.message);
       Alert.alert("Error", err.message || "Order placement failed");
+    } finally {
       setProcessing(false);
     }
   };

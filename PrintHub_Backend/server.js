@@ -76,7 +76,7 @@ app.use(cors({
 
     const isAllowed = allowedOrigins.some((allowed) => {
       return origin.replace(/\/$/, "") === allowed.replace(/\/$/, "");
-    }) || origin.includes("10.0.2.2") || origin.includes("192.168.");
+    }) || origin.includes("10.0.2.2") || origin.includes("192.168.") || origin.includes("trycloudflare.com");
 
     if (isAllowed) {
       return callback(null, true);
@@ -876,7 +876,7 @@ app.post("/api/orders", async (req, res) => {
       const itemTotal = unit * quantity;
       console.log(
         `  Item: productId=${it.productId}, unitPrice=${unit}, ` +
-          `qty=${quantity}, itemTotal=${itemTotal}`,
+        `qty=${quantity}, itemTotal=${itemTotal}`,
       );
       itemsTotal += itemTotal;
       return {
@@ -1089,26 +1089,26 @@ app.post("/api/user/:id/cart", async (req, res) => {
 
     const saved = match
       ? await prisma.cartItem.update({
-          where: { id: match.id },
-          data: { qty: { increment: Number(qty) || 1 } },
-          include: {
-            product: { select: { id: true, name: true, images: true } },
-          },
-        })
+        where: { id: match.id },
+        data: { qty: { increment: Number(qty) || 1 } },
+        include: {
+          product: { select: { id: true, name: true, images: true } },
+        },
+      })
       : await prisma.cartItem.create({
-          data: {
-            userId,
-            productId: Number(productId),
-            title: title || name,
-            price: Number(price || 0),
-            qty: Math.max(1, Number(qty) || 1),
-            productImage: productImage || images?.[0] || null,
-            customizations: normalizedCustomizations,
-          },
-          include: {
-            product: { select: { id: true, name: true, images: true } },
-          },
-        });
+        data: {
+          userId,
+          productId: Number(productId),
+          title: title || name,
+          price: Number(price || 0),
+          qty: Math.max(1, Number(qty) || 1),
+          productImage: productImage || images?.[0] || null,
+          customizations: normalizedCustomizations,
+        },
+        include: {
+          product: { select: { id: true, name: true, images: true } },
+        },
+      });
 
     res.status(match ? 200 : 201).json(cartItemPayload(saved));
   } catch (e) {
@@ -2666,7 +2666,7 @@ app.post("/api/builder/generate-image", async (req, res) => {
 
     // Append system-level prompt guidelines to avoid copyrighted content
     // and guide the generation to a transparent/white background graphic.
-    const guidelines = 
+    const guidelines =
       "flat vector graphic design, isolated subject on transparent " +
       "or white background, no copyrighted characters, no trademarked logos, " +
       "print-ready artwork, high contrast, clean edges";
@@ -3460,7 +3460,7 @@ app.post(
   }
 
   checkPaymongoConfig();
-if (process.env.RUN_MIGRATIONS === "true") {
+  if (process.env.RUN_MIGRATIONS === "true") {
     try {
       // Run database migrations
       const { execSync } = require("child_process");

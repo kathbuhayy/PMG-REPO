@@ -3,6 +3,7 @@ import { FaEdit, FaKey } from "react-icons/fa";
 import "./Admin-profile.css";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { buildApiUrl } from "../config/api";
+import AlertModal from "../components/AlertModal";
 
 function AdminProfile() {
 
@@ -16,6 +17,14 @@ function AdminProfile() {
     phone: "+63", // ✅ +63 pre-filled
     avatar_url: "",
   });
+
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+
+  const showAlert = (msg) => {
+    setAlertMessage(msg);
+    setAlertOpen(true);
+  };
 
   const [isEditing, setIsEditing] = useState(false);
 
@@ -90,7 +99,7 @@ function AdminProfile() {
       })
       .catch((err) => {
         console.error(err);
-        alert(err.message || "Error loading profile");
+        showAlert(err.message || "Error loading profile");
       });
   }, []);
 
@@ -107,7 +116,7 @@ function AdminProfile() {
   const handleSave = async () => {
     const stored = localStorage.getItem("user");
     if (!stored) {
-      alert("No logged-in user found.");
+      showAlert("No logged-in user found.");
       return;
     }
 
@@ -115,12 +124,12 @@ function AdminProfile() {
     try {
       user = JSON.parse(stored);
     } catch {
-      alert("Invalid user session.");
+      showAlert("Invalid user session.");
       return;
     }
 
     if (!user?.id) {
-      alert("User ID missing.");
+      showAlert("User ID missing.");
       return;
     }
 
@@ -139,7 +148,7 @@ function AdminProfile() {
     if (phoneTrim !== "" && phoneTrim !== "+63") {
       const phoneRegex = /^\+639\d{9}$/;
       if (!phoneRegex.test(phoneTrim)) {
-        alert(
+        showAlert(
           "Phone must be a Philippine mobile number: +639 followed by 9 digits",
         );
         return;
@@ -185,10 +194,10 @@ function AdminProfile() {
       // ✅ ADDED: clear name error on successful save
       setNameError("");
 
-      alert("Profile Updated Successfully!");
+      showAlert("Profile Updated Successfully!");
     } catch (err) {
       console.error(err);
-      alert(err.message || "Error updating profile");
+      showAlert(err.message || "Error updating profile");
     }
   };
 
@@ -683,6 +692,12 @@ function AdminProfile() {
           </div>
         </div>
       )}
+
+      <AlertModal 
+        isOpen={alertOpen} 
+        message={alertMessage} 
+        onClose={() => setAlertOpen(false)} 
+      />
     </div>
   );
 }

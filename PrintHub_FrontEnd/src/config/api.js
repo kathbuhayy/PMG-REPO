@@ -9,6 +9,12 @@ const getDynamicApiBaseUrl = () => {
   }
 
   if (typeof window !== "undefined" && window.location) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const apiUrlOverride = urlParams.get("apiUrl");
+    if (apiUrlOverride) {
+      return apiUrlOverride;
+    }
+
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
 
