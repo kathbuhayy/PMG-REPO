@@ -1,5 +1,6 @@
 export const API_BASE_URL =
     process.env.EXPO_PUBLIC_API_BASE_URL ||
-    "https://printhub-backend-jdv8.onrender.com";
+    "https://pmg-repo.onrender.com";
 
-export const WEB_APP_URL = process.env.EXPO_PUBLIC_WEB_APP_URL || "";
+export const WEB_APP_URL =
+    process.env.EXPO_PUBLIC_WEB_APP_URL || "https://www.pmgprintsync.shop";
