@@ -1576,3 +1576,12 @@
 .wizard-modal-footer {
   flex-shrink: 0;
 }
+.dashpage-category-row {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 12px 16px;
+}

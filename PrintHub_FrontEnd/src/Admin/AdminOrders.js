@@ -304,6 +304,40 @@ function AdminOrders() {
       .sort((a, b) => b.dbId - a.dbId); // Sort descending - newest orders first
   }, [orders, ordersQuery, ordersStatus]);
 
+  const STATUS_GROUPS = [
+    "pending",
+    "confirmed",
+    "processing",
+    "delivered",
+    "completed",
+    "return_requested",
+    "cancelled",
+  ];
+
+  const STATUS_LABELS = {
+    pending: "Pending",
+    confirmed: "Confirmed",
+    processing: "Processing",
+    delivered: "Delivered",
+    completed: "Completed",
+    return_requested: "Return Requested",
+    cancelled: "Cancelled",
+  };
+
+  const groupedOrders = useMemo(() => {
+    return STATUS_GROUPS.reduce((groups, status) => {
+      const ordersForStatus = filteredOrders.filter(
+        (order) => order.status === status,
+      );
+
+      if (ordersForStatus.length > 0) {
+        groups[status] = ordersForStatus;
+      }
+
+      return groups;
+    }, {});
+  }, [filteredOrders]);
+
   // Calculate stats from orders
   const ordersStats = useMemo(() => {
     const pending = orders.filter((o) => o.status === "pending").length;
@@ -600,8 +634,16 @@ function AdminOrders() {
           </thead>
 
           <tbody>
-            {filteredOrders.map((o) => (
-              <React.Fragment key={o.dbId}>
+            {Object.entries(groupedOrders).map(([statusKey, statusOrders]) => (
+              <React.Fragment key={statusKey}>
+                <tr>
+                  <td colSpan="6" className="dashpage-category-row">
+                    {STATUS_LABELS[statusKey] || statusKey}
+                  </td>
+                </tr>
+
+                {statusOrders.map((o) => (
+                  <React.Fragment key={o.dbId}>
                 <tr>
                   <td data-label="Order">
                     <div className="dashpage-rowmain">
@@ -933,6 +975,8 @@ function AdminOrders() {
                     </td>
                   </tr>
                 )}
+                  </React.Fragment>
+                ))}
               </React.Fragment>
             ))}
 

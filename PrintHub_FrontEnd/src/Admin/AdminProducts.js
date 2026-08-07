@@ -520,9 +520,9 @@ function AdminProducts({
         const useLowStock =
           lowStockFilter && lowStockFilter.filter === "low_stock";
         const threshold = (lowStockFilter && lowStockFilter.threshold) || 10;
-        const url = useLowStock
+                const url = useLowStock
           ? buildApiUrl(`/api/admin/low-stock?threshold=${threshold}&limit=100`)
-          : buildApiUrl("/api/products?limit=100");
+          : buildApiUrl("/api/admin/products?limit=100");
 
         const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to fetch products");
@@ -553,9 +553,12 @@ function AdminProducts({
         }));
 
         // ✅ Sort by recently updated (descending)
-        transformedProducts.sort(
-          (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
-        );
+        transformedProducts.sort((a, b) => {
+          if (a.status !== b.status) {
+            return a.status === "active" ? -1 : 1;
+          }
+          return new Date(b.updatedAt) - new Date(a.updatedAt);
+        });
 
         setProducts(transformedProducts);
         setError(null);

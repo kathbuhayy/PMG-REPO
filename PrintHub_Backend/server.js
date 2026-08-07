@@ -1180,6 +1180,38 @@ app.delete("/api/user/:id/cart", async (req, res) => {
   }
 });
 
+app.get("/api/admin/products", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const skip = (page - 1) * limit;
+
+    const products = await prisma.product.findMany({
+      where: { deleted_at: null },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    });
+
+    const total = await prisma.product.count({
+      where: { deleted_at: null },
+    });
+
+    res.json({
+      products,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to fetch admin products" });
+  }
+});
+
 app.get("/api/admin/orders", async (req, res) => {
   try {
     const orders = await prisma.order.findMany({
