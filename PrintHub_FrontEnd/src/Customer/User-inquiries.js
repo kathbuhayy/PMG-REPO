@@ -5,6 +5,51 @@ import "./User-orders.css";
 import { FaArrowLeft, FaFileInvoiceDollar } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 
+// Helper to render design preview
+const renderInquiryDesignPreview = (designData) => {
+  if (!designData) return null;
+
+  return (
+    <div style={{ marginBottom: "12px", paddingBottom: "12px", borderBottom: "1px solid #e2e8f0" }}>
+      <strong style={{ fontSize: "13px", display: "block", marginBottom: "8px" }}>
+        Design Attached:
+      </strong>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        {designData.zones && Object.values(designData.zones).map((zone, idx) => {
+          if (!zone?.imageUrl) return null;
+          return (
+            <img
+              key={idx}
+              src={zone.imageUrl}
+              alt="design"
+              style={{
+                width: "60px",
+                height: "60px",
+                borderRadius: "4px",
+                border: "1px solid #cbd5e1",
+                objectFit: "cover",
+              }}
+            />
+          );
+        })}
+        {designData.generatedImageUrl && (
+          <img
+            src={designData.generatedImageUrl}
+            alt="design"
+            style={{
+              width: "60px",
+              height: "60px",
+              borderRadius: "4px",
+              border: "1px solid #cbd5e1",
+              objectFit: "cover",
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
 const STATUS_META = {
   new: { label: "New", color: "#e67e22" },
   quoted: { label: "Quoted", color: "#2980b9" },
@@ -200,6 +245,8 @@ function UserInquiries() {
                           <p>{inq.admin_notes}</p>
                         </div>
                       )}
+
+                      {inq.design_data && renderInquiryDesignPreview(inq.design_data)}
 
                       {/* Request details */}
                       <div className="ui-details-grid">

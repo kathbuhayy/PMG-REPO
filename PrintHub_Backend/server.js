@@ -1372,6 +1372,7 @@ app.post("/api/inquiries", async (req, res) => {
     processing,
     delivery,
     other,
+    design_data,  // ADD THIS
   } = req.body;
 
   if (!subject || !name || !email) {
@@ -1397,6 +1398,7 @@ app.post("/api/inquiries", async (req, res) => {
         processing,
         delivery,
         other,
+        design_data: design_data || null,  // ADD THIS
         status: "new",
       },
     });
@@ -1412,7 +1414,7 @@ app.get("/api/inquiries", async (req, res) => {
   const { status } = req.query;
   try {
     const inquiries = await prisma.inquiry.findMany({
-      where: status ? { status } : {},
+      where: status ? { status } : { status: { not: "converted" } },
       include: {
         user: {
           select: { id: true, first_name: true, last_name: true, email: true },
@@ -1465,91 +1467,84 @@ app.put("/api/inquiries/:id", async (req, res) => {
           : null
         : undefined;
 
-    // Auto-create order only when: price first set, no order yet, AND current status is "new"
-    let orderId = existing.order_id;
-    if (newPrice && !existing.order_id && existing.status === "new") {
-      const summary = [
-        existing.product_title && `Product: ${existing.product_title}`,
-        existing.quantity && `Qty: ${existing.quantity}`,
-        existing.size && `Size: ${existing.size}`,
-        existing.color && `Color: ${existing.color}`,
-        existing.material && `Material: ${existing.material}`,
-        existing.finishing && `Finishing: ${existing.finishing}`,
-        existing.printing && `Printing: ${existing.printing}`,
-        existing.processing && `Processing: ${existing.processing}`,
-        existing.delivery && `Delivery: ${existing.delivery}`,
-        existing.other && `Other: ${existing.other}`,
-      ]
-        .filter(Boolean)
-        .join(" | ");
+    // // Auto-create order only when: price first set, no order yet, AND current status is "new"
+    // let orderId = existing.order_id;
+    // if (newPrice && !existing.order_id && existing.status === "new") {
+    //   const summary = [
+    //     existing.product_title && `Product: ${existing.product_title}`,
+    //     existing.quantity && `Qty: ${existing.quantity}`,
+    //     existing.size && `Size: ${existing.size}`,
+    //     existing.color && `Color: ${existing.color}`,
+    //     existing.material && `Material: ${existing.material}`,
+    //     existing.finishing && `Finishing: ${existing.finishing}`,
+    //     existing.printing && `Printing: ${existing.printing}`,
+    //     existing.processing && `Processing: ${existing.processing}`,
+    //     existing.delivery && `Delivery: ${existing.delivery}`,
+    //     existing.other && `Other: ${existing.other}`,
+    //   ]
+    //     .filter(Boolean)
+    //     .join(" | ");
 
-      // Find or create a generic "Custom Inquiry" product
-      let inquiryProduct = await prisma.product.findFirst({
-        where: { sku: "INQUIRY-CUSTOM" },
-      });
-      if (!inquiryProduct) {
-        inquiryProduct = await prisma.product.create({
-          data: {
-            name: "Custom Inquiry Order",
-            sku: "INQUIRY-CUSTOM",
-            description: "Generic product for custom inquiry orders",
-            price: "0.00",
-            stock: 999,
-            active: false, // Hidden from public catalog
-          },
-        });
-      }
+    //   // Find or create a generic "Custom Inquiry" product
+    //   let inquiryProduct = await prisma.product.findFirst({
+    //     where: { sku: "INQUIRY-CUSTOM" },
+    //   });
+    //   if (!inquiryProduct) {
+    //     inquiryProduct = await prisma.product.create({
+    //       data: {
+    //         name: "Custom Inquiry Order",
+    //         sku: "INQUIRY-CUSTOM",
+    //         description: "Generic product for custom inquiry orders",
+    //         price: "0.00",
+    //         stock: 999,
+    //         active: false, // Hidden from public catalog
+    //       },
+    //     });
+    //   }
 
-      const order = await prisma.order.create({
-        data: {
-          userId: existing.userId || null,
-          total: newPrice,
-          currency: "PHP",
-          status: "pending",
-          payment_status: "awaiting_payment",
-          shipping_address: summary || "Custom inquiry order",
-          billing_address: `Inquiry #${inquiryId} — ${existing.name} <${existing.email}>`,
-          items: {
-            create: {
-              productId: inquiryProduct.id,
-              quantity: parseInt(existing.quantity) || 1,
-              unit_price: newPrice,
-              total_price: newPrice * (parseInt(existing.quantity) || 1),
-              customizations: {
-                inquiry_id: existing.id,
-                product_title: existing.product_title,
-                subject: existing.subject,
-                customer_name: existing.name,
-                customer_email: existing.email,
-                size: existing.size,
-                color: existing.color,
-                material: existing.material,
-                finishing: existing.finishing,
-                printing: existing.printing,
-                processing: existing.processing,
-                delivery: existing.delivery,
-                other: existing.other,
-              },
-            },
-          },
-        },
-      });
-      orderId = order.id;
-    }
+    //   const order = await prisma.order.create({
+    //     data: {
+    //       userId: existing.userId || null,
+    //       total: newPrice,
+    //       currency: "PHP",
+    //       status: "pending",
+    //       payment_status: "awaiting_payment",
+    //       shipping_address: summary || "Custom inquiry order",
+    //       billing_address: `Inquiry #${inquiryId} — ${existing.name} <${existing.email}>`,
+    //       items: {
+    //         create: {
+    //           productId: inquiryProduct.id,
+    //           quantity: parseInt(existing.quantity) || 1,
+    //           unit_price: newPrice,
+    //           total_price: newPrice * (parseInt(existing.quantity) || 1),
+    //           customizations: {
+    //             inquiry_id: existing.id,
+    //             product_title: existing.product_title,
+    //             subject: existing.subject,
+    //             customer_name: existing.name,
+    //             customer_email: existing.email,
+    //             size: existing.size,
+    //             color: existing.color,
+    //             material: existing.material,
+    //             finishing: existing.finishing,
+    //             printing: existing.printing,
+    //             processing: existing.processing,
+    //             delivery: existing.delivery,
+    //             other: existing.other,
+    //           },
+    //         },
+    //       },
+    //     },
+    //   });
+    //   orderId = order.id;
+    // }
 
     const inquiry = await prisma.inquiry.update({
       where: { id: inquiryId },
       data: {
-        // Auto-set to "converted" when price is first set on a "new" inquiry, unless admin passed explicit status
-        status:
-          status ||
-          (newPrice && !existing.order_id && existing.status === "new"
-            ? "converted"
-            : undefined) ||
-          existing.status,
+        status: status || existing.status,
         ...(newPrice !== undefined && { quoted_price: newPrice }),
         ...(admin_notes !== undefined && { admin_notes }),
-        ...(orderId && !existing.order_id && { order_id: orderId }),
       },
     });
     res.json({ message: "Inquiry updated", inquiry });
@@ -1558,6 +1553,137 @@ app.put("/api/inquiries/:id", async (req, res) => {
     if (e.code === "P2025")
       return res.status(404).json({ message: "Inquiry not found" });
     res.status(500).json({ message: "Failed to update inquiry" });
+  }
+});
+
+// PUT /api/inquiries/:id/save-and-convert — admin: save inquiry and convert to order
+app.put("/api/inquiries/:id/save-and-convert", async (req, res) => {
+  const { status, quoted_price, admin_notes } = req.body;
+  const inquiryId = parseInt(req.params.id);
+
+  try {
+    const existing = await prisma.inquiry.findUnique({
+      where: { id: inquiryId },
+    });
+    if (!existing)
+      return res.status(404).json({ message: "Inquiry not found" });
+
+    const newPrice =
+      quoted_price !== undefined
+        ? quoted_price
+          ? parseFloat(quoted_price)
+          : null
+        : undefined;
+
+    if (!newPrice)
+      return res
+        .status(400)
+        .json({ message: "Quoted price is required to convert inquiry" });
+
+    if (existing.status === "converted" && existing.order_id)
+      return res
+        .status(400)
+        .json({ message: "Inquiry already converted" });
+
+    const { updatedInquiry, order } = await prisma.$transaction(
+      async (tx) => {
+        const updated = await tx.inquiry.update({
+          where: { id: inquiryId },
+          data: {
+            status: "converted",
+            quoted_price: newPrice,
+            ...(admin_notes !== undefined && { admin_notes }),
+          },
+        });
+
+        const summary = [
+          updated.product_title && `Product: ${updated.product_title}`,
+          updated.quantity && `Qty: ${updated.quantity}`,
+          updated.size && `Size: ${updated.size}`,
+          updated.color && `Color: ${updated.color}`,
+          updated.material && `Material: ${updated.material}`,
+          updated.finishing && `Finishing: ${updated.finishing}`,
+          updated.printing && `Printing: ${updated.printing}`,
+          updated.processing && `Processing: ${updated.processing}`,
+          updated.delivery && `Delivery: ${updated.delivery}`,
+          updated.other && `Other: ${updated.other}`,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+
+        // Find or create a generic placeholder product for custom inquiry orders
+        let inquiryProduct = await tx.product.findFirst({
+          where: { sku: "INQUIRY-CUSTOM" },
+        });
+        if (!inquiryProduct) {
+          inquiryProduct = await tx.product.create({
+            data: {
+              name: "Custom Inquiry Order",
+              sku: "INQUIRY-CUSTOM",
+              description: "Generic product for custom inquiry orders",
+              price: "0.00",
+              stock: 999,
+              active: false, // Hidden from public catalog
+            },
+          });
+        }
+
+        const inquiryQty = parseInt(updated.quantity) || 1;
+
+        const order = await tx.order.create({
+          data: {
+            userId: updated.userId || null,
+            total: newPrice,
+            currency: "PHP",
+            status: "pending",
+            payment_status: "awaiting_payment",
+            shipping_address: summary || "Custom inquiry order",
+            billing_address: `Inquiry #${updated.id} — ${updated.name} <${updated.email}>`,
+            items: {
+              create: {
+                productId: inquiryProduct.id,
+                quantity: inquiryQty,
+                unit_price: newPrice,
+                total_price: newPrice, // quoted price is treated as the line total
+                customizations: {
+                  inquiry_id: updated.id,
+                  product_title: updated.product_title,
+                  subject: updated.subject,
+                  customer_name: updated.name,
+                  customer_email: updated.email,
+                  size: updated.size,
+                  color: updated.color,
+                  material: updated.material,
+                  finishing: updated.finishing,
+                  printing: updated.printing,
+                  processing: updated.processing,
+                  delivery: updated.delivery,
+                  other: updated.other,
+                  design: updated.design_data || null,   // ADD THIS LINE
+                },
+              },
+            },
+          },
+          include: { items: true },
+        });
+
+        const updatedInquiry = await tx.inquiry.update({
+          where: { id: inquiryId },
+          data: { order_id: order.id },
+        });
+
+        return { updatedInquiry, order };
+      },
+    );
+
+    res.json({
+      message: "Inquiry saved and converted to order",
+      inquiry: updatedInquiry,
+      order,
+    });
+  } catch (e) {
+    console.error("Inquiry save-and-convert failed:", e);
+    res.status(500).json({ message: "Failed to save and convert inquiry" });
   }
 });
 
@@ -1586,7 +1712,7 @@ app.put("/api/inquiries/:id/convert", async (req, res) => {
     if (!inquiry) return res.status(404).json({ message: "Inquiry not found" });
     if (!inquiry.quoted_price)
       return res.status(400).json({ message: "Inquiry has no quoted price" });
-    if (inquiry.status === "converted")
+    if (inquiry.status === "converted" && inquiry.order_id)
       return res.status(400).json({ message: "Inquiry already converted" });
 
     // Build a summary of what was quoted for the order notes
@@ -1605,8 +1731,26 @@ app.put("/api/inquiries/:id/convert", async (req, res) => {
       .filter(Boolean)
       .join(" | ");
 
-    const [order] = await prisma.$transaction([
-      prisma.order.create({
+    const { order, updatedInquiry } = await prisma.$transaction(async (tx) => {
+      let inquiryProduct = await tx.product.findFirst({
+        where: { sku: "INQUIRY-CUSTOM" },
+      });
+      if (!inquiryProduct) {
+        inquiryProduct = await tx.product.create({
+          data: {
+            name: "Custom Inquiry Order",
+            sku: "INQUIRY-CUSTOM",
+            description: "Generic product for custom inquiry orders",
+            price: "0.00",
+            stock: 999,
+            active: false,
+          },
+        });
+      }
+
+      const inquiryQty = parseInt(inquiry.quantity) || 1;
+
+      const order = await tx.order.create({
         data: {
           userId: inquiry.userId || null,
           total: inquiry.quoted_price,
@@ -1615,19 +1759,49 @@ app.put("/api/inquiries/:id/convert", async (req, res) => {
           payment_status: "awaiting_payment",
           shipping_address: summary || "Custom inquiry order",
           billing_address: `Inquiry #${inquiry.id} — ${inquiry.name} <${inquiry.email}>`,
+          items: {
+            create: {
+              productId: inquiryProduct.id,
+              quantity: inquiryQty,
+              unit_price: inquiry.quoted_price,
+              total_price: inquiry.quoted_price,
+              customizations: {
+                inquiry_id: inquiry.id,
+                product_title: inquiry.product_title,
+                subject: inquiry.subject,
+                customer_name: inquiry.name,
+                customer_email: inquiry.email,
+                size: inquiry.size,
+                color: inquiry.color,
+                material: inquiry.material,
+                finishing: inquiry.finishing,
+                printing: inquiry.printing,
+                processing: inquiry.processing,
+                delivery: inquiry.delivery,
+                other: inquiry.other,
+                design: inquiry.design_data || null,   // ADD THIS LINE
+              },
+            },
+          },
         },
-      }),
-      prisma.inquiry.update({
+        include: { items: true },
+      });
+
+      const updatedInquiry = await tx.inquiry.update({
         where: { id: inquiryId },
-        data: { status: "converted" },
-      }),
-    ]);
+        data: { status: "converted", order_id: order.id },
+      });
+
+      return { order, updatedInquiry };
+    });
 
     res.json({
       message: "Inquiry converted to order",
       orderId: order.id,
       order,
+      inquiry: updatedInquiry,
     });
+
   } catch (e) {
     console.error("Inquiry convert failed:", e);
     res.status(500).json({ message: "Failed to convert inquiry" });
@@ -2120,7 +2294,7 @@ app.put("/api/orders/:id", async (req, res) => {
         }
       }
 
-      return await tx.order.update({
+      const updatedOrder = await tx.order.update({
         where: { id: orderId },
         data: {
           ...(status && { status }),
@@ -2133,6 +2307,16 @@ app.put("/api/orders/:id", async (req, res) => {
         },
         include: { items: true, user: true },
       });
+
+      // When admin cancels an order, mark linked inquiries closed
+      if (status === "cancelled") {
+        await tx.inquiry.updateMany({
+          where: { order_id: orderId },
+          data: { status: "closed" },
+        });
+      }
+
+      return updatedOrder;
     });
 
     if (actionType === "deducted" && existing.items) {
@@ -2301,11 +2485,18 @@ app.delete("/api/orders/:id", async (req, res) => {
       }
 
       // Soft delete the order
-      return await tx.order.update({
+      const deletedOrder = await tx.order.update({
         where: { id: orderId },
         data: { deleted_at: new Date() },
         include: { items: true, user: true },
       });
+
+      await tx.inquiry.updateMany({
+        where: { order_id: orderId },
+        data: { status: "closed" },
+      });
+
+      return deletedOrder;
     });
 
     console.log(`✅ Order ${orderId} deleted and stock restored`);

@@ -161,6 +161,7 @@ model Inquiry {
   processing    String?
   delivery      String?
   other         String?
+  design_data     Json?
   status        String    @default("new")
   quoted_price  Decimal?  @db.Decimal(14,2)
   admin_notes   String?

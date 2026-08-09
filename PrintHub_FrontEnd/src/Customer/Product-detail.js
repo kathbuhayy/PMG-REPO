@@ -704,6 +704,16 @@ function ProductDetail() {
     try {
       const userId = storedUser?.id || null;
 
+      // Prepare design data to include in quote
+      const designData = activeDesign ? {
+        type: product.dbCategory || "custom",
+        zones: activeDesign.zones || {},
+        generatedImageUrl: activeDesign.generatedImageUrl || null,
+        baseColor: activeDesign.baseColor || null,
+        shirtColor: activeDesign.shirtColor || null,
+        timestamp: new Date().toISOString(),
+      } : null;
+
       const res = await fetch(buildApiUrl("/api/inquiries"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -721,6 +731,7 @@ function ProductDetail() {
           printing: selectedSide || "",
           processing: product.processing?.[0] || "",
           other: quoteForm.other,
+          design_data: designData,  // ADD THIS
         }),
       });
 

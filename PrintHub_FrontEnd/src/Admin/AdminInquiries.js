@@ -4,6 +4,66 @@ import { FaSearch, FaFilter, FaEye, FaTimes } from "react-icons/fa";
 import "./Admin-dashboard.css";
 import { buildApiUrl } from "../config/api";
 
+// Helper function to render design preview
+const renderDesignPreview = (designData) => {
+  if (!designData) return null;
+
+  return (
+    <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #e2e8f0" }}>
+      <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", fontWeight: "600" }}>
+        Custom Design Attached
+      </h4>
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        {designData.zones && Object.values(designData.zones).map((zone, idx) => {
+          if (!zone?.imageUrl) return null;
+          return (
+            <div
+              key={idx}
+              style={{
+                width: "80px",
+                height: "80px",
+                borderRadius: "6px",
+                overflow: "hidden",
+                border: "1px solid #cbd5e1",
+                backgroundColor: "#f1f5f9",
+              }}
+            >
+              <img
+                src={zone.imageUrl}
+                alt="design zone"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            </div>
+          );
+        })}
+        {designData.generatedImageUrl && (
+          <div
+            style={{
+              width: "80px",
+              height: "80px",
+              borderRadius: "6px",
+              overflow: "hidden",
+              border: "1px solid #cbd5e1",
+              backgroundColor: "#f1f5f9",
+            }}
+          >
+            <img
+              src={designData.generatedImageUrl}
+              alt="generated design"
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          </div>
+        )}
+      </div>
+      {designData.baseColor && (
+        <p style={{ margin: "8px 0 0 0", fontSize: "12px", color: "#64748b" }}>
+          Base Color: <span style={{ display: "inline-block", width: "16px", height: "16px", backgroundColor: designData.baseColor, borderRadius: "3px", verticalAlign: "middle" }}></span>
+        </p>
+      )}
+    </div>
+  );
+};
+
 const STATUS_COLORS = {
   new: "status-pending",
   quoted: "status-processing",
@@ -49,6 +109,12 @@ function AdminInquiries() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!saveSuccess) return;
+    const t = setTimeout(() => setSaveSuccess(""), 3000);
+    return () => clearTimeout(t);
+  }, [saveSuccess]);
 
   useEffect(() => {
     fetchInquiries();
@@ -118,15 +184,9 @@ function AdminInquiries() {
         data.inquiry?.order_id && !selectedInquiry.order_id;
 
       setInquiries((prev) =>
-        prev.map((i) =>
-          i.id === selectedInquiry.id ? { ...i, ...data.inquiry } : i,
-        ),
+        prev.filter((i) => i.id !== selectedInquiry.id),
       );
-      setSelectedInquiry((prev) => ({ ...prev, ...data.inquiry }));
-      setEditFields((prev) => ({
-        ...prev,
-        status: data.inquiry.status || prev.status,
-      }));
+      setSelectedInquiry(null);
 
       if (newlyConverted) {
         setSaveSuccess(
@@ -136,6 +196,83 @@ function AdminInquiries() {
         setSaveSuccess("✔ Inquiry updated.");
         setTimeout(() => setShowDetailModal(false), 800);
       }
+    } catch (err) {
+      setSaveError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+    const handleSaveAndConvert = async () => {
+    if (!selectedInquiry) return;
+    setSaving(true);
+    setSaveError("");
+    setSaveSuccess("");
+
+    try {
+      const res = await fetch(
+        buildApiUrl(`/api/inquiries/${selectedInquiry.id}/save-and-convert`),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: editFields.status,
+            quoted_price:
+              editFields.quoted_price !== ""
+                ? parseFloat(editFields.quoted_price)
+                : null,
+            admin_notes: editFields.admin_notes,
+          }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save and convert");
+
+      setInquiries((prev) =>
+        prev.filter((i) => i.id !== selectedInquiry.id),
+      );
+      setSelectedInquiry(null);
+      setEditFields((prev) => ({
+        ...prev,
+        status: data.inquiry.status || prev.status,
+      }));
+
+      setSaveSuccess(
+        `✔ Saved and converted — Order #${data.order.id} created.`,
+      );
+      setTimeout(() => setShowDetailModal(false), 800);
+    } catch (err) {
+      setSaveError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConvert = async () => {
+    if (!selectedInquiry) return;
+    setSaving(true);
+    setSaveError("");
+    setSaveSuccess("");
+
+    try {
+      const res = await fetch(
+        buildApiUrl(`/api/inquiries/${selectedInquiry.id}/convert`),
+        { method: "PUT" },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to convert inquiry");
+
+      setInquiries((prev) =>
+        prev.map((i) =>
+          i.id === selectedInquiry.id
+            ? { ...i, ...data.inquiry, status: data.inquiry.status }
+            : i,
+        ),
+      );
+      setSelectedInquiry((prev) => ({ ...prev, ...data.inquiry }));
+
+      setSaveSuccess(`✔ Inquiry converted — Order #${data.orderId} created.`);
+      setTimeout(() => setShowDetailModal(false), 800);
     } catch (err) {
       setSaveError(err.message);
     } finally {
@@ -163,6 +300,23 @@ function AdminInquiries() {
   if (error) {
     return (
       <div className="dashpage dashpage-products">
+        {saveSuccess && (
+          <div
+            style={{
+              position: "fixed",
+              top: 80,
+              right: 20,
+              background: "#16a34a",
+              color: "white",
+              padding: "8px 12px",
+              borderRadius: 6,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+              zIndex: 9999,
+            }}
+          >
+            {saveSuccess}
+          </div>
+        )}
         <div className="dashpage-error">Error: {error}</div>
       </div>
     );
@@ -356,6 +510,7 @@ function AdminInquiries() {
                 <strong>Product:</strong> {selectedInquiry.product_title || "—"}
               </p>
               <hr />
+              {selectedInquiry.design_data && renderDesignPreview(selectedInquiry.design_data)}
               <p>
                 <strong>Quantity:</strong> {selectedInquiry.quantity || "—"}
               </p>
@@ -414,10 +569,6 @@ function AdminInquiries() {
                     setEditFields({
                       ...editFields,
                       quoted_price: e.target.value,
-                      status:
-                        e.target.value && editFields.status === "new"
-                          ? "converted"
-                          : editFields.status,
                     })
                   }
                   placeholder="e.g. 1500.00"
@@ -451,7 +602,7 @@ function AdminInquiries() {
                 </div>
               )}
 
-              <div className="ad-logout-actions">
+                            <div className="ad-logout-actions">
                 <button
                   type="button"
                   className="ad-logout-btn ghost"
@@ -460,12 +611,13 @@ function AdminInquiries() {
                   Close
                 </button>
                 <button
-                  type="submit"
+                  type="button"
                   className="ad-logout-btn"
-                  disabled={saving}
+                  disabled={saving || !editFields.quoted_price || !!selectedInquiry?.order_id}
                   style={{ opacity: saving ? 0.6 : 1 }}
+                  onClick={handleSaveAndConvert}
                 >
-                  {saving ? "Saving..." : "Save Changes"}
+                  {saving ? "Saving..." : "Save & Convert"}
                 </button>
               </div>
             </form>

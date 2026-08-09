@@ -822,7 +822,9 @@ function AdminOrders() {
                           const design = item.customizations?.design;
                           const productImg = item.product?.images?.[0];
                           const productName =
-                            item.product?.name || `Product #${item.productId}`;
+                            item.customizations?.product_title ||
+                            item.product?.name ||
+                            `Product #${item.productId}`;
                           return (
                             <div
                               key={item.id}
@@ -1197,7 +1199,9 @@ function AdminOrders() {
                   const design = item.customizations?.design;
                   const productImg = item.product?.images?.[0];
                   const productName =
-                    item.product?.name || `Product #${item.productId}`;
+                    item.customizations?.product_title ||
+                    item.product?.name ||
+                    `Product #${item.productId}`;
                   return (
                     <div
                       key={item.id}
