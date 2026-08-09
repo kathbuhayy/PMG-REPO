@@ -290,7 +290,7 @@ export default function HomePage() {
               className="hero-secondary-btn"
               onClick={() => navigate("/user-login")}
             >
-              Customer Sign In
+              Sign In
             </button>
           </div>
         </div>
