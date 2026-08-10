@@ -32,15 +32,154 @@ const ZONES_BY_TYPE = {
   ],
 };
 
+function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
+  const wrapRef = useRef(null);
+  const dragRef = useRef(null);
+  const resizeRef = useRef(null);
+
+  const onPointerDown = useCallback(
+    (e) => {
+      e.stopPropagation();
+      onSelect?.();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const rect = wrapRef.current.parentElement.getBoundingClientRect();
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: text.x,
+        origY: text.y,
+        rectW: rect.width,
+        rectH: rect.height,
+      };
+    },
+    [text, onSelect],
+  );
+
+  const onPointerMove = useCallback(
+    (e) => {
+      if (!dragRef.current) return;
+      const { startX, startY, origX, origY, rectW, rectH } = dragRef.current;
+      const dx = ((e.clientX - startX) / rectW) * 100;
+      const dy = ((e.clientY - startY) / rectH) * 100;
+      onChange?.({
+        x: Math.max(0, Math.min(100 - text.w, origX + dx)),
+        y: Math.max(0, Math.min(100 - text.h, origY + dy)),
+      });
+    },
+    [text, onChange],
+  );
+
+  const onPointerUp = useCallback(() => {
+    dragRef.current = null;
+  }, []);
+
+  const onResizeDown = useCallback(
+    (e) => {
+      e.stopPropagation();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const rect = wrapRef.current.parentElement.getBoundingClientRect();
+      resizeRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origW: text.w,
+        origH: text.h,
+        rectW: rect.width,
+        rectH: rect.height,
+      };
+    },
+    [text],
+  );
+
+  const onResizeMove = useCallback(
+    (e) => {
+      if (!resizeRef.current) return;
+      const { startX, startY, origW, origH, rectW, rectH } = resizeRef.current;
+      const dw = ((e.clientX - startX) / rectW) * 100;
+      const dh = ((e.clientY - startY) / rectH) * 100;
+      onChange?.({
+        w: Math.max(10, Math.min(100 - text.x, origW + dw)),
+        h: Math.max(6, Math.min(100 - text.y, origH + dh)),
+      });
+    },
+    [text, onChange],
+  );
+
+  const onResizeUp = useCallback(() => {
+    resizeRef.current = null;
+  }, []);
+
+  const textStyle = {
+    fontFamily: text.fontFamily,
+    fontSize: `${text.fontSize}cqh`,
+    color: text.color,
+    fontWeight: text.bold ? 700 : 400,
+    fontStyle: text.italic ? "italic" : "normal",
+    textAlign: text.align,
+    WebkitTextStroke: text.outline
+      ? `${Math.max(1, text.outlineWidth / 2)}px ${text.outlineColor}`
+      : undefined,
+    textShadow: text.shadow
+      ? `0 0 ${text.shadowBlur}px ${text.shadowColor}`
+      : undefined,
+  };
+
+  return (
+    <div
+      ref={wrapRef}
+      className={`tsc-text-layer${isActive ? " active" : ""}`}
+      style={{
+        left: `${text.x}%`,
+        top: `${text.y}%`,
+        width: `${text.w}%`,
+        height: `${text.h}%`,
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+    >
+      <span className="tsc-text-layer-content" style={textStyle}>
+        {text.text || "Text"}
+      </span>
+      {isActive && (
+        <>
+          <button
+            type="button"
+            className="tsc-text-layer-remove"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove?.();
+            }}
+          >
+            ×
+          </button>
+          <div
+            className="tsc-text-layer-resize"
+            onPointerDown={onResizeDown}
+            onPointerMove={onResizeMove}
+            onPointerUp={onResizeUp}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 function ZoneBox({
   meta,
   design,
+  texts = [],
+  activeTextId,
   isActive,
   isInteractive = false,
   onSelect,
   onExpand,
   onDesignChange,
   onUploadClick,
+  onAddText,
+  onTextSelect,
+  onTextChange,
+  onTextRemove,
   aspectRatio,
 }) {
   const containerRef = useRef(null);
@@ -223,6 +362,19 @@ function ZoneBox({
 
                 <button
                   type="button"
+                  className="tsc-zone-addtext-btn"
+                  title="Add text"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect?.();
+                    onAddText?.(meta.id);
+                  }}
+                >
+                  + T
+                </button>
+
+                <button
+                  type="button"
                   className="tsc-zone-remove-btn"
                   title="Remove design from this zone"
                   onClick={(e) => {
@@ -312,6 +464,18 @@ function ZoneBox({
               </span>
             </div>
         )}
+
+        {/* Text layers render above image/placeholder — draggable directly */}
+        {texts.map((t) => (
+          <TextLayerBox
+            key={t.id}
+            text={t}
+            isActive={activeTextId === t.id}
+            onSelect={() => handleTextBoxSelect(t.id)}
+            onChange={(updates) => onTextChange?.(t.id, updates)}
+            onRemove={() => onTextRemove?.(t.id)}
+          />
+        ))}
       </div>
 
       <div className="tsc-zone-label">{meta.label}</div>
@@ -389,10 +553,16 @@ function ZoneBox({
 export default function FlatZoneCanvas({
   productType,
   zones = [],
+  zoneTexts,
   zoneDesigns = {},
   activeZone,
   onZoneSelect,
   onZoneDesignChange,
+  activeTextId,
+  onAddText,
+  onTextSelect,
+  onTextChange,
+  onTextRemove,
   onUploadClick,
   aspectRatio,
 }) {
@@ -426,10 +596,16 @@ export default function FlatZoneCanvas({
             key={meta.id}
             meta={meta}
             design={zoneDesigns[meta.id] || null}
+            texts={zoneTexts[meta.id] || []}
+            activeTextId={activeZone === meta.id ? activeTextId : null}
             isActive={activeZone === meta.id}
             onSelect={() => onZoneSelect(meta.id)}
             onExpand={(m) => setModalZone(m)}
             onDesignChange={(layer) => onZoneDesignChange(meta.id, layer)}
+            onAddText={onAddText}
+            onTextSelect={(textId) => onTextSelect?.(meta.id, textId)}
+            onTextChange={(textId, updates) => onTextChange?.(meta.id, textId, updates)}
+            onTextRemove={(textId) => onTextRemove?.(meta.id, textId)}
             onUploadClick={onUploadClick}
             aspectRatio={aspectRatio}
           />
@@ -462,12 +638,18 @@ export default function FlatZoneCanvas({
                 <ZoneBox
                   meta={modalZone}
                   design={zoneDesigns[modalZone.id] || null}
+                  texts={zoneTexts[meta.id] || []}
+                  activeTextId={activeZone === meta.id ? activeTextId : null}
                   isActive={true}
                   isInteractive={true}
                   onSelect={() => onZoneSelect(modalZone.id)}
                   onDesignChange={(layer) =>
                     onZoneDesignChange(modalZone.id, layer)
                   }
+                  onAddText={onAddText}
+                  onTextSelect={(textId) => onTextSelect?.(modalZone.id, textId)}
+                  onTextChange={(textId, updates) => onTextChange?.(modalZone.id, textId, updates)}
+                  onTextRemove={(textId) => onTextRemove?.(modalZone.id, textId)}
                   onUploadClick={onUploadClick}
                   aspectRatio={aspectRatio}
                 />

@@ -94,12 +94,18 @@ function render3DPreview(ai3DPreviewModal) {
     front: { imageUrl: ai3DPreviewModal.imageUrl },
   };
 
+ const zoneTexts = ai3DPreviewModal.design?.zoneTexts || {}; 
+
+  console.log("FULL DESIGN OBJECT:", ai3DPreviewModal.design);
+  console.log("ZONE TEXTS:", zoneTexts);
+
   if (category === "tshirt") {
     return (
       <TshirtPreview3D
         modelPath="/models/tshirt.glb"
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
+        zoneTexts={zoneTexts}
       />
     );
   }
@@ -109,6 +115,7 @@ function render3DPreview(ai3DPreviewModal) {
         modelPath="/models/cap.glb"
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
+        zoneTexts={zoneTexts}
       />
     );
   }
@@ -118,6 +125,7 @@ function render3DPreview(ai3DPreviewModal) {
         modelPath="/models/mug.glb"
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
+        zoneTexts={zoneTexts}
       />
     );
   }
@@ -127,6 +135,7 @@ function render3DPreview(ai3DPreviewModal) {
         modelPath="/models/notebook.glb"
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
+        zoneTexts={zoneTexts}
       />
     );
   }
@@ -136,6 +145,7 @@ function render3DPreview(ai3DPreviewModal) {
         modelPath="/models/jersey.glb"
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
+
       />
     );
   }
@@ -145,6 +155,7 @@ function render3DPreview(ai3DPreviewModal) {
       productType={category}
       baseColor={baseColor}
       zoneDesigns={zoneDesigns}
+      zoneTexts={zoneTexts}
     />
   );
 }

@@ -53,6 +53,10 @@ const getCustomizerCategoryKey = (category) => {
   if (norm === "cap" || norm === "hat") return "Cap";
   if (norm === "mug" || norm === "mugs") return "Mug";
   if (norm === "notebook") return "Notebook";
+  if (norm === "calling_card" || norm === "business_card") return "Business Card";
+  if (norm === "brochures") return "Brochures";
+  if (norm === "hang_tags") return "Hang Tags";
+  if (norm === "banners") return "Banners";
   return null;
 };
 
@@ -120,6 +124,22 @@ const generateSideOptions = (category, zones) => {
     if (zones.includes("front_cover") && zones.includes("back_cover")) {
       options.push("Double Side");
     }
+  } else if (norm === "calling_card" || norm === "business_card") {
+    if (zones.includes("front")) options.push("Single Side");
+    if (zones.includes("front") && zones.includes("back")) {
+      options.push("Double Side");
+    }
+  } else if (norm === "brochures") {
+    if (zones.includes("front") && zones.includes("back")) {
+      options.push("Double Side");
+    }
+  } else if (norm === "hang_tags") {
+    if (zones.includes("front")) options.push("Single Side");
+    if (zones.includes("front") && zones.includes("back")) {
+      options.push("Double Side");
+    }
+  } else if (norm === "banners") {
+    if (zones.includes("front")) options.push("Single Side");
   }
 
   return options;

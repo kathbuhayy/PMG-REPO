@@ -17,11 +17,14 @@ import {
   FaPalette,
   FaImage,
   FaMagic,
+  FaFont,
 } from "react-icons/fa";
 import { useCustomizerUpload } from "../../hooks/useCustomizerUpload";
 import AIGeneratePanel from "../AIBuilder/AIGeneratePanel";
 import TshirtZoneCanvas from "./TshirtZoneCanvas";
 import TshirtPreview3D from "./TshirtPreview3D";
+import ZoneUploadSlots from "./ZoneUploadSlots";
+import { ZONE_META } from "./TshirtZoneCanvas";
 import { parseFlatSize } from "../../utils/parseFlatSize";
 import { removeGuestDesign } from "../../utils/guestDesigns";
 import "./TshirtCustomizer.css";
@@ -42,6 +45,41 @@ const QUICK_COLORS = [
   "#7c3aed",
   "#ec4899",
 ];
+
+const TEXT_FONTS = [
+  "Arial",
+  "Helvetica",
+  "Times New Roman",
+  "Georgia",
+  "Courier New",
+  "Verdana",
+  "Impact",
+  "Comic Sans MS",
+  "Trebuchet MS",
+];
+
+function createTextLayer() {
+  return {
+    id: `text_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    text: "Your Text",
+    x: 15,
+    y: 40,
+    w: 70,
+    h: 20,
+    fontFamily: "Arial",
+    fontSize: 12, // % of zone height
+    color: "#000000",
+    bold: false,
+    italic: false,
+    align: "center", // left | center | right
+    outline: false,
+    outlineColor: "#ffffff",
+    outlineWidth: 3, // % of zone height
+    shadow: false,
+    shadowColor: "#000000",
+    shadowBlur: 4, // % of zone height
+  };
+}
 
 // Convert hue (0-360) to a hex color at full saturation/lightness=50%
 function hueToHex(hue) {
@@ -221,6 +259,12 @@ export default function TshirtCustomizerPanel({
     }
     return cleaned;
   });
+
+  const [zoneTexts, setZoneTexts] = useState(() => initialWip?.zoneTexts ?? {});
+  const [activeTextId, setActiveTextId] = useState(
+    initialWip?.activeTextId ?? null,
+  );
+
   const [activeZone, setActiveZone] = useState(zones[0] || null);
 
   // Progressive Disclosure Sidebar Tab state
@@ -243,6 +287,8 @@ export default function TshirtCustomizerPanel({
     if (prevZonesKeyRef.current === nextKey) return;
     prevZonesKeyRef.current = nextKey;
     setZoneDesigns({});
+    setZoneTexts({});
+    setActiveTextId(null);
     setActiveZone(zones[0] || null);
   }, [zones]);
 
@@ -287,6 +333,7 @@ export default function TshirtCustomizerPanel({
   useEffect(() => {
     onWipChange?.({
       zoneDesigns,
+      zoneTexts,
       shirtColor,
       activeTab,
       gallery,
@@ -295,6 +342,7 @@ export default function TshirtCustomizerPanel({
     });
   }, [
     zoneDesigns,
+    zoneTexts,
     shirtColor,
     activeTab,
     gallery,
@@ -306,6 +354,7 @@ export default function TshirtCustomizerPanel({
   useEffect(() => {
     if (activeDesign?.type !== designType) return;
     if (activeDesign.zones) setZoneDesigns(activeDesign.zones);
+    if (activeDesign.zoneTexts) setZoneTexts(activeDesign.zoneTexts);
     const savedColor =
       activeDesign.shirtColor ||
       activeDesign.productColor ||
@@ -348,6 +397,50 @@ export default function TshirtCustomizerPanel({
     getZoneRef(zoneId).current?.click();
   };
 
+  const handleAddText = (zoneId) => {
+    if (!zoneId) return;
+    const layer = createTextLayer();
+    setZoneTexts((prev) => ({
+      ...prev,
+      [zoneId]: [...(prev[zoneId] || []), layer],
+    }));
+    setActiveZone(zoneId);
+    setActiveTextId(layer.id);
+    setActiveTab("text");
+  };
+
+  const handleTextChange = (zoneId, textId, updates) => {
+    setZoneTexts((prev) => ({
+      ...prev,
+      [zoneId]: (prev[zoneId] || []).map((t) =>
+        t.id === textId ? { ...t, ...updates } : t,
+      ),
+    }));
+  };
+
+  const handleTextRemove = (zoneId, textId) => {
+    setZoneTexts((prev) => ({
+      ...prev,
+      [zoneId]: (prev[zoneId] || []).filter((t) => t.id !== textId),
+    }));
+    setActiveTextId((prev) => (prev === textId ? null : prev));
+  };
+
+  const handleTextSelect = (zoneId, textId) => {
+    setActiveZone(zoneId);
+    setActiveTextId(textId);
+    setActiveTab("text");
+  };
+
+  const activeZoneTexts = zoneTexts[activeZone] || [];
+  const activeTextLayer =
+    activeZoneTexts.find((t) => t.id === activeTextId) || null;
+
+  const updateActiveText = (updates) => {
+    if (!activeZone || !activeTextId) return;
+    handleTextChange(activeZone, activeTextId, updates);
+  };
+
 
 
   // ── Gallery click — assign to active zone ───────────────────────────
@@ -365,13 +458,23 @@ export default function TshirtCustomizerPanel({
     setZoneDesigns((prev) => ({ ...prev, [zoneId]: layer }));
   };
 
+  const handleClearZone = (zoneId) => {
+    setZoneDesigns((prev) => {
+      const next = { ...prev };
+      delete next[zoneId];
+      return next;
+    });
+  };
+
   // ── Zone select ───────────────────────────────────────────────────
   const handleZoneSelect = (zoneId) => {
     setActiveZone(zoneId);
   };
 
   // ── Use this design ───────────────────────────────────────────────
-  const hasAnyDesign = Object.values(zoneDesigns).some(Boolean);
+  const hasAnyDesign =
+    Object.values(zoneDesigns).some(Boolean) ||
+    Object.values(zoneTexts).some((arr) => arr && arr.length > 0);
 
   const applyShirtColor = (color) => {
     const normalized = normalizeHexColor(color);
@@ -394,6 +497,7 @@ export default function TshirtCustomizerPanel({
       onDesignReady({
         type: designType,
         zones: uploadedZones,
+        zoneTexts,
         shirtColor,
         productColor: shirtColor,
         baseColor: shirtColor,
@@ -421,6 +525,8 @@ export default function TshirtCustomizerPanel({
           className="tsc-clear-btn"
           onClick={() => {
             setZoneDesigns({});
+            setZoneTexts({});
+            setActiveTextId(null);
             setActiveZone(zones[0] || null);
             applyShirtColor("#ffffff");
             setSliderHue(0);
@@ -509,6 +615,14 @@ export default function TshirtCustomizerPanel({
           >
             <FaMagic className="tsc-vtab-icon" />
             AI
+          </button>
+          <button
+            type="button"
+            className={`tsc-vtab-btn${activeTab === "text" ? " active" : ""}`}
+            onClick={() => setActiveTab("text")}
+          >
+            <FaFont className="tsc-vtab-icon" />
+            Text
           </button>
         </div>
 
@@ -696,6 +810,202 @@ export default function TshirtCustomizerPanel({
             </div>
           )}
 
+          {activeTab === "text" && (
+            <div className="tsc-sidebar-section">
+              <div className="tsc-sidebar-header-row">
+                <h4>Text</h4>
+                <button
+                  type="button"
+                  className="tsc-gallery-upload-btn"
+                  onClick={() => handleAddText(activeZone)}
+                  disabled={!activeZone}
+                >
+                  + Add
+                </button>
+              </div>
+
+              {activeZoneTexts.length === 0 && (
+                <span className="tsc-gallery-empty" style={{ display: "block" }}>
+                  No text yet. Click a zone, then "+ Add".
+                </span>
+              )}
+
+              {activeZoneTexts.length > 0 && (
+                <div className="tsc-text-list">
+                  {activeZoneTexts.map((t) => (
+                    <div
+                      key={t.id}
+                      className={`tsc-text-list-item${activeTextId === t.id ? " active" : ""
+                        }`}
+                      onClick={() => setActiveTextId(t.id)}
+                    >
+                      <span>{t.text || "(empty)"}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTextRemove(activeZone, t.id);
+                        }}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          color: "#94a3b8",
+                        }}
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeTextLayer && (
+                <>
+                  <div className="tsc-text-editor-field">
+                    <label className="tsc-spec-label">Text</label>
+                    <input
+                      className="tsc-text-input"
+                      value={activeTextLayer.text}
+                      onChange={(e) => updateActiveText({ text: e.target.value })}
+                      maxLength={60}
+                    />
+                  </div>
+
+                  <div className="tsc-text-editor-field">
+                    <label className="tsc-spec-label">Font</label>
+                    <select
+                      className="tsc-select-control"
+                      value={activeTextLayer.fontFamily}
+                      onChange={(e) =>
+                        updateActiveText({ fontFamily: e.target.value })
+                      }
+                    >
+                      {TEXT_FONTS.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="tsc-text-editor-field">
+                    <label className="tsc-spec-label">
+                      Size ({activeTextLayer.fontSize})
+                    </label>
+                    <input
+                      type="range"
+                      min={4}
+                      max={40}
+                      value={activeTextLayer.fontSize}
+                      onChange={(e) =>
+                        updateActiveText({ fontSize: Number(e.target.value) })
+                      }
+                    />
+                  </div>
+
+                  <div className="tsc-text-editor-field">
+                    <label className="tsc-spec-label">Color</label>
+                    <input
+                      type="color"
+                      value={activeTextLayer.color}
+                      onChange={(e) => updateActiveText({ color: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="tsc-text-editor-field">
+                    <label className="tsc-spec-label">Style</label>
+                    <div className="tsc-text-style-row">
+                      <button
+                        type="button"
+                        className={`tsc-text-toggle-btn${activeTextLayer.bold ? " active" : ""
+                          }`}
+                        onClick={() =>
+                          updateActiveText({ bold: !activeTextLayer.bold })
+                        }
+                      >
+                        B
+                      </button>
+                      <button
+                        type="button"
+                        className={`tsc-text-toggle-btn${activeTextLayer.italic ? " active" : ""
+                          }`}
+                        onClick={() =>
+                          updateActiveText({ italic: !activeTextLayer.italic })
+                        }
+                      >
+                        I
+                      </button>
+                      {["left", "center", "right"].map((a) => (
+                        <button
+                          key={a}
+                          type="button"
+                          className={`tsc-text-toggle-btn${activeTextLayer.align === a ? " active" : ""
+                            }`}
+                          onClick={() => updateActiveText({ align: a })}
+                        >
+                          {a[0].toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="tsc-text-editor-field">
+                    <label className="tsc-spec-label">Outline</label>
+                    <div className="tsc-text-style-row">
+                      <button
+                        type="button"
+                        className={`tsc-text-toggle-btn${activeTextLayer.outline ? " active" : ""
+                          }`}
+                        onClick={() =>
+                          updateActiveText({ outline: !activeTextLayer.outline })
+                        }
+                      >
+                        {activeTextLayer.outline ? "On" : "Off"}
+                      </button>
+                      {activeTextLayer.outline && (
+                        <input
+                          type="color"
+                          value={activeTextLayer.outlineColor}
+                          onChange={(e) =>
+                            updateActiveText({ outlineColor: e.target.value })
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="tsc-text-editor-field">
+                    <label className="tsc-spec-label">Shadow</label>
+                    <div className="tsc-text-style-row">
+                      <button
+                        type="button"
+                        className={`tsc-text-toggle-btn${activeTextLayer.shadow ? " active" : ""
+                          }`}
+                        onClick={() =>
+                          updateActiveText({ shadow: !activeTextLayer.shadow })
+                        }
+                      >
+                        {activeTextLayer.shadow ? "On" : "Off"}
+                      </button>
+                      {activeTextLayer.shadow && (
+                        <input
+                          type="color"
+                          value={activeTextLayer.shadowColor}
+                          onChange={(e) =>
+                            updateActiveText({ shadowColor: e.target.value })
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Tab 2: Base Color Selection */}
           {activeTab === "color" && (
             <div className="tsc-sidebar-section">
@@ -807,18 +1117,18 @@ export default function TshirtCustomizerPanel({
               setGenError={setGenError}
             />
           )}
-        </div>
 
-        {/* ── 2. Center Placeholders Viewport ───────────────────── */}
-        <div className="tsc-center-placeholders">
-          <TshirtZoneCanvas
+          {/* Persistent Design Print Areas — visible under every tab */}
+          <ZoneUploadSlots
             zones={zones}
+            zoneMeta={ZONE_META}
             zoneDesigns={zoneDesigns}
             activeZone={activeZone}
+            uploading={false}
+            uploadError={uploadError}
             onZoneSelect={handleZoneSelect}
-            onZoneDesignChange={handleZoneDesignChange}
             onUploadClick={handleZoneUploadClick}
-            aspectRatio={aspectRatio}
+            onClearZone={handleClearZone}
           />
         </div>
 
@@ -829,9 +1139,17 @@ export default function TshirtCustomizerPanel({
               modelPath={modelPath}
               shirtColor={shirtColor}
               zoneDesigns={zoneDesigns}
+              zoneTexts={zoneTexts}
               selectedSide={selectedSide}
               zones={zones}
               selectedSize={selectedSize}
+              activeZone={activeZone}
+              activeTextId={activeTextId}
+              onZoneSelect={handleZoneSelect}
+              onZoneDesignChange={handleZoneDesignChange}
+              onTextChange={handleTextChange}
+              onTextSelect={handleTextSelect}
+              onTextRemove={handleTextRemove}
               {...mergedPreviewProps}
             />
           </div>

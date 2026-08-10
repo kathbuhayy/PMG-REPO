@@ -3,6 +3,10 @@ import FlatPreview3D from "../FlatCustomizer/FlatPreview3D";
 export default function BusinessCardPreview3D({
   shirtColor = "#ffffff",
   zoneDesigns = {},
+  zoneTexts = {},
+  onTextChange,
+  onZoneSelect,
+  onTextSelect,
   selectedSize = "",
 }) {
   return (
@@ -11,6 +15,10 @@ export default function BusinessCardPreview3D({
       baseColor={shirtColor}
       zoneDesigns={zoneDesigns}
       selectedSize={selectedSize}
+      zoneTexts={zoneTexts}
+      onTextChange={onTextChange}
+      onZoneSelect={onZoneSelect}
+      onTextSelect={onTextSelect}
     />
   );
 }

@@ -640,6 +640,22 @@ export const CUSTOMIZER_ZONES = {
     { id: "front_cover", label: "Front Cover", sideOption: "Front Cover" },
     { id: "back_cover", label: "Back Cover", sideOption: "Back Cover" },
   ],
+  // ── New: previously fell through to "no customizer" ──────────────
+  "Business Card": [
+    { id: "front", label: "Front", sideOption: "Single Side" },
+    { id: "back", label: "Back", sideOption: "Double Side" },
+  ],
+  "Brochures": [
+    { id: "front", label: "Front", sideOption: "Double Side" },
+    { id: "back", label: "Back", sideOption: "Double Side" },
+  ],
+  "Hang Tags": [
+    { id: "front", label: "Front", sideOption: "Single Side" },
+    { id: "back", label: "Back", sideOption: "Double Side" },
+  ],
+  "Banners": [
+    { id: "front", label: "Front", sideOption: "Single Side" },
+  ],
 };
 
 /** Returns a blank form state with empty option arrays */

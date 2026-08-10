@@ -21,9 +21,14 @@ export default function FlatPreview3D({
   productType,
   baseColor = "#ffffff",
   zoneDesigns = {},
+  zoneTexts = {},
   selectedSide = "",
   zones = [],
   selectedSize = "",
+  onZoneDesignChange,
+  onTextChange,
+  onZoneSelect,
+  onTextSelect,
 }) {
   const base = FLAT_CONFIG[productType] || { width: 2.1, height: 2.97 };
   const parsed = parseFlatSize(selectedSize);
@@ -43,8 +48,13 @@ export default function FlatPreview3D({
     <GenericProductPreview3D
       shirtColor={baseColor}
       zoneDesigns={zoneDesigns}
+      zoneTexts={zoneTexts}
       selectedSide={selectedSide}
       zones={zones}
+      onZoneDesignChange={onZoneDesignChange}
+      onTextChange={onTextChange}
+      onZoneSelect={onZoneSelect}
+      onTextSelect={onTextSelect}
       projectionMode="decal"
       flatShape={shape}
       decalScale={{
