@@ -17,6 +17,8 @@ import {
   FaPalette,
   FaImage,
   FaMagic,
+  FaFont,
+  FaShapes,
 } from "react-icons/fa";
 import { useCustomizerUpload } from "../../hooks/useCustomizerUpload";
 import AIGeneratePanel from "../AIBuilder/AIGeneratePanel";
@@ -43,6 +45,54 @@ const QUICK_COLORS = [
   "#ec4899",
 ];
 
+const SHIRT_COLOR_WORDS = {
+  red: "#dc2626", burgundy: "#7f1d1d", maroon: "#7f1d1d",
+  blue: "#2563eb", navy: "#172554", green: "#15803d",
+  black: "#111827", white: "#ffffff", yellow: "#eab308",
+  orange: "#ea580c", purple: "#7e22ce", pink: "#db2777",
+  gray: "#6b7280", grey: "#6b7280",
+};
+
+function svgDataUrl(svg) {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function createTextDesign(text, font, color) {
+  const safeText = String(text || "YOUR TEXT")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return svgDataUrl(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800"><text x="600" y="430" text-anchor="middle" dominant-baseline="middle" font-family="${font}" font-size="150" font-weight="800" fill="${color}" stroke="#ffffff" stroke-width="5" paint-order="stroke">${safeText}</text></svg>`,
+  );
+}
+
+const DESIGN_TEMPLATES = [
+  { id: "bolt", label: "Bold Bolt", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><path fill="#facc15" stroke="#0f172a" stroke-width="26" d="M450 55 140 455h195l-5 290 330-445H465z"/></svg>` },
+  { id: "sun", label: "Retro Sun", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><circle cx="400" cy="390" r="180" fill="#fb7185"/><path d="M150 430h500M180 500h440M215 570h370" stroke="#fbbf24" stroke-width="42"/><path d="M400 70v85M130 180l62 62M670 180l-62 62" stroke="#0f172a" stroke-width="34" stroke-linecap="round"/></svg>` },
+  { id: "mountain", label: "Mountain", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><circle cx="590" cy="185" r="74" fill="#facc15"/><path d="m65 650 225-355 115 180 90-130 240 305z" fill="#0f766e"/><path d="m290 295 75 118-75-35-65 45z" fill="#fff"/></svg>` },
+  { id: "floral", label: "Floral", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><g fill="#ec4899" stroke="#7c2d12" stroke-width="16"><ellipse cx="400" cy="190" rx="75" ry="145"/><ellipse cx="400" cy="610" rx="75" ry="145"/><ellipse cx="190" cy="400" rx="145" ry="75"/><ellipse cx="610" cy="400" rx="145" ry="75"/></g><circle cx="400" cy="400" r="95" fill="#facc15"/></svg>` },
+  { id: "wave", label: "Ocean Wave", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><circle cx="400" cy="400" r="210" fill="#0ea5e9"/><path d="M120 470c60-70 120-70 180 0s120 70 180 0 120-70 180 0" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round"/><path d="M120 560c60-70 120-70 180 0s120 70 180 0 120-70 180 0" fill="none" stroke="#e0f2fe" stroke-width="26" stroke-linecap="round"/></svg>` },
+  { id: "star", label: "Star Burst", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><path fill="#f59e0b" stroke="#78350f" stroke-width="20" d="M400 60l78 190 205 20-155 135 46 200-174-103-174 103 46-200L117 270l205-20z"/></svg>` },
+  { id: "paw", label: "Paw Print", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><g fill="#334155"><ellipse cx="400" cy="520" rx="120" ry="95"/><circle cx="300" cy="330" r="62"/><circle cx="500" cy="330" r="62"/><circle cx="240" cy="430" r="55"/><circle cx="560" cy="430" r="55"/></g></svg>` },
+  { id: "heart", label: "Heart", svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><path fill="#ef4444" stroke="#7f1d1d" stroke-width="18" d="M400 700C180 560 80 440 80 300 80 190 170 100 280 100c70 0 120 30 120 30s50-30 120-30c110 0 200 90 200 200 0 140-100 260-320 400z"/></svg>` },
+];
+
+const TEXT_FONTS = [
+  "Arial",
+  "Verdana",
+  "Georgia",
+  "Times New Roman",
+  "Courier New",
+  "Impact",
+  "Trebuchet MS",
+  "Comic Sans MS",
+  "Palatino Linotype",
+  "Lucida Console",
+  "Tahoma",
+  "Gill Sans",
+];
+
 // Convert hue (0-360) to a hex color at full saturation/lightness=50%
 function hueToHex(hue) {
   const h = hue / 360;
@@ -63,6 +113,32 @@ function normalizeHexColor(value) {
   const raw = String(value || "").trim();
   const withHash = raw.startsWith("#") ? raw : `#${raw}`;
   return /^#[0-9a-fA-F]{6}$/.test(withHash) ? withHash.toLowerCase() : null;
+}
+
+// Filler words that add no design meaning — stripped so the AI focuses on the
+// actual artwork and so different phrasings ("make the shirt red", "red tee
+// with a lion", "the color should be blue") all resolve the same way.
+const PROMPT_FILLER_WORDS =
+  /\b(tshirt|t-shirt|t shirt|shirt|tee|color|colour|make it|make the|make my|the color should be|the colour should be|i want|please|with a|with the|on it|for me)\b/gi;
+
+// Detect a shirt color word inside a natural-language prompt. Returns the hex
+// color to apply plus the prompt with the color/filler words removed so the
+// image generator only sees the actual design description.
+function parsePromptForColor(prompt) {
+  const raw = String(prompt || "");
+  const lower = raw.toLowerCase();
+  for (const [word, hex] of Object.entries(SHIRT_COLOR_WORDS)) {
+    const re = new RegExp(`\\b${word}\\b`, "i");
+    if (re.test(lower)) {
+      const cleanedPrompt = raw
+        .replace(re, " ")
+        .replace(PROMPT_FILLER_WORDS, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      return { color: hex, cleanedPrompt };
+    }
+  }
+  return { color: null, cleanedPrompt: raw.trim() };
 }
 
 export default function TshirtCustomizerPanel({
@@ -234,6 +310,9 @@ export default function TshirtCustomizerPanel({
   const [aiLastPrompt, setAiLastPrompt] = useState(
     initialWip?.aiLastPrompt ?? ""
   );
+  const [textContent, setTextContent] = useState(initialWip?.textContent ?? "");
+  const [textFont, setTextFont] = useState(initialWip?.textFont ?? "Arial");
+  const [textColor, setTextColor] = useState(initialWip?.textColor ?? "#111827");
 
   const prevZonesKeyRef = useRef(zones.join(","));
 
@@ -292,6 +371,9 @@ export default function TshirtCustomizerPanel({
       gallery,
       aiPrompt,
       aiLastPrompt,
+      textContent,
+      textFont,
+      textColor,
     });
   }, [
     zoneDesigns,
@@ -300,6 +382,9 @@ export default function TshirtCustomizerPanel({
     gallery,
     aiPrompt,
     aiLastPrompt,
+    textContent,
+    textFont,
+    textColor,
     onWipChange,
   ]);
 
@@ -360,6 +445,21 @@ export default function TshirtCustomizerPanel({
     }));
   };
 
+  const applyDesignToActiveZone = (imageUrl) => {
+    if (!activeZone) return;
+    setZoneDesigns((prev) => ({
+      ...prev,
+      [activeZone]: { imageUrl, x: 10, y: 10, w: 80, h: 80 },
+    }));
+  };
+
+  const applyTextToActiveZone = () => {
+    if (!textContent.trim()) return;
+    applyDesignToActiveZone(
+      createTextDesign(textContent.trim(), textFont, textColor),
+    );
+  };
+
   // ── Zone design change (drag/resize) ──────────────────────────────
   const handleZoneDesignChange = (zoneId, layer) => {
     setZoneDesigns((prev) => ({ ...prev, [zoneId]: layer }));
@@ -407,6 +507,46 @@ export default function TshirtCustomizerPanel({
     }
   };
 
+  // ── AI generate wrapper: adapt to natural-language prompts ────────
+  // Detects a shirt color word ("make the shirt red", "red tee with a lion")
+  // and applies it to the shirt, then strips color/filler words so the image
+  // generator only sees the actual design description.
+  const handleAiGenerate = async (prompt, activeZone) => {
+    const { color, cleanedPrompt } = parsePromptForColor(prompt);
+    if (color) applyShirtColor(color);
+    return handleGenerate(cleanedPrompt, activeZone);
+  };
+
+  // ── Save design ───────────────────────────────────────────────────
+  const [saved, setSaved] = useState(false);
+
+  const handleSaveDesign = () => {
+    try {
+      const savedDesigns = JSON.parse(
+        localStorage.getItem("pmg_saved_designs") || "[]",
+      );
+      savedDesigns.push({
+        id: `saved-${Date.now()}`,
+        type: designType,
+        productLabel,
+        zones: zoneDesigns,
+        shirtColor,
+        textContent,
+        textFont,
+        textColor,
+        savedAt: new Date().toISOString(),
+      });
+      localStorage.setItem(
+        "pmg_saved_designs",
+        JSON.stringify(savedDesigns.slice(-20)),
+      );
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      console.error("Failed to save design", e);
+    }
+  };
+
   const [headerTarget, setHeaderTarget] = useState(null);
 
   useEffect(() => {
@@ -430,6 +570,14 @@ export default function TshirtCustomizerPanel({
           Clear All
         </button>
       )}
+      <button
+        type="button"
+        className="tsc-save-btn"
+        disabled={!hasAnyDesign}
+        onClick={handleSaveDesign}
+      >
+        {saved ? "✓ Saved" : "Save"}
+      </button>
       <button
         type="button"
         className="tsc-use-btn-header"
@@ -509,6 +657,22 @@ export default function TshirtCustomizerPanel({
           >
             <FaMagic className="tsc-vtab-icon" />
             AI
+          </button>
+          <button
+            type="button"
+            className={`tsc-vtab-btn${activeTab === "text" ? " active" : ""}`}
+            onClick={() => setActiveTab("text")}
+          >
+            <FaFont className="tsc-vtab-icon" />
+            Text
+          </button>
+          <button
+            type="button"
+            className={`tsc-vtab-btn${activeTab === "designs" ? " active" : ""}`}
+            onClick={() => setActiveTab("designs")}
+          >
+            <FaShapes className="tsc-vtab-icon" />
+            Designs
           </button>
         </div>
 
@@ -801,11 +965,89 @@ export default function TshirtCustomizerPanel({
                   }));
                 }
               }}
-              handleGenerate={handleGenerate}
+              handleGenerate={handleAiGenerate}
               generating={generating}
               genError={genError}
               setGenError={setGenError}
             />
+          )}
+
+          {/* Tab 4: Add Text */}
+          {activeTab === "text" && (
+            <div className="tsc-sidebar-section">
+              <div className="tsc-sidebar-header-row">
+                <h4>Add Text</h4>
+              </div>
+              <div className="tsc-spec-field">
+                <label className="tsc-spec-label">Text</label>
+                <input
+                  className="tsc-text-input"
+                  value={textContent}
+                  onChange={(e) => setTextContent(e.target.value)}
+                  placeholder="Enter your text..."
+                  maxLength={40}
+                />
+              </div>
+              <div className="tsc-spec-field">
+                <label className="tsc-spec-label">Font</label>
+                <select
+                  className="tsc-select-control"
+                  value={textFont}
+                  onChange={(e) => setTextFont(e.target.value)}
+                >
+                  {TEXT_FONTS.map((font) => (
+                    <option key={font} value={font}>
+                      {font}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="tsc-spec-field">
+                <label className="tsc-spec-label">Text Color</label>
+                <div className="tsc-text-color-row">
+                  <input
+                    type="color"
+                    className="tsc-text-color-input"
+                    value={textColor}
+                    onChange={(e) => setTextColor(e.target.value)}
+                  />
+                  <span className="tsc-text-color-hex">{textColor}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="tsc-text-apply-btn"
+                disabled={!textContent.trim()}
+                onClick={applyTextToActiveZone}
+              >
+                Add Text to {activeZone || "Design"}
+              </button>
+            </div>
+          )}
+
+          {/* Tab 5: Pick a Design */}
+          {activeTab === "designs" && (
+            <div className="tsc-sidebar-section">
+              <div className="tsc-sidebar-header-row">
+                <h4>Pick a Design</h4>
+              </div>
+              <div className="tsc-design-grid">
+                {DESIGN_TEMPLATES.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    className="tsc-design-thumb"
+                    title={tpl.label}
+                    onClick={() =>
+                      applyDesignToActiveZone(svgDataUrl(tpl.svg))
+                    }
+                  >
+                    <img src={svgDataUrl(tpl.svg)} alt={tpl.label} />
+                    <span>{tpl.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -836,6 +1078,26 @@ export default function TshirtCustomizerPanel({
             />
           </div>
         </div>
+      </div>
+
+      {/* Mobile bottom action bar (Save + Use This Design) */}
+      <div className="tsc-bottom-action-bar">
+        <button
+          type="button"
+          className="tsc-save-btn"
+          disabled={!hasAnyDesign}
+          onClick={handleSaveDesign}
+        >
+          {saved ? "✓ Saved" : "Save"}
+        </button>
+        <button
+          type="button"
+          className="tsc-use-btn"
+          disabled={!hasAnyDesign || useDesignLoading}
+          onClick={handleUseDesign}
+        >
+          {useDesignLoading ? "Uploading..." : "Use This Design"}
+        </button>
       </div>
     </div>
   );

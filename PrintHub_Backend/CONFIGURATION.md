@@ -65,8 +65,10 @@ cp PrintHub_Backend/.env.example PrintHub_Backend/.env
 | :--- | :--- | :--- | :--- |
 | `GEMINI_API_KEY` | Optional | None | API key for Google Gemini AI. |
 | `GEMINI_MODEL` | Optional | `gemini-3.1-flash-lite` | Gemini model identifier. |
+| `AI_IMAGE_PROVIDER` | Optional | `fal` | Set to `huggingface` to use the free test image generator. |
+| `HF_TOKEN` | For Hugging Face test mode | None | Free Hugging Face token with **Inference Providers** permission; keep it server-side. |
+| `HF_IMAGE_MODEL` | Optional | `black-forest-labs/FLUX.1-Krea-dev` | Optional Hugging Face text-to-image model override. |
 | `FAL_KEY` | Optional | None | Fal.ai API key for FLUX image generation. |
-| `FAL_MOCK` | Optional | `false` | Set to `true` to mock Fal.ai responses. |
 | `MESHY_API_KEY` | Optional | None | API key for Meshy 3D generation. |
 
 ---

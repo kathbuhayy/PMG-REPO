@@ -159,7 +159,7 @@ export default function App() {
         <Stack.Screen
           name="CustomizerWebView"
           component={CustomizerWebViewScreen}
-          options={{ title: "3D Customizer" }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Payment"

@@ -24,3 +24,5 @@ ehthumbs.db
 
 # Logs
 .log
+.vercel
+.env*.local
