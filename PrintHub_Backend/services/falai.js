@@ -7,8 +7,6 @@
 
 const FAL_BASE = "https://fal.run";
 const DEFAULT_MODEL = "fal-ai/flux/dev";
-const HF_ROUTER_BASE = "https://router.huggingface.co/hf-inference/models";
-const DEFAULT_HF_MODEL = "black-forest-labs/FLUX.1-Krea-dev";
 
 const SIZE_MAP = {
   square_hd: [1024, 1024],
@@ -34,9 +32,8 @@ async function generateImage({
   imageSize = "square_hd",
   numSteps = 28,
 }) {
-  const provider = (process.env.AI_IMAGE_PROVIDER || "fal").toLowerCase();
-  if (provider === "huggingface" || provider === "hf") {
-    return generateWithHuggingFace(prompt, imageSize);
+  if (process.env.FAL_MOCK === "true") {
+    return generateWithPollinations(prompt, imageSize);
   }
   return generateWithFal(prompt, model, imageSize, numSteps);
 }
@@ -57,65 +54,6 @@ async function generateWithPollinations(prompt, imageSize) {
 }
 
 // ── fal.ai FLUX.1 ────────────────────────────────────────────────────────────
-// Hugging Face provides a small monthly credit for testing. The router returns
-// raw image bytes, so return a data URL that the existing customizer can use
-// immediately without exposing the provider token to the browser.
-async function generateWithHuggingFace(prompt, imageSize) {
-  const token = process.env.HF_TOKEN;
-  if (!token) {
-    throw new Error(
-      "HF_TOKEN is not set. Create a free Hugging Face access token with Inference Providers permission, then add it to the backend environment.",
-    );
-  }
-
-  const [width, height] = SIZE_MAP[imageSize] || [1024, 1024];
-  const model = process.env.HF_IMAGE_MODEL || DEFAULT_HF_MODEL;
-  const res = await fetch(`${HF_ROUTER_BASE}/${model}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "image/*",
-    },
-    body: JSON.stringify({
-      inputs: prompt,
-      parameters: {
-        width,
-        height,
-        num_inference_steps: 28,
-        guidance_scale: 4.5,
-        negative_prompt:
-          "text, words, letters, watermark, signature, logo, blurry, low quality, photorealistic mockup, product photograph",
-      },
-    }),
-  });
-
-  if (!res.ok) {
-    let detail = `Hugging Face generation failed (${res.status})`;
-    try {
-      const body = await res.json();
-      detail = body?.error || body?.message || detail;
-    } catch {
-      // Some provider errors are plain text.
-    }
-    throw new Error(detail);
-  }
-
-  const contentType = res.headers.get("content-type") || "image/png";
-  if (!contentType.startsWith("image/")) {
-    throw new Error("Hugging Face did not return an image. Please try again.");
-  }
-  const imageBuffer = Buffer.from(await res.arrayBuffer());
-  if (!imageBuffer.length) throw new Error("Generated image was empty.");
-
-  return {
-    url: `data:${contentType};base64,${imageBuffer.toString("base64")}`,
-    width,
-    height,
-    seed: null,
-  };
-}
-
 async function generateWithFal(prompt, model, imageSize, numSteps) {
   const falKey = process.env.FAL_KEY;
   if (!falKey) throw new Error("FAL_KEY environment variable is not set");
