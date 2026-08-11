@@ -106,6 +106,7 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        fillParent={true}
       />
     );
   }
@@ -116,6 +117,7 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        fillParent={true}
         projectionMode="decal"
         decalScale={{
           front: {
@@ -160,6 +162,7 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        fillParent={true}
       />
     );
   }
@@ -170,6 +173,7 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        fillParent={true}
       />
     );
   }
@@ -179,7 +183,7 @@ function render3DPreview(ai3DPreviewModal) {
         modelPath="/models/jersey.glb"
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
-
+        fillParent={true}
       />
     );
   }
@@ -190,6 +194,7 @@ function render3DPreview(ai3DPreviewModal) {
       baseColor={baseColor}
       zoneDesigns={zoneDesigns}
       zoneTexts={zoneTexts}
+      fillParent={true}
     />
   );
 }
