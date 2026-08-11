@@ -81,7 +81,7 @@ function inferCustomizerCategory({ category, name }) {
 function render3DPreview(ai3DPreviewModal) {
   const category = inferCustomizerCategory({
     name: ai3DPreviewModal.productName,
-    category: ai3DPreviewModal.design?.category
+    category: ai3DPreviewModal.design?.type || ai3DPreviewModal.design?.category
   });
 
   const baseColor =
@@ -116,6 +116,40 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        projectionMode="decal"
+        decalScale={{
+          front: {
+            w: 0.34,
+            h: 0.3,
+            depth: 0.32,
+            surfaceOffset: 0.025,
+            y: -0.08,
+            z: -0.32,
+          },
+          back: {
+            w: 0.32,
+            h: 0.28,
+            depth: 0.28,
+            surfaceOffset: 0.015,
+            y: 0.15,
+          },
+          left_side: {
+            w: 0.28,
+            h: 0.28,
+            depth: 0.28,
+            surfaceOffset: 0.015,
+            y: 0.1,
+            z: -0.15,
+          },
+          right_side: {
+            w: 0.28,
+            h: 0.28,
+            depth: 0.28,
+            surfaceOffset: 0.015,
+            y: 0.1,
+            z: -0.15,
+          },
+        }}
       />
     );
   }

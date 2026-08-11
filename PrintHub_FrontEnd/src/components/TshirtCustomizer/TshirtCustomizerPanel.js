@@ -496,6 +496,7 @@ export default function TshirtCustomizerPanel({
         null;
       onDesignReady({
         type: designType,
+        category: designType,
         zones: uploadedZones,
         zoneTexts,
         shirtColor,
