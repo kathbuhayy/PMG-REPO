@@ -682,6 +682,7 @@ export const blankProductForm = (extra = {}) => ({
 });
 
 export const categoryMapping = {
+  Plain: ["Plain", "Blank"],
   Clothing: ["T-Shirt", "Jersey", "Cap"],
   Business: [
     "Note Cards",
