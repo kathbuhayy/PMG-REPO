@@ -391,10 +391,20 @@ function AdminOrders() {
   // Calculate stats from orders
   const ordersStats = useMemo(() => {
     const pending = orders.filter((o) => o.status === "pending").length;
+    const confirmed = orders.filter((o) => o.status === "confirmed").length;
     const processing = orders.filter((o) => o.status === "processing").length;
+    const delivered = orders.filter((o) => o.status === "delivered").length;
     const completed = orders.filter((o) => o.status === "completed").length;
     const cancelled = orders.filter((o) => o.status === "cancelled").length;
-    return { pending, processing, completed, cancelled, total: orders.length };
+    return {
+      pending,
+      confirmed,
+      processing,
+      delivered,
+      completed,
+      cancelled,
+      total: orders.length,
+    };
   }, [orders]);
 
   const handleClearFilters = () => {
@@ -615,6 +625,13 @@ function AdminOrders() {
         </div>
 
         <div className="dashpage-stat-card">
+          <div className="dashpage-stat-label">Confirmed</div>
+          <div className="dashpage-stat-value grey">
+            {ordersStats.confirmed}
+          </div>
+        </div>
+
+        <div className="dashpage-stat-card">
           <div className="dashpage-stat-label">Processing</div>
           <div className="dashpage-stat-value blue">
             {ordersStats.processing}
@@ -622,9 +639,23 @@ function AdminOrders() {
         </div>
 
         <div className="dashpage-stat-card">
+          <div className="dashpage-stat-label">Delivered</div>
+          <div className="dashpage-stat-value green">
+            {ordersStats.delivered}
+          </div>
+        </div>
+
+        <div className="dashpage-stat-card">
           <div className="dashpage-stat-label">Completed</div>
           <div className="dashpage-stat-value green">
             {ordersStats.completed}
+          </div>
+        </div>
+
+        <div className="dashpage-stat-card">
+          <div className="dashpage-stat-label">Cancelled</div>
+          <div className="dashpage-stat-value red">
+            {ordersStats.cancelled}
           </div>
         </div>
       </div>
