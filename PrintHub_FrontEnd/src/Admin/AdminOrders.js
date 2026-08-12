@@ -81,7 +81,7 @@ function inferCustomizerCategory({ category, name }) {
 function render3DPreview(ai3DPreviewModal) {
   const category = inferCustomizerCategory({
     name: ai3DPreviewModal.productName,
-    category: ai3DPreviewModal.design?.category
+    category: ai3DPreviewModal.design?.type || ai3DPreviewModal.design?.category
   });
 
   const baseColor =
@@ -106,6 +106,7 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        fillParent={true}
       />
     );
   }
@@ -116,6 +117,41 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        fillParent={true}
+        projectionMode="decal"
+        decalScale={{
+          front: {
+            w: 0.34,
+            h: 0.3,
+            depth: 0.32,
+            surfaceOffset: 0.025,
+            y: -0.08,
+            z: -0.32,
+          },
+          back: {
+            w: 0.32,
+            h: 0.28,
+            depth: 0.28,
+            surfaceOffset: 0.015,
+            y: 0.15,
+          },
+          left_side: {
+            w: 0.28,
+            h: 0.28,
+            depth: 0.28,
+            surfaceOffset: 0.015,
+            y: 0.1,
+            z: -0.15,
+          },
+          right_side: {
+            w: 0.28,
+            h: 0.28,
+            depth: 0.28,
+            surfaceOffset: 0.015,
+            y: 0.1,
+            z: -0.15,
+          },
+        }}
       />
     );
   }
@@ -126,6 +162,7 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        fillParent={true}
       />
     );
   }
@@ -136,6 +173,7 @@ function render3DPreview(ai3DPreviewModal) {
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
         zoneTexts={zoneTexts}
+        fillParent={true}
       />
     );
   }
@@ -145,7 +183,7 @@ function render3DPreview(ai3DPreviewModal) {
         modelPath="/models/jersey.glb"
         shirtColor={baseColor}
         zoneDesigns={zoneDesigns}
-
+        fillParent={true}
       />
     );
   }
@@ -156,6 +194,7 @@ function render3DPreview(ai3DPreviewModal) {
       baseColor={baseColor}
       zoneDesigns={zoneDesigns}
       zoneTexts={zoneTexts}
+      fillParent={true}
     />
   );
 }
@@ -352,10 +391,20 @@ function AdminOrders() {
   // Calculate stats from orders
   const ordersStats = useMemo(() => {
     const pending = orders.filter((o) => o.status === "pending").length;
+    const confirmed = orders.filter((o) => o.status === "confirmed").length;
     const processing = orders.filter((o) => o.status === "processing").length;
+    const delivered = orders.filter((o) => o.status === "delivered").length;
     const completed = orders.filter((o) => o.status === "completed").length;
     const cancelled = orders.filter((o) => o.status === "cancelled").length;
-    return { pending, processing, completed, cancelled, total: orders.length };
+    return {
+      pending,
+      confirmed,
+      processing,
+      delivered,
+      completed,
+      cancelled,
+      total: orders.length,
+    };
   }, [orders]);
 
   const handleClearFilters = () => {
@@ -576,6 +625,13 @@ function AdminOrders() {
         </div>
 
         <div className="dashpage-stat-card">
+          <div className="dashpage-stat-label">Confirmed</div>
+          <div className="dashpage-stat-value grey">
+            {ordersStats.confirmed}
+          </div>
+        </div>
+
+        <div className="dashpage-stat-card">
           <div className="dashpage-stat-label">Processing</div>
           <div className="dashpage-stat-value blue">
             {ordersStats.processing}
@@ -583,9 +639,23 @@ function AdminOrders() {
         </div>
 
         <div className="dashpage-stat-card">
+          <div className="dashpage-stat-label">Delivered</div>
+          <div className="dashpage-stat-value green">
+            {ordersStats.delivered}
+          </div>
+        </div>
+
+        <div className="dashpage-stat-card">
           <div className="dashpage-stat-label">Completed</div>
           <div className="dashpage-stat-value green">
             {ordersStats.completed}
+          </div>
+        </div>
+
+        <div className="dashpage-stat-card">
+          <div className="dashpage-stat-label">Cancelled</div>
+          <div className="dashpage-stat-value red">
+            {ordersStats.cancelled}
           </div>
         </div>
       </div>

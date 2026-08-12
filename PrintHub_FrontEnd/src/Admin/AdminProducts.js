@@ -26,7 +26,7 @@ const CATEGORY_ZONES = {
   tshirt: ["front", "back", "left_sleeve", "right_sleeve"],
   jersey: ["front", "back", "left_sleeve", "right_sleeve"],
   jersery: ["front", "back", "left_sleeve", "right_sleeve"],
-  cap: ["front", "back", "left_sleeve", "right_sleeve"],
+  cap: ["front", "back", "left_side", "right_side"],
   notebook: ["front_cover", "back_cover"],
   calling_card: ["front", "back"],
   business_card: ["front", "back"],
@@ -101,13 +101,13 @@ const generateSideOptions = (category, zones) => {
   } else if (norm === "cap" || norm === "hat") {
     if (zones.includes("front")) options.push("Front Center");
     if (zones.includes("back")) options.push("Back Closure");
-    if (zones.includes("left_sleeve")) options.push("Left Panel");
-    if (zones.includes("right_sleeve")) options.push("Right Panel");
+    if (zones.includes("left_side")) options.push("Left Side");
+    if (zones.includes("right_side")) options.push("Right Side");
     if (
       zones.includes("front") &&
       zones.includes("back") &&
-      zones.includes("left_sleeve") &&
-      zones.includes("right_sleeve")
+      zones.includes("left_side") &&
+      zones.includes("right_side")
     ) {
       options.push("Full Panel");
     }

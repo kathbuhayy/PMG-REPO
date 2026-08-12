@@ -979,7 +979,7 @@
   top: 0;
   width: 100%;
   height: 3px;
-  background: #2563eb;
+  background: #202021;
 }
 
 .dashpage-stat-card:has(.green)::before {
@@ -996,6 +996,9 @@
 }
 .dashpage-stat-card:has(.purple)::before {
   background: #8b5cf6;
+}
+.dashpage-stat-card:has(.grey)::before {
+  background: #a0a0a2;
 }
 
 .dashpage-stat-label {
@@ -1018,6 +1021,7 @@
 .dashpage-stat-value.orange { color: #f59e0b; }
 .dashpage-stat-value.blue { color: #3b82f6; }
 .dashpage-stat-value.purple { color: #8b5cf6; }
+.dashpage-stat-value.grey { color: #a0a0a2; }
 
 /* Toolbar & Filters */
 .dashpage-toolbar {
