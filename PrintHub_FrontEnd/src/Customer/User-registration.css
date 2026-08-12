@@ -47,8 +47,8 @@
 }
 
 .form-agreement {
-  margin-bottom: 24px;
-  padding-bottom: 20px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid #e0e0e0;
 }
 
@@ -57,8 +57,8 @@
   align-items: flex-start;
   cursor: pointer;
   color: #1f2838;
-  font-size: 13px;
-  margin-top: 15px;
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 .checkbox-label input {
@@ -194,30 +194,36 @@
 /* Make registration card wider and inputs more compact */
 .registration-card {
   max-width: 600px;
-  padding: 32px;
+  padding: 24px 32px;
 }
 
 .registration-card .form-group {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .registration-card .form-group input {
-  min-height: 48px;
+  min-height: 44px;
+  height: 44px;
 }
 
 .registration-card .login-button {
-  min-height: 52px;
-  margin-bottom: 16px;
+  min-height: 48px;
+  margin-bottom: 10px;
 }
 
 .registration-card .login-header {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .registration-card .login-header h1 {
-  font-size: 32px;
+  font-size: 30px;
+  margin-bottom: 6px;
+}
+
+.registration-card .login-header p {
+  margin: 0;
 }
 
 .registration-card .auth-mini-brand {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }

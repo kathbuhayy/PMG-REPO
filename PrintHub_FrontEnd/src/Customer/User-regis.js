@@ -234,7 +234,7 @@ function UserRegistrationPage() {
           <div className="login-card registration-card">
             <div className="auth-mini-brand">
               <span>P</span>
-              <strong>PrintHub</strong>
+              <strong>PrintSync</strong>
             </div>
             <div className="login-header">
               <h1>Create Account</h1>
