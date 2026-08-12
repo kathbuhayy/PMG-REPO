@@ -68,14 +68,14 @@ const BODY_ZONES = {
     meshName: FRONT_BODY_MESH,
     uMin: 0.25,
     uMax: 0.75,
-    vMin: 0.2,
+    vMin: 0.01,
     vMax: 0.6,
   },
   back: {
     meshName: BACK_BODY_MESH,
     uMin: 0.25,
     uMax: 0.75,
-    vMin: 0.2,
+    vMin: 0.01,
     vMax: 0.6,
   },
 };
@@ -84,10 +84,10 @@ const SLEEVE_DECALS = {
   left_sleeve: {
     side: -1,
     ry: Math.PI / 2,
-    sw: 0.18,
-    sh: 0.16,
-    y: 0.05,
-    z: 0.02,
+    sw: 0.30,
+    sh: 0.26,
+    y: -0.15,
+    z: 0.1,
     depth: 0.2,
   },
   right_sleeve: {
@@ -95,8 +95,8 @@ const SLEEVE_DECALS = {
     ry: -Math.PI / 2,
     sw: 0.18,
     sh: 0.16,
-    y: 0.05,
-    z: 0.02,
+    y: 0,
+    z: 0.0,
     depth: 0.2,
   },
 };
@@ -305,14 +305,14 @@ export default function TshirtPreview3D({
           const offsetZ = ((designX + designW / 2) / 100 - 0.5) * zoneW;
           const offsetY = (0.5 - (designY + designH / 2) / 100) * zoneH;
           const position = new THREE.Vector3(
-            cfg.side > 0 ? box.max.x - 1 : box.min.x + 1,
+            cfg.side > 0 ? box.max.x - size.x * 0.05 : box.min.x + size.x * 0.05,
             center.y + size.y * cfg.y + offsetY,
             center.z + size.z * cfg.z + offsetZ,
           );
           const orientation = new THREE.Euler(0, cfg.ry, 0);
           const decalSize = new THREE.Vector3(
-            zoneW * (designW / 100),
-            zoneH * (designH / 100),
+            zoneW,
+            zoneH,
             size.x * cfg.depth,
           );
           const geometry = new DecalGeometry(sleeveMesh, position, orientation, decalSize);
@@ -598,6 +598,13 @@ export default function TshirtPreview3D({
         scene.add(model);
 
         applyColor(model, shirtColorRef.current);
+        modelRef.current.traverse(n => {
+  if (n.isMesh) {
+    n.geometry.computeBoundingBox();
+    const b = n.geometry.boundingBox;
+    console.log(n.name, JSON.stringify({min: b.min, max: b.max}));
+  }
+});
         updateZoneTextures();
         rebuildSleeveDecals();
 
