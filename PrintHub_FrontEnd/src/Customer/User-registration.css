@@ -47,8 +47,8 @@
 }
 
 .form-agreement {
-  margin-bottom: 24px;
-  padding-bottom: 20px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid #e0e0e0;
 }
 
@@ -57,8 +57,8 @@
   align-items: flex-start;
   cursor: pointer;
   color: #1f2838;
-  font-size: 13px;
-  margin-top: 15px;
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 .checkbox-label input {
@@ -191,33 +191,215 @@
   box-shadow: 0 14px 30px rgba(37, 99, 235, 0.25);
 }
 
-/* Make registration card wider and inputs more compact */
+.user-login-container {
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.login-split {
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.login-form-section {
+  height: 100vh;
+  min-height: 100vh;
+  padding: 70px 28px 24px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Registration card */
 .registration-card {
+  width: 100%;
   max-width: 600px;
-  padding: 32px;
+  padding: 22px 32px;
+  box-sizing: border-box;
 }
 
-.registration-card .form-group {
-  margin-bottom: 14px;
+/* Brand */
+.registration-card .auth-mini-brand {
+  margin-bottom: 8px;
 }
 
-.registration-card .form-group input {
-  min-height: 48px;
+.registration-card .auth-mini-brand span {
+  width: 42px;
+  height: 42px;
+  font-size: 22px;
 }
 
-.registration-card .login-button {
-  min-height: 52px;
-  margin-bottom: 16px;
+.registration-card .auth-mini-brand strong {
+  font-size: 22px;
 }
 
+/* Header */
 .registration-card .login-header {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .registration-card .login-header h1 {
   font-size: 32px;
+  line-height: 1.05;
+  margin-bottom: 4px;
 }
 
-.registration-card .auth-mini-brand {
-  margin-bottom: 16px;
+.registration-card .login-header p {
+  font-size: 15px;
+}
+
+/* Form fields */
+.registration-card .form-group {
+  margin-bottom: 8px;
+}
+
+.registration-card .form-group label {
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.registration-card .form-group input {
+  height: 42px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 13px;
+  font-size: 14px;
+}
+
+/* Password requirements */
+.registration-card .password-criteria {
+  margin-top: -3px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.registration-card .password-criteria p {
+  margin: 1px 0;
+  line-height: 1.2;
+}
+
+/* Terms and Conditions */
+.registration-card .form-agreement {
+  margin-bottom: 9px;
+  padding-bottom: 8px;
+}
+
+.registration-card .checkbox-label {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+/* Create Account button */
+.registration-card .login-button {
+  height: 44px;
+  min-height: 44px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+/* Sign-in footer */
+.registration-card .login-footer {
+  padding-top: 10px;
+  font-size: 12px;
+}
+
+.registration-card .login-footer p {
+  margin: 0;
+}
+/* =========================================================
+   SHORT LAPTOP SCREENS
+   ========================================================= */
+
+@media (max-height: 850px) and (min-width: 1025px) {
+  .login-form-section {
+    padding-top: 55px;
+    padding-bottom: 16px;
+  }
+
+  .registration-card {
+    padding: 18px 30px;
+  }
+
+  .registration-card .auth-mini-brand {
+    margin-bottom: 5px;
+  }
+
+  .registration-card .login-header {
+    margin-bottom: 8px;
+  }
+
+  .registration-card .login-header h1 {
+    font-size: 29px;
+  }
+
+  .registration-card .form-group {
+    margin-bottom: 6px;
+  }
+
+  .registration-card .form-group input {
+    height: 39px;
+    min-height: 39px;
+  }
+
+  .registration-card .form-agreement {
+    margin-bottom: 7px;
+    padding-bottom: 6px;
+  }
+
+  .registration-card .login-button {
+    height: 40px;
+    min-height: 40px;
+  }
+}
+
+
+/* =========================================================
+   VERY SHORT SCREENS
+   ========================================================= */
+
+@media (max-height: 720px) and (min-width: 1025px) {
+  .login-form-section {
+    padding-top: 45px;
+  }
+
+  .registration-card {
+    padding: 14px 26px;
+  }
+
+  .registration-card .auth-mini-brand span {
+    width: 38px;
+    height: 38px;
+  }
+
+  .registration-card .auth-mini-brand strong {
+    font-size: 20px;
+  }
+
+  .registration-card .login-header h1 {
+    font-size: 26px;
+  }
+
+  .registration-card .login-header p {
+    font-size: 13px;
+  }
+
+  .registration-card .form-group {
+    margin-bottom: 4px;
+  }
+
+  .registration-card .form-group input {
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .registration-card .checkbox-label {
+    font-size: 10px;
+  }
+
+  .registration-card .login-button {
+    height: 38px;
+    min-height: 38px;
+  }
 }
