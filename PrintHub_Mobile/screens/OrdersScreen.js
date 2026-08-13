@@ -27,10 +27,13 @@ export default function OrdersScreen({ navigation }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
   const [activeFilter, setActiveFilter] = useState("all");
 
-  const fetchOrders = async () => {
+  // =========================================================
+  // FETCH ORDERS
+  // =========================================================
+
+  const fetchOrders = useCallback(async () => {
     try {
       const userStr = await AsyncStorage.getItem("user");
 
@@ -45,48 +48,79 @@ export default function OrdersScreen({ navigation }) {
         `${API_BASE_URL}/api/user/${user.id}/orders`
       );
 
-if (res.ok) {
-  const data = await res.json();
+      if (res.ok) {
+        const data = await res.json();
 
-  setOrders(
-    Array.isArray(data)
-      ? [...data].sort((a, b) => {
-          const dateA = new Date(a?.createdAt || 0).getTime();
+        setOrders(
+          Array.isArray(data)
+            ? [...data].sort((a, b) => {
+                const dateA = new Date(
+                  a?.createdAt || 0
+                ).getTime();
 
-          const dateB = new Date(b?.createdAt || 0).getTime();
+                const dateB = new Date(
+                  b?.createdAt || 0
+                ).getTime();
 
-          return dateB - dateA;
-        })
-      : [],
-  );
-} else {
-  console.error("[OrdersScreen] Failed to fetch orders:", res.status);
-}
+                return dateB - dateA;
+              })
+            : []
+        );
+      } else {
+        console.error(
+          "[OrdersScreen] Failed to fetch orders:",
+          res.status
+        );
+      }
     } catch (err) {
       console.error(
-        "[OrdersScreen] {FetchOrders}: " +
-          err.message
+        "[OrdersScreen] {FetchOrders}:",
+        err.message
       );
     }
-  };
+  }, []);
+
+  // =========================================================
+  // AUTO SYNC
+  // =========================================================
+  // Refreshes the orders every 5 seconds while this screen
+  // is currently focused.
+  // =========================================================
 
   useFocusEffect(
     useCallback(() => {
+      let isActive = true;
+
       setLoading(true);
 
-      fetchOrders().finally(() =>
-        setLoading(false)
-      );
-    }, [])
+      fetchOrders().finally(() => {
+        if (isActive) {
+          setLoading(false);
+        }
+      });
+
+      const interval = setInterval(() => {
+        fetchOrders();
+      }, 5000);
+
+      return () => {
+        isActive = false;
+        clearInterval(interval);
+      };
+    }, [fetchOrders])
   );
+
+  // =========================================================
+  // MANUAL REFRESH
+  // =========================================================
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
 
-    fetchOrders().finally(() =>
-      setRefreshing(false)
-    );
-  }, []);
+    fetchOrders().finally(() => {
+      setRefreshing(false);
+    });
+  }, [fetchOrders]);
 
   // =========================================================
   // STATUS HELPERS
@@ -98,6 +132,23 @@ if (res.ok) {
       .toLowerCase()
       .replace(/_/g, " ");
   };
+
+  // =========================================================
+  // DESIGN APPROVAL HELPER
+  // =========================================================
+
+  const isProofApproved = (order) => {
+    return (
+      order?.proofApproved === true ||
+      String(order?.proofApproved || "")
+        .trim()
+        .toLowerCase() === "true"
+    );
+  };
+
+  // =========================================================
+  // STATUS COLOR
+  // =========================================================
 
   const getStatusColor = (status) => {
     const normalized = normalizeStatus(status);
@@ -126,10 +177,16 @@ if (res.ok) {
 
       case "pending":
       case "payment pending":
+        return COLORS.warning;
+
       default:
         return COLORS.warning;
     }
   };
+
+  // =========================================================
+  // DISPLAY STATUS
+  // =========================================================
 
   const getDisplayStatus = (order) => {
     const status = normalizeStatus(order?.status);
@@ -138,6 +195,23 @@ if (res.ok) {
       order?.paymentStatus ||
         order?.payment_status
     );
+
+    // IMPORTANT:
+    // Backend approval currently changes proofApproved,
+    // while status may remain "pending".
+    // Treat proofApproved as APPROVED on mobile.
+
+    if (
+      isProofApproved(order) &&
+      paymentStatus !== "paid" &&
+      status !== "paid" &&
+      status !== "processing" &&
+      status !== "in production" &&
+      status !== "delivered" &&
+      status !== "completed"
+    ) {
+      return "Approved";
+    }
 
     if (
       paymentStatus === "pending" &&
@@ -210,7 +284,12 @@ if (res.ok) {
       return 2;
     }
 
-    if (status === "approved") {
+    // IMPORTANT:
+    // Admin approval is stored in proofApproved.
+    if (
+      status === "approved" ||
+      isProofApproved(order)
+    ) {
       return 1;
     }
 
@@ -229,20 +308,57 @@ if (res.ok) {
         order?.payment_status
     );
 
-    return (
-      paymentStatus === "pending" ||
-      status === "payment pending"
-    );
+    // Cancelled/completed orders should never appear in To Pay.
+    if (
+      status === "cancelled" ||
+      status === "canceled" ||
+      status === "rejected" ||
+      status === "completed"
+    ) {
+      return false;
+    }
+
+    // Already paid.
+    if (
+      status === "paid" ||
+      paymentStatus === "paid"
+    ) {
+      return false;
+    }
+
+    // IMPORTANT:
+    // An approved design means the customer can pay,
+    // even if backend status is still "pending".
+    if (isProofApproved(order)) {
+      return true;
+    }
+
+    // Keep support for the existing payment-pending status.
+    if (
+      status === "payment pending" ||
+      paymentStatus === "pending"
+    ) {
+      return true;
+    }
+
+    return false;
   };
 
   const isToReceive = (order) => {
     const status = normalizeStatus(order?.status);
 
+    const paymentStatus = normalizeStatus(
+      order?.paymentStatus ||
+        order?.payment_status
+    );
+
     return (
       status === "paid" ||
+      paymentStatus === "paid" ||
       status === "processing" ||
       status === "in production" ||
-      status === "approved"
+      status === "delivered" ||
+      status === "completed"
     );
   };
 
@@ -251,7 +367,8 @@ if (res.ok) {
 
     return (
       status === "cancelled" ||
-      status === "canceled"
+      status === "canceled" ||
+      status === "rejected"
     );
   };
 
