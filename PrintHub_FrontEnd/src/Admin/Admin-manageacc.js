@@ -10,6 +10,7 @@ import {
   FaTrashRestore
 } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
+import { adminFetch } from "../utils/adminFetch";
 
 function getInitials(name = "") {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -110,7 +111,7 @@ function AdminManageAccounts() {
 
     setVerifyingPassword(true);
     try {
-      const res = await fetch(buildApiUrl("/api/admin/verify-password"), {
+      const res = await adminFetch(buildApiUrl("/api/admin/verify-password"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -145,7 +146,7 @@ function AdminManageAccounts() {
   // Fetches the list of all users from the admin API endpoint
   const fetchUsers = useCallback(async () => {
     try {
-      const res = await fetch(buildApiUrl("/api/admin/users"));
+      const res = await adminFetch(buildApiUrl("/api/admin/users"));
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.message || "Failed to fetch users");
@@ -159,7 +160,7 @@ function AdminManageAccounts() {
 
   const fetchArchivedUsers = useCallback(async () => {
   try {
-    const res = await fetch(buildApiUrl("/api/admin/archived-users"));
+    const res = await adminFetch(buildApiUrl("/api/admin/archived-users"));
     const data = await res.json();
     if (!res.ok) throw new Error(data?.message || "Failed to fetch archived users");
     setArchivedUsers(data);
@@ -185,7 +186,7 @@ const filteredArchivedUsers = useMemo(() => {
 
 const restoreUser = async (u) => {
   try {
-    const res = await fetch(buildApiUrl(`/api/admin/archived-users/${u.id}/restore`), {
+    const res = await adminFetch(buildApiUrl(`/api/admin/archived-users/${u.id}/restore`), {
       method: "POST",
     });
     const data = await res.json();
@@ -203,7 +204,7 @@ const restoreUser = async (u) => {
 
 const permanentlyDeleteUser = async (u) => {
   try {
-    const res = await fetch(buildApiUrl(`/api/admin/archived-users/${u.id}`), {
+    const res = await adminFetch(buildApiUrl(`/api/admin/archived-users/${u.id}`), {
       method: "DELETE",
     });
     const data = await res.json();
@@ -310,7 +311,7 @@ const permanentlyDeleteUser = async (u) => {
     }
 
     try {
-      const res = await fetch(buildApiUrl("/api/admin/users"), {
+      const res = await adminFetch(buildApiUrl("/api/admin/users"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -338,7 +339,7 @@ const permanentlyDeleteUser = async (u) => {
     if (!selectedUser) return;
 
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/admin/users/${selectedUser.id}`),
         {
           method: "PUT",
@@ -396,7 +397,7 @@ const permanentlyDeleteUser = async (u) => {
     if (!selectedUser) return;
 
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/admin/users/${selectedUser.id}`),
         { method: "DELETE" },
       );

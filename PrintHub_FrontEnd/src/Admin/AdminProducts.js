@@ -12,6 +12,7 @@ import {
   FaTrashAlt,
   FaInfoCircle,
 } from "react-icons/fa";
+import { adminFetch } from "../utils/adminFetch";
 import ConfirmModal from "../components/ConfirmModal";
 import "./Admin-dashboard.css";
 import { buildApiUrl } from "../config/api";
@@ -658,7 +659,7 @@ function AdminProducts({
         setConfirmModalConfig(null);
         try {
           const promises = Array.from(selectedIds).map((id) =>
-            fetch(buildApiUrl(`/api/products/${id}`), {
+            adminFetch(buildApiUrl(`/api/products/${id}`), {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ quantity_mode: "dropdown" }),
@@ -756,7 +757,7 @@ function AdminProducts({
   const handleToggleStatus = async (product) => {
     try {
       const newStatus = product.status === "active" ? false : true;
-      const res = await fetch(buildApiUrl(`/api/products/${product.dbId}`), {
+      const res = await adminFetch(buildApiUrl(`/api/products/${product.dbId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: newStatus }),
@@ -992,7 +993,7 @@ function AdminProducts({
 
   const openAddStock = async (product) => {
     try {
-      const res = await fetch(buildApiUrl(`/api/products/${product.dbId}`));
+      const res = await adminFetch(buildApiUrl(`/api/products/${product.dbId}`));
       if (!res.ok) throw new Error("Failed to fetch product");
       const full = await res.json();
       setAddStockProduct(full);
@@ -1095,7 +1096,7 @@ function AdminProducts({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(buildApiUrl("/api/products/upload"), {
+      const res = await adminFetch(buildApiUrl("/api/products/upload"), {
         method: "POST",
         body: formData,
       });
@@ -1120,7 +1121,7 @@ function AdminProducts({
       onConfirm: async () => {
         setConfirmModalConfig(null);
         try {
-          const res = await fetch(buildApiUrl(`/api/products/${product.dbId}`), {
+          const res = await adminFetch(buildApiUrl(`/api/products/${product.dbId}`), {
             method: "DELETE",
           });
 

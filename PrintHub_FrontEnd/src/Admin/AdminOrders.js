@@ -24,6 +24,7 @@ import FlatPreview3D from "../components/FlatCustomizer/FlatPreview3D";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import AppModal from "../components/AppModal";
+import { adminFetch } from "../utils/adminFetch";
 
 // Extract pcs count per item pack from customizations object
 function getPcsFromCustomizations(customizations) {
@@ -298,7 +299,7 @@ function AdminOrders() {
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        const response = await fetch(buildApiUrl("/api/admin/orders"));
+        const response = await adminFetch(buildApiUrl("/api/admin/orders"));
         if (!response.ok) throw new Error("Failed to fetch orders");
 
         const data = await response.json();
@@ -434,7 +435,7 @@ function AdminOrders() {
     setDeleteOrderTarget(null);
 
     try {
-      const res = await fetch(buildApiUrl(`/api/orders/${order.dbId}`), {
+      const res = await adminFetch(buildApiUrl(`/api/orders/${order.dbId}`), {
         method: "DELETE",
       });
       const data = await res.json().catch(() => ({}));
@@ -507,7 +508,7 @@ function AdminOrders() {
   // ✅ Update order status
   const updateOrderStatus = async (order, newStatus) => {
     try {
-      const res = await fetch(buildApiUrl(`/api/orders/${order.dbId}`), {
+      const res = await adminFetch(buildApiUrl(`/api/orders/${order.dbId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),

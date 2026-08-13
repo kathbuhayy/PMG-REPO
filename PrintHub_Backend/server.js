@@ -9,6 +9,8 @@ const multer = require("multer");
 const supabase = require("./db/supabase");
 const { generateImage } = require("./services/falai");
 
+const { logActivity, identifyActor } = require("./services/activityLog");
+
 const {
   generateModelFromText,
   generateModelFromImage,
@@ -94,6 +96,8 @@ app.use(bodyParser.json({
   }
 }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
+
+app.use(identifyActor(prisma));
 
 // =================================================
 // AI CHATBOT API (Gemini)
@@ -481,6 +485,14 @@ app.post("/api/admin/archived-users/:id/restore", async (req, res) => {
       return newUser;
     });
 
+    await logActivity({
+      actor: req.actor,
+      action: "restored",
+      module: "users",
+      description: `Restored account "${restored.first_name} ${restored.last_name}" (${restored.email})`,
+      metadata: { userId: restored.id, archivedId },
+    });
+
     return res.json({ message: "Account restored", user: restored });
   } catch (e) {
     console.error(e);
@@ -488,11 +500,52 @@ app.post("/api/admin/archived-users/:id/restore", async (req, res) => {
   }
 });
 
+app.get("/api/admin/activity-logs", async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 25;
+    const skip = (page - 1) * limit;
+
+    const where = {};
+    if (req.query.module) where.module = req.query.module;
+    if (req.query.action) where.action = req.query.action;
+    if (req.query.userId) where.userId = parseInt(req.query.userId);
+    if (req.query.from || req.query.to) {
+      where.createdAt = {};
+      if (req.query.from) where.createdAt.gte = new Date(req.query.from);
+      if (req.query.to) {
+        const to = new Date(req.query.to);
+        to.setHours(23, 59, 59, 999);
+        where.createdAt.lte = to;
+      }
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.activityLog.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: limit }),
+      prisma.activityLog.count({ where }),
+    ]);
+
+    res.json({ logs, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to fetch activity logs" });
+  }
+});
+
 // DELETE permanently remove an archived account (no undo)
 app.delete("/api/admin/archived-users/:id", async (req, res) => {
   const archivedId = parseInt(req.params.id);
   try {
-    await prisma.archivedUser.delete({ where: { id: archivedId } });
+    const deleted = await prisma.archivedUser.delete({ where: { id: archivedId } });
+
+    await logActivity({
+      actor: req.actor,
+      action: "deleted",
+      module: "users",
+      description: `Permanently deleted archived account "${deleted.first_name} ${deleted.last_name}" (${deleted.email})`,
+      metadata: { archivedId },
+    });
+
     return res.json({ message: "Account permanently deleted" });
   } catch (e) {
     console.error(e);
@@ -533,7 +586,7 @@ app.post("/api/admin/users", (req, res) => {
       return res.status(500).json({ message: "Password hash error" });
     }
     try {
-      await prisma.user.create({
+      const created = await prisma.user.create({
         data: {
           first_name: first,
           last_name: last,
@@ -542,6 +595,15 @@ app.post("/api/admin/users", (req, res) => {
           role: roleToDb(role),
         },
       });
+
+      await logActivity({
+        actor: req.actor,
+        action: "created",
+        module: "users",
+        description: `Created account "${created.first_name} ${created.last_name}" (${created.email})`,
+        metadata: { userId: created.id },
+      });
+
       return res.json({ message: "User created" });
     } catch (e) {
       console.error(e);
@@ -566,7 +628,16 @@ app.put("/api/admin/users/:id", (req, res) => {
         status,
       },
     })
-    .then(() => res.json({ message: "User updated" }))
+    .then(async (updated) => {
+      await logActivity({
+        actor: req.actor,
+        action: "updated",
+        module: "users",
+        description: `Updated account "${updated.first_name} ${updated.last_name}" (${updated.email})`,
+        metadata: { userId: updated.id },
+      });
+      res.json({ message: "User updated" });
+    })
     .catch((e) => {
       console.error(e);
       res.status(500).json({ message: "User update failed" });
@@ -601,6 +672,14 @@ app.delete("/api/admin/users/:id", async (req, res) => {
       }),
       prisma.user.delete({ where: { id: userId } }),
     ]);
+
+    await logActivity({
+      actor: req.actor,
+      action: "deleted",
+      module: "users",
+      description: `Archived account "${u.first_name} ${u.last_name}" (${u.email})`,
+      metadata: { userId },
+    });
 
     return res.json({ message: "User archived" });
   } catch (e) {
@@ -1576,78 +1655,6 @@ app.put("/api/inquiries/:id", async (req, res) => {
           : null
         : undefined;
 
-    // // Auto-create order only when: price first set, no order yet, AND current status is "new"
-    // let orderId = existing.order_id;
-    // if (newPrice && !existing.order_id && existing.status === "new") {
-    //   const summary = [
-    //     existing.product_title && `Product: ${existing.product_title}`,
-    //     existing.quantity && `Qty: ${existing.quantity}`,
-    //     existing.size && `Size: ${existing.size}`,
-    //     existing.color && `Color: ${existing.color}`,
-    //     existing.material && `Material: ${existing.material}`,
-    //     existing.finishing && `Finishing: ${existing.finishing}`,
-    //     existing.printing && `Printing: ${existing.printing}`,
-    //     existing.processing && `Processing: ${existing.processing}`,
-    //     existing.delivery && `Delivery: ${existing.delivery}`,
-    //     existing.other && `Other: ${existing.other}`,
-    //   ]
-    //     .filter(Boolean)
-    //     .join(" | ");
-
-    //   // Find or create a generic "Custom Inquiry" product
-    //   let inquiryProduct = await prisma.product.findFirst({
-    //     where: { sku: "INQUIRY-CUSTOM" },
-    //   });
-    //   if (!inquiryProduct) {
-    //     inquiryProduct = await prisma.product.create({
-    //       data: {
-    //         name: "Custom Inquiry Order",
-    //         sku: "INQUIRY-CUSTOM",
-    //         description: "Generic product for custom inquiry orders",
-    //         price: "0.00",
-    //         stock: 999,
-    //         active: false, // Hidden from public catalog
-    //       },
-    //     });
-    //   }
-
-    //   const order = await prisma.order.create({
-    //     data: {
-    //       userId: existing.userId || null,
-    //       total: newPrice,
-    //       currency: "PHP",
-    //       status: "pending",
-    //       payment_status: "awaiting_payment",
-    //       shipping_address: summary || "Custom inquiry order",
-    //       billing_address: `Inquiry #${inquiryId} — ${existing.name} <${existing.email}>`,
-    //       items: {
-    //         create: {
-    //           productId: inquiryProduct.id,
-    //           quantity: parseInt(existing.quantity) || 1,
-    //           unit_price: newPrice,
-    //           total_price: newPrice * (parseInt(existing.quantity) || 1),
-    //           customizations: {
-    //             inquiry_id: existing.id,
-    //             product_title: existing.product_title,
-    //             subject: existing.subject,
-    //             customer_name: existing.name,
-    //             customer_email: existing.email,
-    //             size: existing.size,
-    //             color: existing.color,
-    //             material: existing.material,
-    //             finishing: existing.finishing,
-    //             printing: existing.printing,
-    //             processing: existing.processing,
-    //             delivery: existing.delivery,
-    //             other: existing.other,
-    //           },
-    //         },
-    //       },
-    //     },
-    //   });
-    //   orderId = order.id;
-    // }
-
     const inquiry = await prisma.inquiry.update({
       where: { id: inquiryId },
       data: {
@@ -1655,6 +1662,13 @@ app.put("/api/inquiries/:id", async (req, res) => {
         ...(newPrice !== undefined && { quoted_price: newPrice }),
         ...(admin_notes !== undefined && { admin_notes }),
       },
+    });
+    await logActivity({
+      actor: req.actor,
+      action: "updated",
+      module: "inquiries",
+      description: `Updated inquiry #${inquiryId}${status ? ` — status: ${status}` : ""}`,
+      metadata: { inquiryId },
     });
     res.json({ message: "Inquiry updated", inquiry });
   } catch (e) {
@@ -1785,6 +1799,14 @@ app.put("/api/inquiries/:id/save-and-convert", async (req, res) => {
       },
     );
 
+    await logActivity({
+      actor: req.actor,
+      action: "converted",
+      module: "inquiries",
+      description: `Saved and converted inquiry #${inquiryId} to order #${order.id}`,
+      metadata: { inquiryId, orderId: order.id },
+    });
+
     res.json({
       message: "Inquiry saved and converted to order",
       inquiry: updatedInquiry,
@@ -1884,8 +1906,8 @@ app.put("/api/inquiries/:id/convert", async (req, res) => {
                 color: inquiry.color,
                 material: inquiry.material,
                 finishing: inquiry.finishing,
-                printing: inquiry.printing,
                 processing: inquiry.processing,
+                printing: inquiry.printing,
                 delivery: inquiry.delivery,
                 other: inquiry.other,
                 design: inquiry.design_data || null,   // ADD THIS LINE
@@ -1902,6 +1924,14 @@ app.put("/api/inquiries/:id/convert", async (req, res) => {
       });
 
       return { order, updatedInquiry };
+    });
+
+    await logActivity({
+      actor: req.actor,
+      action: "converted",
+      module: "inquiries",
+      description: `Converted inquiry #${inquiryId} to order #${order.id}`,
+      metadata: { inquiryId, orderId: order.id },
     });
 
     res.json({
@@ -2086,6 +2116,14 @@ app.post("/api/products", async (req, res) => {
       },
     });
 
+    await logActivity({
+      actor: req.actor,
+      action: "created",
+      module: "products",
+      description: `Created product "${product.name}" (SKU: ${product.sku || "—"})`,
+      metadata: { productId: product.id },
+    });
+
     res.status(201).json({ message: "Product created", product });
   } catch (e) {
     console.error(e);
@@ -2179,6 +2217,14 @@ app.put("/api/products/:id", async (req, res) => {
       },
     });
 
+    await logActivity({
+      actor: req.actor,
+      action: "updated",
+      module: "products",
+      description: `Updated product "${product.name}"`,
+      metadata: { productId: product.id },
+    });
+
     res.json({ message: "Product updated", product });
   } catch (e) {
     console.error(e);
@@ -2208,6 +2254,14 @@ app.post("/api/products/:id/add-stock", async (req, res) => {
     const product = await prisma.product.update({
       where: { id },
       data: updateData,
+    });
+
+    await logActivity({
+      actor: req.actor,
+      action: "stock_added",
+      module: "products",
+      description: `Added ${inc} to stock of "${product.name}" (new stock: ${product.stock})`,
+      metadata: { productId: product.id, added: inc },
     });
 
     res.json({ message: "Stock updated", product });
@@ -2306,6 +2360,14 @@ app.delete("/api/products/:id", async (req, res) => {
     const product = await prisma.product.update({
       where: { id: parseInt(req.params.id) },
       data: { deleted_at: new Date() },
+    });
+
+    await logActivity({
+      actor: req.actor,
+      action: "deleted",
+      module: "products",
+      description: `Deleted product "${product.name}"`,
+      metadata: { productId: product.id },
     });
 
     res.json({ message: "Product deleted", product });
@@ -2443,6 +2505,14 @@ app.put("/api/orders/:id", async (req, res) => {
 
     const notification = status ? await notifyOrderStatus(order, status) : null;
 
+    await logActivity({
+      actor: req.actor,
+      action: "status_changed",
+      module: "orders",
+      description: `Order #${order.id} status changed to "${order.status}"`,
+      metadata: { orderId: order.id, previousStatus: existing.status },
+    });
+
     res.json({
       message: "Order updated",
       order,
@@ -2494,6 +2564,14 @@ app.post("/api/orders/:id/onsite-payment", async (req, res) => {
     const statusNotification = await notifyOrderStatus(order, "confirmed");
     const emailSent = paymentNotification?.status === "sent";
 
+    await logActivity({
+      actor: req.actor,
+      action: "payment_recorded",
+      module: "orders",
+      description: `Recorded onsite payment for order #${order.id}`,
+      metadata: { orderId: order.id, paymentReference: order.payment_reference },
+    });
+
     res.json({
       message: "Order marked as paid onsite",
       order,
@@ -2520,6 +2598,15 @@ app.post("/api/orders/:id/approve-design", async (req, res) => {
       },
     });
     const notification = await notifyDesignApproval(order);
+
+    await logActivity({
+      actor: req.actor,
+      action: "design_approved",
+      module: "orders",
+      description: `Approved design proof for order #${order.id}`,
+      metadata: { orderId: order.id },
+    });
+
     res.json({
       message: "Design approved. Customer can now pay.",
       order,
@@ -2547,6 +2634,15 @@ app.patch("/api/orders/:id/deliver", async (req, res) => {
     });
 
     const notification = await notifyOrderStatus(order, "delivered");
+
+    await logActivity({
+      actor: req.actor,
+      action: "delivered",
+      module: "orders",
+      description: `Marked order #${order.id} as delivered`,
+      metadata: { orderId: order.id },
+    });
+
     res.json({ message: "Order marked as delivered", order, notification });
   } catch (e) {
     console.error(e);
@@ -2609,6 +2705,13 @@ app.delete("/api/orders/:id", async (req, res) => {
     });
 
     console.log(`✅ Order ${orderId} deleted and stock restored`);
+    await logActivity({
+      actor: req.actor,
+      action: "deleted",
+      module: "orders",
+      description: `Deleted order #${orderId}`,
+      metadata: { orderId },
+    });
     res.json({
       message: "Order deleted and stock restored",
       order,
@@ -2670,6 +2773,15 @@ app.delete("/api/orders/:orderId/items/:itemId", async (req, res) => {
     });
 
     console.log(`✅ Item ${itemId} removed and stock restored`);
+
+    await logActivity({
+      actor: req.actor,
+      action: "item_removed",
+      module: "orders",
+      description: `Removed item #${itemId} from order #${orderId} and restored stock`,
+      metadata: { orderId, itemId },
+    });
+
     res.json({
       message: "Item removed from order and stock restored",
       order: updatedOrder,

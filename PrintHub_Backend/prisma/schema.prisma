@@ -169,4 +169,19 @@ model Inquiry {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 }
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?     @map("user_id")
+  userName    String?  @map("user_name")
+  userEmail   String?  @map("user_email")
+  userRole    String?  @map("user_role")   // "admin" | "staff"
+  action      String                        // created | updated | deleted | status_changed | restored | logged_in
+  module      String                        // orders | products | users | inquiries | auth
+  description String
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
 
+  @@index([createdAt])
+  @@index([userId])
+  @@index([module])
+}

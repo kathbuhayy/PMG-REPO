@@ -2,14 +2,16 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
-import AdminProductionCalendar from "./AdminProductionCalendar";
 import "./Admin-dashboard.css";
+import AdminProductionCalendar from "./AdminProductionCalendar";
 import AdminProfile from "./Admin-profile";
 import AdminManageAccounts from "./Admin-manageacc";
 import AdminOrders from "./AdminOrders";
 import AdminInquiries from "./AdminInquiries";
 import AdminProducts from "./AdminProducts";
+import AdminActivityLog from "./AdminActivityLog";
 import { buildApiUrl } from "../config/api";
+import { adminFetch } from "../utils/adminFetch";
 import {
   CATEGORY_DEFAULTS,
   CATEGORY_NAMES,
@@ -35,6 +37,7 @@ import {
   FaUsers,
   FaUser,
   FaSignOutAlt,
+  FaHistory
 } from "react-icons/fa";
 
 // Resolves the normalized category key for customizer mapping
@@ -297,8 +300,8 @@ function AdminDashboard() {
       try {
         setStatsLoading(true);
         const [ordersRes, usersRes] = await Promise.all([
-          fetch(buildApiUrl("/api/admin/orders")),
-          fetch(buildApiUrl("/api/admin/users")),
+          adminFetch(buildApiUrl("/api/admin/orders")),
+          adminFetch(buildApiUrl("/api/admin/users")),
         ]);
 
         const ordersData = await ordersRes.json();
@@ -359,7 +362,7 @@ function AdminDashboard() {
 
     const syncSidebarProfile = async () => {
       try {
-        const res = await fetch(buildApiUrl(`/api/user-profile/${userId}`));
+        const res = await adminFetch(buildApiUrl(`/api/user-profile/${userId}`));
         const data = await res.json();
         if (!res.ok) throw new Error(data?.message || "Failed to load profile");
 
@@ -414,6 +417,11 @@ function AdminDashboard() {
       { id: "calendar", 
         label: "Production Calendar", 
         icon: <FaCalendarAlt /> 
+      },
+      {
+        id: "activity",
+        label: "Activity Log",
+        icon: <FaHistory />,
       },
       {
         id: "orders",
@@ -596,7 +604,7 @@ function AdminDashboard() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(buildApiUrl("/api/products/upload"), {
+      const res = await adminFetch(buildApiUrl("/api/products/upload"), {
         method: "POST",
         body: formData,
       });
@@ -630,7 +638,7 @@ function AdminDashboard() {
     }
 
     try {
-      const res = await fetch(buildApiUrl("/api/products"), {
+      const res = await adminFetch(buildApiUrl("/api/products"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -679,6 +687,7 @@ function AdminDashboard() {
   const pageTitle = useMemo(() => {
     if (activeItem === "dashboard") return "Dashboard";
     if (activeItem === "calendar") return "Production Calendar";
+    if (activeItem === "activity") return "Activity Log";
     if (activeItem === "profile") return "Profile";
     if (activeItem === "customers") return "Manage Accounts";
     if (activeItem === "orders") return "Orders";
@@ -2074,6 +2083,7 @@ function AdminDashboard() {
               {activeItem === "orders" && <AdminOrders />}
 
 {activeItem === "calendar" && <AdminProductionCalendar />}
+{activeItem === "activity" && <AdminActivityLog />}
               {/* ✅ INQUIRIES - Dynamic component */}
               {activeItem === "inquiries" && <AdminInquiries />}
 

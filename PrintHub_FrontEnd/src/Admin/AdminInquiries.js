@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { FaSearch, FaFilter, FaEye, FaTimes } from "react-icons/fa";
 import "./Admin-dashboard.css";
 import { buildApiUrl } from "../config/api";
+import { adminFetch } from "../utils/adminFetch";
 
 // Helper function to render design preview
 const renderDesignPreview = (designData) => {
@@ -10,7 +11,7 @@ const renderDesignPreview = (designData) => {
 
   return (
     <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #e2e8f0" }}>
-      <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", fontWeight: "600" }}>
+      <h4 style={{ margin: "0 0 8px 0", fontSize: "14px", fontWeight:   "600" }}>
         Custom Design Attached
       </h4>
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -98,7 +99,7 @@ function AdminInquiries() {
         filterStatus !== "all"
           ? buildApiUrl(`/api/inquiries?status=${filterStatus}`)
           : buildApiUrl("/api/inquiries");
-      const res = await fetch(url);
+      const res = await adminFetch(url);
       if (!res.ok) throw new Error("Failed to fetch inquiries");
       const data = await res.json();
       setInquiries(data);
@@ -161,7 +162,7 @@ function AdminInquiries() {
     setSaveError("");
     setSaveSuccess("");
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/inquiries/${selectedInquiry.id}`),
         {
           method: "PUT",
@@ -210,7 +211,7 @@ function AdminInquiries() {
     setSaveSuccess("");
 
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/inquiries/${selectedInquiry.id}/save-and-convert`),
         {
           method: "PUT",
@@ -255,7 +256,7 @@ function AdminInquiries() {
     setSaveSuccess("");
 
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/inquiries/${selectedInquiry.id}/convert`),
         { method: "PUT" },
       );
