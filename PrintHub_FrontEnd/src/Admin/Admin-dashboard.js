@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
+import AdminProductionCalendar from "./AdminProductionCalendar";
 import "./Admin-dashboard.css";
 import AdminProfile from "./Admin-profile";
 import AdminManageAccounts from "./Admin-manageacc";
@@ -17,6 +18,7 @@ import {
 } from "../config/categoryDefaults";
 
 import {
+  FaCalendarAlt,
   FaMoneyBillWave,
   FaTimes,
   FaUserPlus,
@@ -409,6 +411,10 @@ function AdminDashboard() {
         label: "Dashboard",
         icon: <FaTachometerAlt />,
       },
+      { id: "calendar", 
+        label: "Production Calendar", 
+        icon: <FaCalendarAlt /> 
+      },
       {
         id: "orders",
         label: "Orders",
@@ -672,6 +678,7 @@ function AdminDashboard() {
 
   const pageTitle = useMemo(() => {
     if (activeItem === "dashboard") return "Dashboard";
+    if (activeItem === "calendar") return "Production Calendar";
     if (activeItem === "profile") return "Profile";
     if (activeItem === "customers") return "Manage Accounts";
     if (activeItem === "orders") return "Orders";
@@ -2066,6 +2073,7 @@ function AdminDashboard() {
               {/* ✅ ORDERS - Dynamic component */}
               {activeItem === "orders" && <AdminOrders />}
 
+{activeItem === "calendar" && <AdminProductionCalendar />}
               {/* ✅ INQUIRIES - Dynamic component */}
               {activeItem === "inquiries" && <AdminInquiries />}
 

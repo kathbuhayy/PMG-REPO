@@ -22,6 +22,7 @@ import NotebookPreview3D from "../components/NotebookCustomizer/NotebookPreview3
 import JerseyPreview3D from "../components/JerseyCustomizer/JerseyPreview3D";
 import FlatPreview3D from "../components/FlatCustomizer/FlatPreview3D";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 import AppModal from "../components/AppModal";
 
 // Extract pcs count per item pack from customizations object
@@ -291,6 +292,7 @@ function AdminOrders() {
   const [deleteOrderTarget, setDeleteOrderTarget] = useState(null);
   const [noticeModal, setNoticeModal] = useState(null);
 
+  const [searchParams, setSearchParams] = useSearchParams();
   // Fetch orders from API
   useEffect(() => {
     const fetchOrders = async () => {
@@ -330,10 +332,23 @@ function AdminOrders() {
     };
 
     fetchOrders();
+    
     // Refresh orders every 30 seconds
     const interval = setInterval(fetchOrders, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+  const openOrderId = searchParams.get("openOrder");
+  if (openOrderId && orders.length > 0) {
+    const match = orders.find((o) => String(o.dbId) === String(openOrderId));
+    if (match) {
+      setDetailOrder(match);
+      searchParams.delete("openOrder");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }
+}, [orders, searchParams, setSearchParams]);
 
   // Filter orders based on search query and status
   const filteredOrders = useMemo(() => {
