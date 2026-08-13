@@ -240,7 +240,7 @@ function AdminDashboard() {
         setLowStockLoading(true);
         const threshold = 10; // default threshold
         const limit = 5; // show top 5 on dashboard
-        const res = await fetch(
+        const res = await adminFetch(
           buildApiUrl(
             `/api/admin/low-stock?threshold=${threshold}&limit=${limit}`,
           ),
@@ -271,7 +271,7 @@ function AdminDashboard() {
         setOutOfStockLoading(true);
         const threshold = 0;
         const limit = 5;
-        const res = await fetch(
+        const res = await adminFetch(
           buildApiUrl(
             `/api/admin/low-stock?threshold=${threshold}&limit=${limit}`,
           ),

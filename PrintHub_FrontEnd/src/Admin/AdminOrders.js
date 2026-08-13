@@ -470,7 +470,7 @@ function AdminOrders() {
 
   const approveOrderDesign = async (order) => {
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/orders/${order.dbId}/approve-design`),
         { method: "POST" },
       );

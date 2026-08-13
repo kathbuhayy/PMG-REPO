@@ -16,6 +16,7 @@ import {
 } from "react-icons/fa";
 import "./Admin-dashboard.css";
 import { buildApiUrl } from "../config/api";
+import { adminFetch } from "../utils/adminFetch";
 
 /* ─────────────────────────────────────────────────────────────────────────
  * STATUS → COLOR MAPPING
@@ -109,7 +110,7 @@ function AdminProductionCalendar() {
   const fetchOrders = async () => {
     try {
       setError(null);
-      const res = await fetch(buildApiUrl("/api/admin/orders"));
+      const res = await adminFetch(buildApiUrl("/api/admin/orders"));
       if (!res.ok) throw new Error("Failed to fetch orders");
       const data = await res.json();
       setOrders(Array.isArray(data) ? data : []);
