@@ -423,6 +423,11 @@ function ProductDetail() {
   const [showOosConfirmModal, setShowOosConfirmModal] = useState(false);
   const [showNoDesignConfirmModal, setShowNoDesignConfirmModal] =
     useState(false);
+  const [showBulkQuoteModal, setShowBulkQuoteModal] = useState(false);
+  // Tracks whether the bulk-quantity alert has already been shown for the
+  // current overflow, so it pops once per crossing instead of on every
+  // keystroke while the person keeps typing digits.
+  const bulkAlertShownRef = useRef(false);
 
   // AI Builder
   const [activeDesign, setActiveDesign] = useState(null); // designMeta | null
@@ -577,12 +582,22 @@ function ProductDetail() {
     setSelectedQty(savedQty);
 
     const savedCustomQty = getSessionValue(id, "customQty", null);
-    setCustomQty(savedCustomQty !== null ? savedCustomQty : "");
+    const restoredCustomQty = savedCustomQty !== null ? savedCustomQty : "";
+    setCustomQty(restoredCustomQty);
 
     const savedDesign = getSessionValue(id, "activeDesign", null);
     setActiveDesign(savedDesign !== null ? savedDesign : null);
 
-    setCustomSizeSelected(false);
+    // If the restored quantity is already over the bulk threshold, keep the
+    // person in the quote flow instead of snapping back to the normal
+    // configurator with a quantity that can't actually be added to cart.
+    const restoredExceedsBulk = Boolean(
+      product.quantity_mode === "text" &&
+        product.quantity_count &&
+        (parseInt(restoredCustomQty, 10) || 0) > product.quantity_count,
+    );
+    bulkAlertShownRef.current = restoredExceedsBulk;
+    setCustomSizeSelected(restoredExceedsBulk);
 
     setQuoteForm({
       subject: `Request a quote for ${product.title}`,
@@ -676,6 +691,25 @@ function ProductDetail() {
     () => subtotal + rushOrderFee,
     [subtotal, rushOrderFee],
   );
+
+  // Resolves the currently selected quantity to a plain number,
+  // regardless of whether the product uses dropdown or text qty mode.
+  const selectedQuantityNumber = useMemo(() => {
+    if (!product) return 0;
+    if (product.quantity_mode === "text") {
+      return parseInt(customQty, 10) || 0;
+    }
+    if (selectedQty?.quantityNumber) return selectedQty.quantityNumber;
+    return parseInt(selectedQty?.label, 10) || 0;
+  }, [product, customQty, selectedQty]);
+
+  // True when the selected quantity exceeds the product's bulk-order
+  // threshold and should be redirected to a quote request instead of
+  // being added straight to cart.
+  const exceedsBulkThreshold = useMemo(() => {
+    if (!product?.quantity_count) return false;
+    return selectedQuantityNumber > product.quantity_count;
+  }, [product, selectedQuantityNumber]);
 
   const selectedSideLower = String(selectedSide || "").toLowerCase();
   const selectedFinishLower = String(selectedFinish || "").toLowerCase();
@@ -875,6 +909,14 @@ function ProductDetail() {
   };
 
   const handleAddToCart = () => {
+    // Cart guard: block bulk quantities, redirect to quote request.
+    // Checked first — an over-threshold quantity intentionally leaves
+    // selectedQty unset, so "please select a quantity" would be misleading.
+    if (exceedsBulkThreshold) {
+      setShowBulkQuoteModal(true);
+      return;
+    }
+
     if (!selectedQty) {
       setNoticeModal({
         title: "Complete your options",
@@ -1490,19 +1532,31 @@ function ProductDetail() {
                             setCustomQty(v);
                             setSessionValue(id, "customQty", v);
                             const n = parseInt(v, 10) || 0;
+
                             if (n <= 0) {
                               setSelectedQty(null);
                               setSessionValue(id, "selectedQty", null);
+                              bulkAlertShownRef.current = false;
                               return;
                             }
 
-                            if (
+                            const exceedsBulk =
                               product.quantity_count &&
-                              n > product.quantity_count
-                            ) {
-                              setCustomSizeSelected(true);
-                              scrollToQuote();
+                              n > product.quantity_count;
+
+                            if (exceedsBulk) {
+                              // Keep what they typed visible in the input,
+                              // but don't treat it as a valid cart quantity.
+                              setSelectedQty(null);
+                              setSessionValue(id, "selectedQty", null);
+                              // Only pop the alert once per crossing — not on
+                              // every keystroke while they keep typing.
+                              if (!bulkAlertShownRef.current) {
+                                bulkAlertShownRef.current = true;
+                                setShowBulkQuoteModal(true);
+                              }
                             } else {
+                              bulkAlertShownRef.current = false;
                               const qtyObj = {
                                 label: `${n} pcs`,
                                 price: formatPrice(
@@ -1631,6 +1685,13 @@ function ProductDetail() {
                         <span className="pd-qty-suffix">pcs.</span>
                       </div>
                     )}
+                    {product.quantity_mode !== "text" &&
+                      product.quantity_count && (
+                        <div className="pd-qty-limit-notice">
+                          Quantities greater than {product.quantity_count} pcs
+                          are handled via quote request.
+                        </div>
+                      )}
                   </div>
 
                   <div className="pd-option-group">
@@ -2008,6 +2069,29 @@ function ProductDetail() {
           executeAddToCart();
         }}
         onCancel={() => setShowNoDesignConfirmModal(false)}
+      />
+
+      <AppModal
+        open={showBulkQuoteModal}
+        title="Bulk Order Quantity"
+        message={
+          product?.quantity_count
+            ? `Quantities above ${product.quantity_count} pcs are handled ` +
+              "as bulk orders. Please request a quote and our team will " +
+              "follow up with pricing and lead time."
+            : "This quantity requires a bulk order quote."
+        }
+        confirmText="Request a Quote"
+        cancelText="Cancel"
+        tone="warning"
+        onConfirm={() => {
+          setShowBulkQuoteModal(false);
+          scrollToQuote();
+        }}
+        onCancel={() => {
+          setShowBulkQuoteModal(false);
+          bulkAlertShownRef.current = false;
+        }}
       />
     </div>
   );
