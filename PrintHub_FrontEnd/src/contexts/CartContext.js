@@ -73,6 +73,9 @@ const buildCartPayload = (product) => {
     name,
     price,
     size,
+    sizeSurcharge,   // ADD
+    isRushOrder,      // ADD
+    rushOrderFee,     // ADD
     material,
     sides,
     finishing,
@@ -98,6 +101,9 @@ const buildCartPayload = (product) => {
     images,
     customizations: {
       size,
+      sizeSurcharge: sizeSurcharge || 0,          // ADD
+      isRushOrder: Boolean(isRushOrder),           // ADD
+      rushOrderFee: rushOrderFee || 0,             // ADD
       material: normalizedMaterial,
       sides,
       finishing,

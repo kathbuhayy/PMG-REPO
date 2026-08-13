@@ -80,7 +80,7 @@ const productsData = [
       "https://images.unsplash.com/photo-1730952773686-feb6da6156af?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
       "https://images.unsplash.com/photo-1579565577762-78f2d9dd042e?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
     ],
-    sizes: ["Small", "Medium", "Large", "XL"],
+    sizes: ["Small", "Medium", "Large", "XL", "2XL"],
     materials: ["Cotton Shirt", "Dry Fit Shirt"],
     sides: ["Front print only", "Front and back print"],
     finishing: ["Standard print finish"],

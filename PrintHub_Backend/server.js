@@ -1546,47 +1546,26 @@ app.get("/api/admin/reports/sales", async (req, res) => {
 // POST /api/inquiries — customer submits a quote request
 app.post("/api/inquiries", async (req, res) => {
   const {
-    userId,
-    product_title,
-    subject,
-    name,
-    email,
-    quantity,
-    size,
-    color,
-    material,
-    finishing,
-    printing,
-    processing,
-    delivery,
-    other,
-    design_data,  // ADD THIS
+    userId, product_title, subject, name, email,
+    quantity, size, color, material, finishing, printing,
+    processing, delivery, other, design_data,
+    isRushOrder, rushOrderFee, sizeSurcharge, // ADD THESE
   } = req.body;
 
   if (!subject || !name || !email) {
-    return res
-      .status(400)
-      .json({ message: "Subject, name, and email are required" });
+    return res.status(400).json({ message: "Subject, name, and email are required" });
   }
 
   try {
     const inquiry = await prisma.inquiry.create({
       data: {
         userId: userId ? parseInt(userId) : null,
-        product_title,
-        subject,
-        name,
-        email,
-        quantity,
-        size,
-        color,
-        material,
-        finishing,
-        printing,
-        processing,
-        delivery,
-        other,
-        design_data: design_data || null,  // ADD THIS
+        product_title, subject, name, email, quantity, size, color,
+        material, finishing, printing, processing, delivery, other,
+        design_data: design_data || null,
+        isRushOrder: Boolean(isRushOrder),                 // ADD
+        rushOrderFee: rushOrderFee ? parseFloat(rushOrderFee) : null,   // ADD
+        sizeSurcharge: sizeSurcharge ? parseFloat(sizeSurcharge) : null, // ADD
         status: "new",
       },
     });
@@ -1723,6 +1702,8 @@ app.put("/api/inquiries/:id/save-and-convert", async (req, res) => {
           updated.product_title && `Product: ${updated.product_title}`,
           updated.quantity && `Qty: ${updated.quantity}`,
           updated.size && `Size: ${updated.size}`,
+          updated.sizeSurcharge ? `Size surcharge: ₱${updated.sizeSurcharge}` : null,  // ADD
+          updated.isRushOrder ? `Rush order: +₱${updated.rushOrderFee || 0}` : null,   // ADD
           updated.color && `Color: ${updated.color}`,
           updated.material && `Material: ${updated.material}`,
           updated.finishing && `Finishing: ${updated.finishing}`,

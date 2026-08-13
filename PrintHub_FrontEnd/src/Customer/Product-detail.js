@@ -95,6 +95,24 @@ const DEFAULT_PRODUCT_ZONES = {
   other: ["front", "back"],
 };
 
+const RUSH_ORDER_RATE = 0.2;
+
+
+const SIZE_SURCHARGES = {
+  small: 0,
+  medium: 10,
+  large: 20,
+  xl: 30,
+  "extra large": 20,
+  "2xl": 40,
+  xxl: 30,
+  "2x large": 30,
+};
+
+function getSizeSurcharge(size) {
+  const key = String(size || "").toLowerCase().trim();
+  return SIZE_SURCHARGES[key] ?? 0;
+}
 /**
  * Maps each "Printed Sides" dropdown label to the zone IDs it implies.
  * The filteredZones logic intersects this with the product's actual
@@ -309,6 +327,10 @@ function ProductDetail() {
   const [customQty, setCustomQty] = useState(() =>
     getSessionValue(id, "customQty", ""),
   );
+  const [isRushOrder, setIsRushOrder] = useState(() =>
+  getSessionValue(id, "isRushOrder", false),
+);
+
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const isCustomizerOpen = location.pathname.endsWith("/customize");
@@ -521,6 +543,11 @@ function ProductDetail() {
   });
 
   useEffect(() => {
+  const savedRush = getSessionValue(id, "isRushOrder", null);
+  setIsRushOrder(savedRush !== null ? savedRush : false);
+}, [id]);
+
+  useEffect(() => {
     if (!product) return;
 
     setSelectedImage(product.gallery?.[0] || "");
@@ -625,14 +652,29 @@ function ProductDetail() {
     [selectedMaterial],
   );
 
+  const sizeSurcharge = useMemo(
+    () => getSizeSurcharge(selectedSize),
+    [selectedSize],
+  );
+
   const quantityPrice = useMemo(
     () => extractNumericPrice(selectedQty?.price),
     [selectedQty],
   );
 
+  const subtotal = useMemo(
+    () => (selectedQty ? quantityPrice + materialSurcharge + sizeSurcharge : 0),
+    [selectedQty, quantityPrice, materialSurcharge, sizeSurcharge],
+  );
+
+  const rushOrderFee = useMemo(
+    () => (isRushOrder ? subtotal * RUSH_ORDER_RATE : 0),
+    [isRushOrder, subtotal],
+  );
+
   const grandTotal = useMemo(
-    () => (selectedQty ? quantityPrice + materialSurcharge : 0),
-    [selectedQty, quantityPrice, materialSurcharge],
+    () => subtotal + rushOrderFee,
+    [subtotal, rushOrderFee],
   );
 
   const selectedSideLower = String(selectedSide || "").toLowerCase();
@@ -695,6 +737,14 @@ function ProductDetail() {
     setQuoteForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleToggleRushOrder = () => {
+  setIsRushOrder((prev) => {
+    const next = !prev;
+    setSessionValue(id, "isRushOrder", next);
+    return next;
+  });
+};
+
   const handleQuoteSubmit = async (e) => {
     e.preventDefault();
 
@@ -731,7 +781,10 @@ function ProductDetail() {
           printing: selectedSide || "",
           processing: product.processing?.[0] || "",
           other: quoteForm.other,
-          design_data: designData,  // ADD THIS
+          design_data: designData,
+          isRushOrder,          // ADD
+          rushOrderFee,         // ADD
+          sizeSurcharge,   // ADD
         }),
       });
 
@@ -781,6 +834,12 @@ function ProductDetail() {
       title: product.title,
       price: grandTotal,
       size: selectedSize,
+      sizeSurcharge,        // ADD
+      isRushOrder,           // ADD
+      rushOrderFee,  
+      sizeSurcharge,
+      rushOrder: isRushOrder,
+      rushOrderFee,
       color: selectedColor || "",
       material: {
         label: selectedMaterial?.label || "",
@@ -807,6 +866,7 @@ function ProductDetail() {
       sessionStorage.removeItem(`pd_${id}_selectedQty`);
       sessionStorage.removeItem(`pd_${id}_customQty`);
       sessionStorage.removeItem(`pd_${id}_activeDesign`);
+      sessionStorage.removeItem(`pd_${id}_isRushOrder`);
     } catch (e) {
       console.warn("Failed to clear sessionStorage on addToCart", e);
     }
@@ -1573,6 +1633,31 @@ function ProductDetail() {
                     )}
                   </div>
 
+                  <div className="pd-option-group">
+                    <label className="pd-option-label">Need it faster?</label>
+                    <button
+                      type="button"
+                      onClick={handleToggleRushOrder}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        width: "100%",
+                        padding: "10px 14px",
+                        borderRadius: "8px",
+                        fontWeight: 600,
+                        fontSize: "14px",
+                        cursor: "pointer",
+                        border: isRushOrder ? "1px solid #ea580c" : "1px solid #cbd5e1",
+                        background: isRushOrder ? "rgba(234,88,12,0.12)" : "#f8fafc",
+                        color: isRushOrder ? "#c2410c" : "#334155",
+                      }}
+                    >
+                      {isRushOrder ? "✓ Rush Order Added (+20%)" : "⚡ Add Rush Order (+20%)"}
+                    </button>
+                  </div>
+
                   {/* Summary & Checkout Card */}
                   <div className="pd-order-card">
                     <div className="pd-order-head">
@@ -1616,12 +1701,21 @@ function ProductDetail() {
                         <span>Material add-on</span>
                         <strong>{materialDisplayPrice}</strong>
                       </p>
+                      {sizeSurcharge > 0 && (
+                        <p>
+                          <span>Size surcharge ({selectedSize})</span>
+                          <strong>+ {formatPrice(sizeSurcharge)}</strong>
+                        </p>
+                      )}
+                      {isRushOrder && (
+                        <p>
+                          <span>Rush order (+20%)</span>
+                          <strong>+ {formatPrice(rushOrderFee)}</strong>
+                        </p>
+                      )}
                       <p className="pd-order-total-line">
                         <span>Total</span>
-                        <strong
-                          key={`total-${grandTotal}`}
-                          className="pd-animated-price"
-                        >
+                        <strong key={`total-${grandTotal}`} className="pd-animated-price">
                           <AnimatedPrice value={grandTotal} />
                         </strong>
                       </p>

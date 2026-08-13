@@ -162,6 +162,9 @@ model Inquiry {
   delivery      String?
   other         String?
   design_data     Json?
+  isRushOrder     Boolean   @default(false)
+  rushOrderFee    Decimal?  @db.Decimal(14,2)
+  sizeSurcharge   Decimal?  @db.Decimal(14,2)
   status        String    @default("new")
   quoted_price  Decimal?  @db.Decimal(14,2)
   admin_notes   String?
