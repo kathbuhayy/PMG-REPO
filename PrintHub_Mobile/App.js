@@ -18,12 +18,14 @@ import OrderDetailScreen from "./screens/OrderDetailScreen";
 import InquiriesScreen from "./screens/InquiriesScreen";
 import PaymentScreen from "./screens/PaymentScreen";
 import PaymentLogsScreen from "./screens/PaymentLogsScreen";
+import ChatbotScreen from "./screens/ChatbotScreen";
 import EditProfileScreen from "./screens/EditProfileScreen";
 import PasswordSecurityScreen from "./screens/PasswordSecurityScreen";
 import RegisterScreen from "./screens/RegisterScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import OtpScreen from "./screens/OtpScreen";
 import ResetPasswordScreen from "./screens/ResetPasswordScreen";
+
 import { COLORS } from "./theme";
 
 const Stack = createNativeStackNavigator();
@@ -43,6 +45,8 @@ function TabNavigator() {
             iconName = "card-outline";
           } else if (route.name === "InquiriesTab") {
             iconName = "chatbubbles-outline";
+          } else if (route.name === "ChatbotTab") {
+            iconName = "sparkles-outline";
           } else if (route.name === "CartTab") {
             iconName = "cart-outline";
           } else if (route.name === "ProfileTab") {
@@ -78,6 +82,11 @@ function TabNavigator() {
         name="InquiriesTab"
         component={InquiriesScreen}
         options={{ title: "Inquiries" }}
+      />
+      <Tab.Screen
+        name="ChatbotTab"
+        component={ChatbotScreen}
+        options={{ title: "AI Chat" }}
       />
       <Tab.Screen
         name="CartTab"
