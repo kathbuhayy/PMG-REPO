@@ -4,6 +4,7 @@ import "./Admin-profile.css";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { buildApiUrl } from "../config/api";
 import AlertModal from "../components/AlertModal";
+import { adminFetch } from "../utils/adminFetch";
 
 function AdminProfile() {
 
@@ -79,7 +80,7 @@ function AdminProfile() {
 
     if (!user?.id) return;
 
-    fetch(buildApiUrl(`/api/user-profile/${user.id}`))
+    adminFetch(buildApiUrl(`/api/user-profile/${user.id}`))
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data?.message || "Failed to load profile");
@@ -160,7 +161,7 @@ function AdminProfile() {
     }
 
     try {
-      const res = await fetch(buildApiUrl(`/api/user-profile/${user.id}`), {
+      const res = await adminFetch(buildApiUrl(`/api/user-profile/${user.id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -259,7 +260,7 @@ function AdminProfile() {
     }
 
     try {
-      const res = await fetch(buildApiUrl("/api/password/request-otp"), {
+      const res = await adminFetch(buildApiUrl("/api/password/request-otp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email }),
@@ -302,7 +303,7 @@ function AdminProfile() {
 
     setOtpLoading(true);
     try {
-      const res = await fetch(buildApiUrl("/api/password/verify-otp"), {
+      const res = await adminFetch(buildApiUrl("/api/password/verify-otp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email, otp: otpCode.trim() }),
@@ -387,7 +388,7 @@ function AdminProfile() {
         localStorage.getItem("adminUser") || localStorage.getItem("user");
       const userId = stored ? JSON.parse(stored).id : null;
 
-      const res = await fetch(buildApiUrl("/api/user/avatar-upload"), {
+      const res = await adminFetch(buildApiUrl("/api/user/avatar-upload"), {
         method: "POST",
         body: fd,
         headers: { "x-user-id": userId || "" },
@@ -402,7 +403,7 @@ function AdminProfile() {
       // Save to profile (best-effort)
       if (userId) {
         try {
-          const profileRes = await fetch(
+          const profileRes = await adminFetch(
             buildApiUrl(`/api/user-profile/${userId}`),
             {
               method: "PUT",
@@ -497,7 +498,7 @@ function AdminProfile() {
     }
 
     try {
-      const res = await fetch(buildApiUrl(`/api/profile/${user.id}/password`), {
+      const res = await adminFetch(buildApiUrl(`/api/profile/${user.id}/password`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

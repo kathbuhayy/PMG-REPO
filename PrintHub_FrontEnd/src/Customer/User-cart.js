@@ -234,24 +234,23 @@ function UserCartPage() {
               <h2 className="ucart-section-title" style={{ margin: 0 }}>
                 Cart Items ({cartItems.length})
               </h2>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-                <input 
-                  type="checkbox" 
+              <label className="ucart-select-all">
+                <input
+                  type="checkbox"
                   checked={cartItems.length > 0 && selectedItemIds.length === cartItems.length}
                   onChange={toggleSelectAll}
-                  style={{ marginRight: '8px', width: '16px', height: '16px', cursor: 'pointer' }}
                 />
                 Select All
               </label>
             </div>
 
             {cartItems.map((item) => (
-              <div key={item.id} className="ucart-item" style={{ alignItems: 'center' }}>
-                <input 
-                  type="checkbox" 
+              <div key={item.id} className="ucart-item">
+                <input
+                  type="checkbox"
+                  className="ucart-item-checkbox"
                   checked={selectedItemIds.includes(item.id)}
                   onChange={() => toggleSelection(item.id)}
-                  style={{ marginRight: '16px', width: '18px', height: '18px', cursor: 'pointer' }}
                 />
                 <img
                   className="ucart-thumb"
@@ -273,19 +272,7 @@ function UserCartPage() {
                     {(item.stock === 0 ||
                       item.product?.stock === 0 ||
                       productStockMap[item.productId] === 0) && (
-                      <span
-                        style={{
-                          marginLeft: "8px",
-                          fontSize: "11px",
-                          fontWeight: "700",
-                          color: "#dc2626",
-                          background: "rgba(220, 38, 38, 0.1)",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                        }}
-                      >
-                        Out of Stock
-                      </span>
+                      <span className="ucart-oos-badge">Out of Stock</span>
                     )}
                   </div>
                   {item.customizations && (
@@ -370,18 +357,7 @@ function UserCartPage() {
               <span>{formatPeso(total)}</span>
             </div>
             {hasOosItem && (
-              <div
-                style={{
-                  background: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  color: "#dc2626",
-                  padding: "10px 14px",
-                  borderRadius: "8px",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                  marginBottom: "14px",
-                }}
-              >
+              <div className="ucart-oos-warning">
                 One or more items in your cart are out of stock. Please remove
                 them before checking out.
               </div>
@@ -391,15 +367,6 @@ function UserCartPage() {
               type="button"
               disabled={hasOosItem}
               onClick={handleCheckoutClick}
-              style={
-                hasOosItem
-                  ? {
-                      opacity: 0.5,
-                      cursor: "not-allowed",
-                      background: "#94a3b8",
-                    }
-                  : {}
-              }
             >
               Proceed to Checkout
             </button>

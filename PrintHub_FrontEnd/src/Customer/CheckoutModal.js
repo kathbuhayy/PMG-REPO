@@ -17,6 +17,30 @@ const getCombinedAddress = (addr, type = "shipping") => {
   return parts.join(", ");
 };
 
+// Renders the three-segment progress bar + "Step X of 3" label for a given step
+function CheckoutProgress({ step }) {
+  const stepIndex = step === "address" ? 0 : step === "review" ? 1 : 2;
+  const labels = ["Shipping Address", "Review Order", "Confirmation"];
+
+  return (
+    <div className="checkout-progress">
+      <div className="checkout-progress-steps">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className={`checkout-progress-step ${
+              i < stepIndex ? "is-complete" : i === stepIndex ? "is-active" : ""
+            }`}
+          />
+        ))}
+      </div>
+      <span className="checkout-progress-label">
+        Step {stepIndex + 1} of 3: {labels[stepIndex]}
+      </span>
+    </div>
+  );
+}
+
 function CheckoutModal({
   userId,
   cartItems,
@@ -426,9 +450,7 @@ function CheckoutModal({
         {/* STEP 1: ADDRESS */}
         {step === "address" && (
           <div className="checkout-content">
-            <div className="checkout-progress">
-              Step 1 of 3: Shipping Address
-            </div>
+            <CheckoutProgress step={step} />
 
             {error && <div className="checkout-error">{error}</div>}
 
@@ -558,10 +580,7 @@ function CheckoutModal({
 
               {!formData.sameAddress && (
                 <>
-                  <h3
-                    className="checkout-section-title"
-                    style={{ marginTop: "20px", marginBottom: "15px" }}
-                  >
+                  <h3 className="checkout-section-title">
                     Billing Address
                   </h3>
                   <div className="checkout-row-2col">
@@ -702,7 +721,7 @@ function CheckoutModal({
         {/* STEP 2: REVIEW */}
         {step === "review" && (
           <div className="checkout-content">
-            <div className="checkout-progress">Step 2 of 3: Review Order</div>
+            <CheckoutProgress step={step} />
 
             {error && <div className="checkout-error">{error}</div>}
 
@@ -783,21 +802,25 @@ function CheckoutModal({
 
         {/* STEP 3: SUCCESS */}
         {step === "success" && (
-          <div className="checkout-content checkout-success">
-            <div className="success-icon">
-              <FaCheckCircle />
+          <div className="checkout-content">
+            <CheckoutProgress step={step} />
+
+            <div className="checkout-success">
+              <div className="success-icon">
+                <FaCheckCircle />
+              </div>
+              <h2 className="success-title">Order Placed Successfully!</h2>
+              <p className="success-message">
+                Order ID: <strong>#{orderData?.id}</strong>
+              </p>
+              <p className="success-amount">
+                Total: <strong>{formatPeso(orderData?.total)}</strong>
+              </p>
+              <p className="success-note">
+                Your order was sent to admin for approval. You can pay after the
+                design is approved.
+              </p>
             </div>
-            <h2 className="success-title">Order Placed Successfully!</h2>
-            <p className="success-message">
-              Order ID: <strong>#{orderData?.id}</strong>
-            </p>
-            <p className="success-amount">
-              Total: <strong>{formatPeso(orderData?.total)}</strong>
-            </p>
-            <p className="success-note">
-              Your order was sent to admin for approval. You can pay after the
-              design is approved.
-            </p>
           </div>
         )}
       </div>
@@ -805,4 +828,4 @@ function CheckoutModal({
   );
 }
 
-export default CheckoutModal;
+export default CheckoutModal; 

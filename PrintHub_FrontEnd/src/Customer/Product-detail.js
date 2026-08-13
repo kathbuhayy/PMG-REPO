@@ -31,6 +31,8 @@ import StickerCustomizerPanel from "../components/StickerCustomizer/StickerCusto
 import HangTagCustomizerPanel from "../components/HangTagCustomizer/HangTagCustomizerPanel";
 import TarpaulinCustomizerPanel from "../components/TarpaulinCustomizer/TarpaulinCustomizerPanel";
 import AppModal from "../components/AppModal";
+import LoginRequiredModal from "../components/LoginRequiredModal.js";
+import { saveGuestDesignDraft } from "../utils/guestCustomization";
 
 const RECENTLY_VIEWED_KEY = "printhub_recently_viewed_products";
 const RECENTLY_VIEWED_LIMIT = 8;
@@ -288,6 +290,7 @@ function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [productLoading, setProductLoading] = useState(true);
   const [productError, setProductError] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -330,6 +333,36 @@ function ProductDetail() {
   const [isRushOrder, setIsRushOrder] = useState(() =>
   getSessionValue(id, "isRushOrder", false),
 );
+
+const buildGuestDraftPayload = () => ({
+  id: product.id,
+  productId: product.id,
+  title: product.title,
+  price: grandTotal,
+  size: selectedSize,
+  sizeSurcharge,
+  isRushOrder,
+  rushOrderFee,
+  color: selectedColor || "",
+  material: {
+    label: selectedMaterial?.label || "",
+    price: selectedMaterial?.price || "",
+  },
+  sides: selectedSide,
+  finishing: selectedFinish,
+  quantity: selectedQty,
+  design: activeDesign || null,
+  images: product.images,
+});
+
+const attemptAddToCart = () => {
+  if (!storedUser) {
+    saveGuestDesignDraft(buildGuestDraftPayload());
+    setShowLoginModal(true);
+    return;
+  }
+  executeAddToCart();
+};
 
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -938,7 +971,7 @@ function ProductDetail() {
       return;
     }
 
-    executeAddToCart();
+    attemptAddToCart();   // was: executeAddToCart();
   };
 
   if (productLoading) {
@@ -2049,7 +2082,7 @@ function ProductDetail() {
         tone="warning"
         onConfirm={() => {
           setShowOosConfirmModal(false);
-          executeAddToCart();
+          attemptAddToCart();
         }}
         onCancel={() => setShowOosConfirmModal(false)}
       />
@@ -2066,7 +2099,7 @@ function ProductDetail() {
         tone="warning"
         onConfirm={() => {
           setShowNoDesignConfirmModal(false);
-          executeAddToCart();
+          attemptAddToCart();
         }}
         onCancel={() => setShowNoDesignConfirmModal(false)}
       />
@@ -2093,6 +2126,21 @@ function ProductDetail() {
           bulkAlertShownRef.current = false;
         }}
       />
+
+      {showLoginModal && (
+  <LoginRequiredModal
+    variant="checkout"
+    onClose={() => setShowLoginModal(false)}
+    onLogin={() => {
+      setShowLoginModal(false);
+      navigate("/user-login", { state: { from: `/product/${id}` } });
+    }}
+    onRegister={() => {
+      setShowLoginModal(false);
+      navigate("/user-register", { state: { from: `/product/${id}` } });
+    }}
+  />
+)}
     </div>
   );
 }

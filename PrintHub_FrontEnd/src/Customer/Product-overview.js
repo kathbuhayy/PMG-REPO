@@ -7,6 +7,9 @@ import {
   categoryMapping,
   getProductCategory,
 } from "../config/categoryDefaults";
+import {
+  hasGuestUsageRemaining,
+} from "../utils/guestCustomization";
 
 const fallbackImage = "https://via.placeholder.com/300x200?text=No+Image";
 
@@ -48,6 +51,7 @@ function ProductOverview() {
   const [category, setCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [modalVariant, setModalVariant] = useState("default");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -98,12 +102,14 @@ function ProductOverview() {
   }, [products, category, searchQuery]);
 
   const handleViewProduct = (id) => {
-    if (!getCustomerUser()) {
-      setShowLoginModal(true);
-    } else {
-      navigate(`/product/${id}`);
-    }
-  };
+  const user = getCustomerUser();
+  if (!user && !hasGuestUsageRemaining()) {
+    setModalVariant("limitReached");
+    setShowLoginModal(true);
+    return;
+  }
+  navigate(`/product/${id}`); // guests with tries left proceed straight in
+};
 
   return (
     <>
@@ -258,6 +264,7 @@ function ProductOverview() {
 
       {showLoginModal && (
         <LoginRequiredModal
+          variant={modalVariant}
           onClose={() => setShowLoginModal(false)}
           onLogin={() => {
             localStorage.removeItem("cart");

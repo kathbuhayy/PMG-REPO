@@ -44,6 +44,19 @@ function getPcsFromCustomizations(customizations) {
   return 1;
 }
 
+// Rush order helpers — an order/item is "rush" if any item's
+// customizations carries isRushOrder; fee is summed across items.
+function orderHasRushOrder(order) {
+  return (order.items || []).some((item) => item.customizations?.isRushOrder);
+}
+
+function getOrderRushFee(order) {
+  return (order.items || []).reduce(
+    (sum, item) => sum + Number(item.customizations?.rushOrderFee || 0),
+    0,
+  );
+}
+
 function inferCustomizerCategory({ category, name }) {
   const rawCategory = String(category || "").toLowerCase();
   const label = String(name || "").toLowerCase();
@@ -267,6 +280,8 @@ const formatCustomizationValue = (v) => {
       .join(" | ");
   }
 
+
+
   const str = String(parsed);
   if (str.includes("|")) {
     const parts = str.split("|");
@@ -470,7 +485,7 @@ function AdminOrders() {
 
   const approveOrderDesign = async (order) => {
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/orders/${order.dbId}/approve-design`),
         { method: "POST" },
       );
@@ -744,7 +759,26 @@ function AdminOrders() {
                 <tr>
                   <td data-label="Order">
                     <div className="dashpage-rowmain">
-                      <div className="dashpage-rowtitle">{o.id}</div>
+                      <div className="dashpage-rowtitle">
+                        {o.id}
+                        {orderHasRushOrder(o) && (
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: "#9333ea",
+                              background: "rgba(147, 51, 234, 0.12)",
+                              border: "1px solid rgba(147, 51, 234, 0.35)",
+                              borderRadius: 999,
+                              padding: "1px 6px",
+                            }}
+                            title="Rush order"
+                          >
+                            ⚡
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td data-label="Customer">{o.customer}</td>
@@ -981,15 +1015,24 @@ function AdminOrders() {
                                 </div>
                               )}
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <p
-                                  style={{
-                                    margin: 0,
-                                    fontWeight: 600,
-                                    fontSize: 13,
-                                    color: "#0f172a",
-                                  }}
-                                >
+                                <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#0f172a" }}>
                                   {productName}
+                                  {item.customizations?.isRushOrder && (
+                                    <span
+                                      style={{
+                                        marginLeft: 8,
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        color: "#9333ea",
+                                        background: "rgba(147, 51, 234, 0.12)",
+                                        border: "1px solid rgba(147, 51, 234, 0.35)",
+                                        borderRadius: 999,
+                                        padding: "2px 8px",
+                                      }}
+                                    >
+                                      ⚡ RUSH +₱{Number(item.customizations.rushOrderFee || 0).toLocaleString()}
+                                    </span>
+                                  )}
                                 </p>
                                 {design?.prompt && (
                                   <p
@@ -1005,6 +1048,12 @@ function AdminOrders() {
                                       ? design.prompt.slice(0, 100) + "…"
                                       : design.prompt}
                                     "
+                                  </p>
+                                )}
+                                {item.customizations?.sizeSurcharge > 0 && (
+                                  <p style={{ margin: "3px 0 0", fontSize: 11, color: "#475569" }}>
+                                    <strong>Size Surcharge:</strong> +₱
+                                    {Number(item.customizations.sizeSurcharge).toLocaleString()}
                                   </p>
                                 )}
                                 <p
@@ -1233,6 +1282,27 @@ function AdminOrders() {
                   {detailOrder.paymentStatus?.replace(/_/g, " ") || "unpaid"}
                 </div>
               </div>
+              {orderHasRushOrder(detailOrder) && (
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <div style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}>
+                    RUSH ORDER
+                  </div>
+                  <span
+                    style={{
+                      color: "#9333ea",
+                      background: "rgba(147, 51, 234, 0.12)",
+                      border: "1px solid rgba(147, 51, 234, 0.35)",
+                      fontWeight: 700,
+                      fontSize: 12,
+                      padding: "3px 10px",
+                      borderRadius: 999,
+                      display: "inline-block",
+                    }}
+                  >
+                    ⚡ +₱{getOrderRushFee(detailOrder).toLocaleString()}
+                  </span>
+                </div>
+              )}
               <div style={{ flex: 1, minWidth: 120 }}>
                 <div
                   style={{ fontSize: 11, color: "#475569", marginBottom: 2 }}
@@ -1356,15 +1426,24 @@ function AdminOrders() {
                         </div>
                       )}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p
-                          style={{
-                            margin: 0,
-                            fontWeight: 600,
-                            fontSize: 13,
-                            color: "#0f172a",
-                          }}
-                        >
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#0f172a" }}>
                           {productName}
+                          {item.customizations?.isRushOrder && (
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                color: "#9333ea",
+                                background: "rgba(147, 51, 234, 0.12)",
+                                border: "1px solid rgba(147, 51, 234, 0.35)",
+                                borderRadius: 999,
+                                padding: "2px 8px",
+                              }}
+                            >
+                              ⚡ RUSH +₱{Number(item.customizations.rushOrderFee || 0).toLocaleString()}
+                            </span>
+                          )}
                         </p>
                         {design?.prompt && (
                           <p
@@ -1384,7 +1463,15 @@ function AdminOrders() {
                         )}
                         {item.customizations &&
                           Object.entries(item.customizations)
-                            .filter(([k]) => k !== "design")
+                            .filter(
+                              ([k]) =>
+                                ![
+                                  "design",
+                                  "isRushOrder",
+                                  "rushOrderFee",
+                                  "sizeSurcharge",
+                                ].includes(k),
+                            )
                             .map(([k, v]) => {
                               const displayKey = k
                                 .replace(/_/g, " ")
@@ -1407,6 +1494,18 @@ function AdminOrders() {
                                 </p>
                               );
                             })}
+                        {item.customizations?.sizeSurcharge > 0 && (
+                          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#475569" }}>
+                            <strong>Size Surcharge:</strong> +₱
+                            {Number(item.customizations.sizeSurcharge).toLocaleString()}
+                          </p>
+                        )}
+                        {item.customizations?.isRushOrder && (
+                          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#9333ea", fontWeight: 600 }}>
+                            ⚡ Rush Order: +₱
+                            {Number(item.customizations.rushOrderFee || 0).toLocaleString()}
+                          </p>
+                        )}
                         <p
                           style={{
                             margin: "4px 0 0",

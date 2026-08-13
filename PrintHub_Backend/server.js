@@ -2831,10 +2831,10 @@ function getUserId(req) {
 // POST /api/builder/upload — upload a source asset to Supabase storage
 app.post("/api/builder/upload", upload.single("file"), async (req, res) => {
   const userId = getUserId(req);
-  if (!userId)
-    return res
-      .status(401)
-      .json({ message: "Authentication required: send X-User-Id header" });
+  const rawOwner = userId
+    ? String(userId)
+    : req.headers["x-forwarded-for"] || req.ip || "guest";
+  const ownerKey = String(rawOwner).replace(/[^a-zA-Z0-9_-]/g, "_");
 
   if (!req.file) return res.status(400).json({ message: "No file provided" });
 
@@ -2843,14 +2843,12 @@ app.post("/api/builder/upload", upload.single("file"), async (req, res) => {
 
     const { description } = req.body;
     const ext = req.file.mimetype.split("/")[1] || "jpg";
-    const path = `uploads/${userId}/${Date.now()}.${ext}`;
+    const path = userId
+      ? `uploads/${userId}/${Date.now()}.${ext}`
+      : `uploads/guest/${ownerKey}/${Date.now()}.${ext}`;
 
     if (description) {
-      console.log(
-        `📤 Builder upload: userId=${userId}, description="${description.slice(0, 80)}..."`,
-      );
-    } else {
-      console.log(`📤 Builder upload: userId=${userId}`);
+      console.log(`📤 Builder upload: owner=${ownerKey}${userId ? ` (userId=${userId})` : " (guest)"}, description="${description.slice(0, 80)}..."`);
     }
 
     const { error } = await supabase.storage

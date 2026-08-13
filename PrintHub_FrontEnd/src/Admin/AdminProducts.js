@@ -696,7 +696,7 @@ function AdminProducts({
     // Fetch full product to get option arrays
     let fullProduct = {};
     try {
-      const res = await fetch(buildApiUrl(`/api/products/${product.dbId}`));
+      const res = await adminFetch(buildApiUrl(`/api/products/${product.dbId}`));
       if (res.ok) fullProduct = await res.json();
     } catch (err) {
       console.error("Failed to fetch full product:", err);
@@ -791,7 +791,7 @@ function AdminProducts({
     }
 
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/products/${selectedProduct.dbId}`),
         {
           method: "PUT",
@@ -1062,7 +1062,7 @@ function AdminProducts({
       .filter(Boolean);
 
     try {
-      const res = await fetch(
+      const res = await adminFetch(
         buildApiUrl(`/api/products/${addStockProduct.id}/add-stock`),
         {
           method: "POST",
