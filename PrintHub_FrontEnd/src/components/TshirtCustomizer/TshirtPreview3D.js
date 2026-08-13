@@ -21,11 +21,13 @@ function drawTextLayer(ctx, t, zoneX, zoneY, zoneW, zoneH) {
   ctx.save();
   ctx.font = `${t.italic ? "italic " : ""}${t.bold ? "700" : "400"} ${fontPx}px ${t.fontFamily}`;
   ctx.textBaseline = "middle";
-  ctx.textAlign = t.align === "left" ? "left" : t.align === "right" ? "right" : "center";
+  ctx.textAlign =
+    t.align === "left" ? "left" : t.align === "right" ? "right" : "center";
 
   let drawX = boxX + boxW / 2;
   if (t.align === "left") drawX = boxX;
   if (t.align === "right") drawX = boxX + boxW;
+
   const drawY = boxY + boxH / 2;
 
   if (t.shadow) {
@@ -51,6 +53,7 @@ function loadTextureCached(url, onLoad) {
     onLoad(textureCache[url]);
     return;
   }
+
   textureLoader.load(url, (texture) => {
     textureCache[url] = texture;
     onLoad(texture);
@@ -61,8 +64,6 @@ const FRONT_BODY_MESH = "Material1718";
 const BACK_BODY_MESH = "Material1722";
 const SLEEVE_MESH_NAMES = new Set(["Material1724"]);
 
-// UV regions on the shirt texture atlas. Applying these only to the matching
-// mesh group keeps artwork wrapped to the shirt without bleeding to sleeves.
 const BODY_ZONES = {
   front: {
     meshName: FRONT_BODY_MESH,
@@ -111,6 +112,8 @@ export default function TshirtPreview3D({
   onTextChange,
   onZoneSelect,
   onTextSelect,
+  selectedLayer = null,
+  onLayerSelect,
 }) {
   const mountRef = useRef(null);
   const modelRef = useRef(null);
@@ -118,21 +121,31 @@ export default function TshirtPreview3D({
   const rendererRef = useRef(null);
   const meshesRef = useRef([]);
   const cameraRef = useRef(null);
+
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [zoom, setZoom] = useState(100);
+
   const rebuildSleeveDecalsPendingRef = useRef(false);
   const rebuildSleeveDecalsQueuedRef = useRef(false);
+
   const zoneTextsRef = useRef(zoneTexts);
   zoneTextsRef.current = zoneTexts;
+
   const onZoneDesignChangeRef = useRef(onZoneDesignChange);
   onZoneDesignChangeRef.current = onZoneDesignChange;
+
   const onTextChangeRef = useRef(onTextChange);
   onTextChangeRef.current = onTextChange;
+
   const onZoneSelectRef = useRef(onZoneSelect);
   onZoneSelectRef.current = onZoneSelect;
+
   const onTextSelectRef = useRef(onTextSelect);
   onTextSelectRef.current = onTextSelect;
+
+  const onLayerSelectRef = useRef(onLayerSelect);
+  onLayerSelectRef.current = onLayerSelect;
 
   const shirtColorRef = useRef(shirtColor);
   shirtColorRef.current = shirtColor;
@@ -143,16 +156,21 @@ export default function TshirtPreview3D({
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
 
-  // ── Rebuild design planes (called when model loads OR designs change) ──
   const clearDecals = useCallback(() => {
     const model = modelRef.current;
     if (!model) return;
+
     meshesRef.current.forEach((m) => {
       m.parent?.remove(m);
       m.geometry.dispose();
-      if (m.material.map) m.material.map.dispose();
+
+      if (m.material.map) {
+        m.material.map.dispose();
+      }
+
       m.material.dispose();
     });
+
     meshesRef.current = [];
   }, []);
 
@@ -164,15 +182,23 @@ export default function TshirtPreview3D({
       const design = designsRef.current[zoneId];
       const texts = zoneTextsRef.current[zoneId] || [];
       const target = model.getObjectByName(uv.meshName);
+
       if (!target?.material) return;
 
       const isZoneActive =
-        zonesRef.current.length === 0 || zonesRef.current.includes(zoneId);
-      const hasContent = Boolean(design?.imageUrl) || texts.length > 0;
+        zonesRef.current.length === 0 ||
+        zonesRef.current.includes(zoneId);
+
+      const hasContent =
+        Boolean(design?.imageUrl) ||
+        texts.length > 0;
 
       if (!isZoneActive || !hasContent) {
         const oldUserData = target.material.userData;
-        if (target.material.map) target.material.map.dispose();
+
+        if (target.material.map) {
+          target.material.map.dispose();
+        }
 
         const newMat = new THREE.MeshPhongMaterial({
           color: new THREE.Color(shirtColorRef.current),
@@ -180,18 +206,22 @@ export default function TshirtPreview3D({
           shininess: 10,
           side: THREE.DoubleSide,
         });
+
         newMat.userData = oldUserData || {};
         newMat.userData.isZoneTexture = false;
 
         target.material.dispose();
         target.material = newMat;
+
         return;
       }
 
       const canvas = document.createElement("canvas");
       canvas.width = 2048;
       canvas.height = 2048;
+
       const ctx = canvas.getContext("2d");
+
       ctx.fillStyle = shirtColorRef.current;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -201,13 +231,19 @@ export default function TshirtPreview3D({
       const h = (uv.vMax - uv.vMin) * canvas.height;
 
       const finalize = () => {
-        texts.forEach((t) => drawTextLayer(ctx, t, x, y, w, h));
+        texts.forEach((t) => {
+          drawTextLayer(ctx, t, x, y, w, h);
+        });
 
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.needsUpdate = true;
+
         const oldUserData = target.material.userData;
-        if (target.material.map) target.material.map.dispose();
+
+        if (target.material.map) {
+          target.material.map.dispose();
+        }
 
         const newMat = new THREE.MeshPhongMaterial({
           color: new THREE.Color("#ffffff"),
@@ -215,6 +251,7 @@ export default function TshirtPreview3D({
           shininess: 10,
           side: THREE.DoubleSide,
         });
+
         newMat.userData = oldUserData || {};
         newMat.userData.isZoneTexture = true;
 
@@ -225,21 +262,26 @@ export default function TshirtPreview3D({
       if (design?.imageUrl) {
         const img = new Image();
         img.crossOrigin = "Anonymous";
+
         img.onload = () => {
           if (!modelRef.current) return;
+
           const designX = design.x ?? 10;
           const designY = design.y ?? 10;
           const designW = design.w ?? 80;
           const designH = design.h ?? 80;
+
           ctx.drawImage(
             img,
             x + (designX / 100) * w,
             y + (designY / 100) * h,
             (designW / 100) * w,
-            (designH / 100) * h,
+            (designH / 100) * h
           );
+
           finalize();
         };
+
         img.src = design.imageUrl;
       } else {
         finalize();
@@ -250,14 +292,19 @@ export default function TshirtPreview3D({
   const rebuildSleeveDecals = useCallback(() => {
     const model = modelRef.current;
     const scene = sceneRef.current;
+
     if (!model || !scene) return;
 
     clearDecals();
+
     model.updateMatrixWorld(true);
+
     const sleeveMesh = Array.from(SLEEVE_MESH_NAMES)
       .map((name) => model.getObjectByName(name))
       .find(Boolean);
+
     if (!sleeveMesh) return;
+
     sleeveMesh.updateMatrixWorld(true);
 
     const box = new THREE.Box3().setFromObject(sleeveMesh);
@@ -274,7 +321,11 @@ export default function TshirtPreview3D({
       .forEach(([zoneId, cfg]) => {
         const design = designsRef.current[zoneId];
         const texts = zoneTextsRef.current[zoneId] || [];
-        const hasContent = Boolean(design?.imageUrl) || texts.length > 0;
+
+        const hasContent =
+          Boolean(design?.imageUrl) ||
+          texts.length > 0;
+
         if (!hasContent) return;
 
         const buildDecal = (tex) => {
@@ -283,14 +334,33 @@ export default function TshirtPreview3D({
           const canvas = document.createElement("canvas");
           canvas.width = 1024;
           canvas.height = 1024;
+
           const ctx = canvas.getContext("2d");
           ctx.clearRect(0, 0, canvas.width, canvas.height);
+
           if (tex && design) {
-            ctx.drawImage(tex.image, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(
+              tex.image,
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
           }
-          texts.forEach((t) => drawTextLayer(ctx, t, 0, 0, canvas.width, canvas.height));
+
+          texts.forEach((t) => {
+            drawTextLayer(
+              ctx,
+              t,
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
+          });
 
           const finalTexture = new THREE.CanvasTexture(canvas);
+
           finalTexture.colorSpace = THREE.SRGBColorSpace;
           finalTexture.wrapS = THREE.RepeatWrapping;
           finalTexture.repeat.x = -1;
@@ -300,22 +370,48 @@ export default function TshirtPreview3D({
           const designY = design?.y ?? 10;
           const designW = design?.w ?? 80;
           const designH = design?.h ?? 80;
+
           const zoneW = size.z * cfg.sw;
           const zoneH = size.y * cfg.sh;
-          const offsetZ = ((designX + designW / 2) / 100 - 0.5) * zoneW;
-          const offsetY = (0.5 - (designY + designH / 2) / 100) * zoneH;
+
+          const actualW = zoneW * (designW / 100);
+          const actualH = zoneH * (designH / 100);
+
+          const offsetZ =
+            ((designX + designW / 2) / 100 - 0.5) *
+            zoneW;
+
+          const offsetY =
+            (0.5 - (designY + designH / 2) / 100) *
+            zoneH;
+
           const position = new THREE.Vector3(
-            cfg.side > 0 ? box.max.x - size.x * 0.05 : box.min.x + size.x * 0.05,
+            cfg.side > 0
+              ? box.max.x - size.x * 0.05
+              : box.min.x + size.x * 0.05,
             center.y + size.y * cfg.y + offsetY,
-            center.z + size.z * cfg.z + offsetZ,
+            center.z + size.z * cfg.z + offsetZ
           );
-          const orientation = new THREE.Euler(0, cfg.ry, 0);
+
+          const orientation = new THREE.Euler(
+            0,
+            cfg.ry,
+            0
+          );
+
           const decalSize = new THREE.Vector3(
-            zoneW,
-            zoneH,
-            size.x * cfg.depth,
+            actualW,
+            actualH,
+            size.x * cfg.depth
           );
-          const geometry = new DecalGeometry(sleeveMesh, position, orientation, decalSize);
+
+          const geometry = new DecalGeometry(
+            sleeveMesh,
+            position,
+            orientation,
+            decalSize
+          );
+
           const material = new THREE.MeshBasicMaterial({
             map: finalTexture,
             transparent: true,
@@ -326,9 +422,15 @@ export default function TshirtPreview3D({
             polygonOffsetFactor: -4,
             polygonOffsetUnits: -4,
           });
-          const mesh = new THREE.Mesh(geometry, material);
+
+          const mesh = new THREE.Mesh(
+            geometry,
+            material
+          );
+
           mesh.userData.isDesignDecal = true;
           mesh.userData.zoneId = zoneId;
+
           scene.add(mesh);
           meshesRef.current.push(mesh);
         };
@@ -351,10 +453,12 @@ export default function TshirtPreview3D({
     }
 
     rebuildSleeveDecalsPendingRef.current = true;
+
     rebuildSleeveDecals();
 
     setTimeout(() => {
       rebuildSleeveDecalsPendingRef.current = false;
+
       if (rebuildSleeveDecalsQueuedRef.current) {
         rebuildSleeveDecalsQueuedRef.current = false;
         rebuildSleeveDecalsThrottled();
@@ -362,7 +466,10 @@ export default function TshirtPreview3D({
     }, 60);
   }, [rebuildSleeveDecals]);
 
-  // ── Set up scene once ─────────────────────────────────────────────
+  // =========================================================
+  // THREE.JS SETUP
+  // =========================================================
+
   useEffect(() => {
     if (!mountRef.current || !modelPath) return;
 
@@ -370,40 +477,76 @@ export default function TshirtPreview3D({
     setError("");
 
     const container = mountRef.current;
+
     const w0 = container.offsetWidth || 260;
     const h0 = container.offsetHeight || 340;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+    });
+
+    renderer.setPixelRatio(
+      window.devicePixelRatio || 1
+    );
+
     renderer.setSize(w0, h0);
+
     container.appendChild(renderer.domElement);
+
     rendererRef.current = renderer;
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
+
     scene.background = new THREE.Color(0x1e2433);
 
-    const camera = new THREE.PerspectiveCamera(45, w0 / h0, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      w0 / h0,
+      0.1,
+      1000
+    );
+
     camera.position.set(0, 0, 3);
     camera.zoom = zoom / 100;
     camera.updateProjectionMatrix();
+
     cameraRef.current = camera;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-    const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+    scene.add(
+      new THREE.AmbientLight(0xffffff, 1.5)
+    );
+
+    const dir = new THREE.DirectionalLight(
+      0xffffff,
+      1.0
+    );
+
     dir.position.set(5, 10, 7.5);
     scene.add(dir);
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.8));
 
-    const controls = new OrbitControls(camera, renderer.domElement);
+    scene.add(
+      new THREE.HemisphereLight(
+        0xffffff,
+        0x444444,
+        0.8
+      )
+    );
+
+    const controls = new OrbitControls(
+      camera,
+      renderer.domElement
+    );
+
     controls.enableDamping = true;
     controls.dampingFactor = 0.07;
     controls.autoRotate = false;
     controls.autoRotateSpeed = 2.5;
 
-    // ── Drag-to-position system (images + text) ─────────────────────
     const raycaster = new THREE.Raycaster();
     const pointerNDC = new THREE.Vector2();
+
     let dragState = null;
 
     const meshNameToZone = {
@@ -411,132 +554,355 @@ export default function TshirtPreview3D({
       [BACK_BODY_MESH]: "back",
     };
 
-    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const clamp = (v, min, max) =>
+      Math.max(min, Math.min(max, v));
 
     const getNDC = (clientX, clientY) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      const rect =
+        renderer.domElement.getBoundingClientRect();
+
+      pointerNDC.x =
+        ((clientX - rect.left) / rect.width) * 2 - 1;
+
+      pointerNDC.y =
+        -((clientY - rect.top) / rect.height) * 2 + 1;
+
       return pointerNDC;
     };
 
-    // Convert a raycast UV hit into "% within the zone" (same coordinate
-    // system your zone editor already uses: 0-100, origin top-left).
     const uvToZonePercent = (uv, zoneCfg) => {
-      const x = (uv.x - zoneCfg.uMin) / (zoneCfg.uMax - zoneCfg.uMin);
-      const canvasYFrac = 1 - uv.y; // undo CanvasTexture's default flipY
-      const y = (canvasYFrac - zoneCfg.vMin) / (zoneCfg.vMax - zoneCfg.vMin);
-      return { x: x * 100, y: y * 100 };
+      const x =
+        (uv.x - zoneCfg.uMin) /
+        (zoneCfg.uMax - zoneCfg.uMin);
+
+      const canvasYFrac = 1 - uv.y;
+
+      const y =
+        (canvasYFrac - zoneCfg.vMin) /
+        (zoneCfg.vMax - zoneCfg.vMin);
+
+      return {
+        x: x * 100,
+        y: y * 100,
+      };
     };
 
-    const raycastBodyZone = (clientX, clientY) => {
+    const raycastBodyZone = (
+      clientX,
+      clientY
+    ) => {
       const model = modelRef.current;
+
       if (!model) return null;
+
       getNDC(clientX, clientY);
-      raycaster.setFromCamera(pointerNDC, camera);
+
+      raycaster.setFromCamera(
+        pointerNDC,
+        camera
+      );
+
       const targets = Object.keys(meshNameToZone)
-        .map((name) => model.getObjectByName(name))
+        .map((name) =>
+          model.getObjectByName(name)
+        )
         .filter(Boolean);
-      const hits = raycaster.intersectObjects(targets, false);
-      if (!hits.length || !hits[0].uv) return null;
-      const zoneId = meshNameToZone[hits[0].object.name];
+
+      const hits =
+        raycaster.intersectObjects(
+          targets,
+          false
+        );
+
+      if (!hits.length || !hits[0].uv) {
+        return null;
+      }
+
+      const zoneId =
+        meshNameToZone[
+          hits[0].object.name
+        ];
+
       const zoneCfg = BODY_ZONES[zoneId];
+
       if (!zoneCfg) return null;
-      return { zoneId, pct: uvToZonePercent(hits[0].uv, zoneCfg) };
+
+      return {
+        zoneId,
+        pct: uvToZonePercent(
+          hits[0].uv,
+          zoneCfg
+        ),
+      };
     };
 
-    const raycastSleeveDecal = (clientX, clientY) => {
-      if (!meshesRef.current.length) return null;
+    const raycastSleeveDecal = (
+      clientX,
+      clientY
+    ) => {
+      if (!meshesRef.current.length) {
+        return null;
+      }
+
       getNDC(clientX, clientY);
-      raycaster.setFromCamera(pointerNDC, camera);
-      const hits = raycaster.intersectObjects(
-        meshesRef.current.filter((m) => m.userData.isDesignDecal),
-        false,
+
+      raycaster.setFromCamera(
+        pointerNDC,
+        camera
       );
+
+      const hits =
+        raycaster.intersectObjects(
+          meshesRef.current.filter(
+            (m) =>
+              m.userData.isDesignDecal
+          ),
+          false
+        );
+
       return hits[0] || null;
     };
 
-    // Which item (topmost text, else the image) sits under this point?
-    const findHitTarget = (zoneId, pctX, pctY) => {
-      const texts = zoneTextsRef.current[zoneId] || [];
-      for (let i = texts.length - 1; i >= 0; i--) {
+    const findHitTarget = (
+      zoneId,
+      pctX,
+      pctY
+    ) => {
+      const texts =
+        zoneTextsRef.current[zoneId] || [];
+
+      for (
+        let i = texts.length - 1;
+        i >= 0;
+        i--
+      ) {
         const t = texts[i];
-        if (pctX >= t.x && pctX <= t.x + t.w && pctY >= t.y && pctY <= t.y + t.h) {
-          return { kind: "text", zoneId, id: t.id, w: t.w, h: t.h, x: t.x, y: t.y };
+
+        if (
+          pctX >= t.x &&
+          pctX <= t.x + t.w &&
+          pctY >= t.y &&
+          pctY <= t.y + t.h
+        ) {
+          return {
+            kind: "text",
+            zoneId,
+            id: t.id,
+            w: t.w,
+            h: t.h,
+            x: t.x,
+            y: t.y,
+          };
         }
       }
-      const d = designsRef.current[zoneId];
+
+      const d =
+        designsRef.current[zoneId];
+
       if (d?.imageUrl) {
-        const dx = d.x ?? 10, dy = d.y ?? 10, dw = d.w ?? 80, dh = d.h ?? 80;
-        if (pctX >= dx && pctX <= dx + dw && pctY >= dy && pctY <= dy + dh) {
-          return { kind: "image", zoneId, w: dw, h: dh, x: dx, y: dy };
+        const dx = d.x ?? 10;
+        const dy = d.y ?? 10;
+        const dw = d.w ?? 80;
+        const dh = d.h ?? 80;
+
+        if (
+          pctX >= dx &&
+          pctX <= dx + dw &&
+          pctY >= dy &&
+          pctY <= dy + dh
+        ) {
+          return {
+            kind: "image",
+            zoneId,
+            w: dw,
+            h: dh,
+            x: dx,
+            y: dy,
+          };
         }
       }
+
       return null;
     };
 
     const applyDrag = (x, y) => {
       if (!dragState) return;
+
       if (dragState.kind === "image") {
-        const design = designsRef.current[dragState.zoneId] || {};
-        onZoneDesignChangeRef.current?.(dragState.zoneId, { ...design, x, y });
+        const design =
+          designsRef.current[
+            dragState.zoneId
+          ] || {};
+
+        onZoneDesignChangeRef.current?.(
+          dragState.zoneId,
+          {
+            ...design,
+            x,
+            y,
+          }
+        );
       } else {
-        onTextChangeRef.current?.(dragState.zoneId, dragState.id, { x, y });
+        onTextChangeRef.current?.(
+          dragState.zoneId,
+          dragState.id,
+          {
+            x,
+            y,
+          }
+        );
       }
     };
 
     const onPointerMove = (e) => {
       if (!dragState) return;
+
       if (dragState.mode === "body") {
-        const hit = raycastBodyZone(e.clientX, e.clientY);
-        if (!hit || hit.zoneId !== dragState.zoneId) return;
+        const hit = raycastBodyZone(
+          e.clientX,
+          e.clientY
+        );
+
+        if (
+          !hit ||
+          hit.zoneId !==
+            dragState.zoneId
+        ) {
+          return;
+        }
+
         applyDrag(
-          clamp(hit.pct.x - dragState.grabDX, 0, 100 - dragState.w),
-          clamp(hit.pct.y - dragState.grabDY, 0, 100 - dragState.h),
+          clamp(
+            hit.pct.x -
+              dragState.grabDX,
+            0,
+            100 - dragState.w
+          ),
+          clamp(
+            hit.pct.y -
+              dragState.grabDY,
+            0,
+            100 - dragState.h
+          )
         );
       } else {
-        // sleeve decals: screen-space approximation (tune SENSITIVITY to taste)
         const SENSITIVITY = 220;
-        const rect = renderer.domElement.getBoundingClientRect();
-        const dxPct = ((e.clientX - dragState.startX) / rect.width) * SENSITIVITY;
-        const dyPct = ((e.clientY - dragState.startY) / rect.height) * SENSITIVITY;
+
+        const rect =
+          renderer.domElement.getBoundingClientRect();
+
+        const dxPct =
+          ((e.clientX -
+            dragState.startX) /
+            rect.width) *
+          SENSITIVITY;
+
+        const dyPct =
+          ((e.clientY -
+            dragState.startY) /
+            rect.height) *
+          SENSITIVITY;
+
         applyDrag(
-          clamp(dragState.origX + dxPct, 0, 100 - dragState.w),
-          clamp(dragState.origY - dyPct, 0, 100 - dragState.h),
+          clamp(
+            dragState.origX + dxPct,
+            0,
+            100 - dragState.w
+          ),
+          clamp(
+            dragState.origY - dyPct,
+            0,
+            100 - dragState.h
+          )
         );
       }
     };
 
     const onPointerUp = () => {
       dragState = null;
+
       controls.enabled = true;
-      renderer.domElement.style.cursor = "auto";
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
+
+      renderer.domElement.style.cursor =
+        "auto";
+
+      window.removeEventListener(
+        "pointermove",
+        onPointerMove
+      );
+
+      window.removeEventListener(
+        "pointerup",
+        onPointerUp
+      );
     };
 
-    const startDrag = (state, zoneId, id) => {
-      controls.enabled = false; // ← this is what stops the camera from orbiting mid-drag
+    const startDrag = (
+      state,
+      zoneId,
+      id
+    ) => {
+      controls.enabled = false;
+
       dragState = state;
-      renderer.domElement.style.cursor = "grabbing";
-      onZoneSelectRef.current?.(zoneId);
-      if (id) onTextSelectRef.current?.(zoneId, id);
-      window.addEventListener("pointermove", onPointerMove);
-      window.addEventListener("pointerup", onPointerUp);
+
+      renderer.domElement.style.cursor =
+        "grabbing";
+
+      onLayerSelectRef.current?.({
+        kind: state.kind,
+        zoneId,
+        ...(id ? { id } : {}),
+      });
+
+      onZoneSelectRef.current?.(
+        zoneId
+      );
+
+      if (id) {
+        onTextSelectRef.current?.(
+          zoneId,
+          id
+        );
+      }
+
+      window.addEventListener(
+        "pointermove",
+        onPointerMove
+      );
+
+      window.addEventListener(
+        "pointerup",
+        onPointerUp
+      );
     };
 
-    // Capture phase: runs BEFORE OrbitControls' own pointerdown listener.
-    // stopImmediatePropagation() stops it from ever seeing the event —
-    // so it's always either "orbit" or "drag", never both.
     const onPointerDown = (e) => {
-      if (e.button !== undefined && e.button !== 0) return;
+      if (
+        e.button !== undefined &&
+        e.button !== 0
+      ) {
+        return;
+      }
 
-      const bodyHit = raycastBodyZone(e.clientX, e.clientY);
+      const bodyHit =
+        raycastBodyZone(
+          e.clientX,
+          e.clientY
+        );
+
       if (bodyHit) {
-        const target = findHitTarget(bodyHit.zoneId, bodyHit.pct.x, bodyHit.pct.y);
+        const target =
+          findHitTarget(
+            bodyHit.zoneId,
+            bodyHit.pct.x,
+            bodyHit.pct.y
+          );
+
         if (target) {
           e.stopImmediatePropagation();
           e.preventDefault();
+
           startDrag(
             {
               mode: "body",
@@ -545,22 +911,44 @@ export default function TshirtPreview3D({
               id: target.id,
               w: target.w,
               h: target.h,
-              grabDX: bodyHit.pct.x - target.x,
-              grabDY: bodyHit.pct.y - target.y,
+              grabDX:
+                bodyHit.pct.x -
+                target.x,
+              grabDY:
+                bodyHit.pct.y -
+                target.y,
             },
             target.zoneId,
-            target.id,
+            target.id
           );
         }
-        return; // hit the shirt but missed the artwork → let it orbit normally
+
+        return;
       }
 
-      const sleeveHit = raycastSleeveDecal(e.clientX, e.clientY);
-      const zoneId = sleeveHit?.object?.userData?.zoneId;
-      const design = zoneId ? designsRef.current[zoneId] : null;
-      if (zoneId && design?.imageUrl) {
+      const sleeveHit =
+        raycastSleeveDecal(
+          e.clientX,
+          e.clientY
+        );
+
+      const zoneId =
+        sleeveHit?.object?.userData
+          ?.zoneId;
+
+      const design = zoneId
+        ? designsRef.current[
+            zoneId
+          ]
+        : null;
+
+      if (
+        zoneId &&
+        design?.imageUrl
+      ) {
         e.stopImmediatePropagation();
         e.preventDefault();
+
         startDrag(
           {
             mode: "sleeve",
@@ -573,137 +961,277 @@ export default function TshirtPreview3D({
             origX: design.x ?? 10,
             origY: design.y ?? 10,
           },
-          zoneId,
+          zoneId
         );
       }
     };
 
-    // hover feedback only (not part of the drag conflict-resolution)
     const onHoverMove = (e) => {
       if (dragState) return;
-      const bodyHit = raycastBodyZone(e.clientX, e.clientY);
-      const hit = bodyHit && findHitTarget(bodyHit.zoneId, bodyHit.pct.x, bodyHit.pct.y);
-      renderer.domElement.style.cursor = hit ? "grab" : "auto";
+
+      const bodyHit =
+        raycastBodyZone(
+          e.clientX,
+          e.clientY
+        );
+
+      const hit =
+        bodyHit &&
+        findHitTarget(
+          bodyHit.zoneId,
+          bodyHit.pct.x,
+          bodyHit.pct.y
+        );
+
+      renderer.domElement.style.cursor =
+        hit ? "grab" : "auto";
     };
 
-    renderer.domElement.addEventListener("pointerdown", onPointerDown, true); // capture!
-    renderer.domElement.addEventListener("pointermove", onHoverMove);
+    renderer.domElement.addEventListener(
+      "pointerdown",
+      onPointerDown,
+      true
+    );
+
+    renderer.domElement.addEventListener(
+      "pointermove",
+      onHoverMove
+    );
 
     new GLTFLoader().load(
       modelPath,
       (gltf) => {
         const model = gltf.scene;
+
         modelRef.current = model;
-        model.rotation.y = 5; // face front on load
+
+        model.rotation.y = 5;
+
         scene.add(model);
 
-        applyColor(model, shirtColorRef.current);
-        modelRef.current.traverse(n => {
-  if (n.isMesh) {
-    n.geometry.computeBoundingBox();
-    const b = n.geometry.boundingBox;
-    console.log(n.name, JSON.stringify({min: b.min, max: b.max}));
-  }
-});
+        applyColor(
+          model,
+          shirtColorRef.current
+        );
+
         updateZoneTextures();
+
         rebuildSleeveDecals();
 
-        const box = new THREE.Box3().setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const fov = camera.fov * (Math.PI / 180);
-        const dist = (maxDim / 2 / Math.tan(fov / 2)) * 1.8;
-        camera.position.set(center.x, center.y, center.z + dist);
+        const box =
+          new THREE.Box3().setFromObject(
+            model
+          );
+
+        const center =
+          box.getCenter(
+            new THREE.Vector3()
+          );
+
+        const size =
+          box.getSize(
+            new THREE.Vector3()
+          );
+
+        const maxDim =
+          Math.max(
+            size.x,
+            size.y,
+            size.z
+          );
+
+        const fov =
+          camera.fov *
+          (Math.PI / 180);
+
+        const dist =
+          (maxDim /
+            2 /
+            Math.tan(
+              fov / 2
+            )) *
+          1.8;
+
+        camera.position.set(
+          center.x,
+          center.y,
+          center.z + dist
+        );
+
         camera.near = dist / 100;
         camera.far = dist * 100;
+
         camera.updateProjectionMatrix();
+
         controls.target.copy(center);
         controls.update();
 
         setReady(true);
       },
       undefined,
-      (err) => {
-        console.warn("GLB load failed:", err);
-        setError("Failed to load 3D model. Place shirt.glb in public/models/.");
-      },
+      () => {
+        setError(
+          "Failed to load 3D model. Place shirt.glb in public/models/."
+        );
+      }
     );
 
     let rafId;
+
     const animate = () => {
-      rafId = requestAnimationFrame(animate);
+      rafId =
+        requestAnimationFrame(
+          animate
+        );
+
       controls.update();
-      renderer.render(scene, camera);
+
+      renderer.render(
+        scene,
+        camera
+      );
     };
+
     animate();
 
     const onResize = () => {
-      const w = container.offsetWidth || 260;
-      const h = container.offsetHeight || 340;
+      const w =
+        container.offsetWidth || 260;
+
+      const h =
+        container.offsetHeight || 340;
+
       renderer.setSize(w, h);
+
       camera.aspect = w / h;
+
       camera.updateProjectionMatrix();
     };
-    window.addEventListener("resize", onResize);
-    const ro = new ResizeObserver(onResize);
+
+    window.addEventListener(
+      "resize",
+      onResize
+    );
+
+    const ro =
+      new ResizeObserver(
+        onResize
+      );
+
     ro.observe(container);
 
     return () => {
-      renderer.domElement.removeEventListener("pointerdown", onPointerDown, true);
-      renderer.domElement.removeEventListener("pointermove", onHoverMove);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("resize", onResize);
+      renderer.domElement.removeEventListener(
+        "pointerdown",
+        onPointerDown,
+        true
+      );
+
+      renderer.domElement.removeEventListener(
+        "pointermove",
+        onHoverMove
+      );
+
+      window.removeEventListener(
+        "pointermove",
+        onPointerMove
+      );
+
+      window.removeEventListener(
+        "pointerup",
+        onPointerUp
+      );
+
+      window.removeEventListener(
+        "resize",
+        onResize
+      );
+
       ro.disconnect();
+
       cancelAnimationFrame(rafId);
+
       controls.dispose();
       renderer.dispose();
-      if (container.contains(renderer.domElement))
-        container.removeChild(renderer.domElement);
-      meshesRef.current.forEach((m) => {
-        m.parent?.remove(m);
-        m.geometry.dispose();
-        if (m.material.map) m.material.map.dispose();
-        m.material.dispose();
-      });
-      meshesRef.current = [];
-      if (modelRef.current) {
-        modelRef.current.traverse((node) => {
-          if (node.isMesh) {
-            node.geometry?.dispose();
-            (Array.isArray(node.material)
-              ? node.material
-              : [node.material]
-            ).forEach((m) => m?.dispose());
+
+      if (
+        container.contains(
+          renderer.domElement
+        )
+      ) {
+        container.removeChild(
+          renderer.domElement
+        );
+      }
+
+      meshesRef.current.forEach(
+        (m) => {
+          m.parent?.remove(m);
+          m.geometry.dispose();
+
+          if (m.material.map) {
+            m.material.map.dispose();
           }
-        });
+
+          m.material.dispose();
+        }
+      );
+
+      meshesRef.current = [];
+
+      if (modelRef.current) {
+        modelRef.current.traverse(
+          (node) => {
+            if (node.isMesh) {
+              node.geometry?.dispose();
+
+              (
+                Array.isArray(
+                  node.material
+                )
+                  ? node.material
+                  : [node.material]
+              ).forEach((m) =>
+                m?.dispose()
+              );
+            }
+          }
+        );
+
         modelRef.current = null;
       }
+
       sceneRef.current = null;
       cameraRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelPath]);
 
-  // ── Apply zoom level changes ─────────────────────────────────────
   useEffect(() => {
     if (cameraRef.current) {
-      cameraRef.current.zoom = zoom / 100;
+      cameraRef.current.zoom =
+        zoom / 100;
+
       cameraRef.current.updateProjectionMatrix();
     }
   }, [zoom]);
 
-  // ── Recolor shirt when shirtColor changes ─────────────────────────
   useEffect(() => {
     if (modelRef.current) {
-      applyColor(modelRef.current, shirtColor);
+      applyColor(
+        modelRef.current,
+        shirtColor
+      );
+
       updateZoneTextures();
+
       rebuildSleeveDecalsThrottled();
     }
-  }, [shirtColor, updateZoneTextures, rebuildSleeveDecalsThrottled]);
+  }, [
+    shirtColor,
+    updateZoneTextures,
+    rebuildSleeveDecalsThrottled,
+  ]);
 
-  // ── Rebuild planes when model is ready OR when designs change ─────
   useEffect(() => {
     if (ready) {
       updateZoneTextures();
@@ -720,20 +1248,33 @@ export default function TshirtPreview3D({
 
   return (
     <div className="tsc-preview-panel">
-      <div className="tsc-preview-3d" ref={mountRef}>
+      <div
+        className="tsc-preview-3d"
+        ref={mountRef}
+      >
         {!ready && !error && (
           <div className="tsc-preview-loading">
             <span
               className="tsc-spinner"
               style={{
-                borderTopColor: "#455073",
-                borderColor: "rgba(69,80,115,0.2)",
+                borderTopColor:
+                  "#455073",
+                borderColor:
+                  "rgba(69,80,115,0.2)",
               }}
             />
-            <span>Loading 3D preview…</span>
+
+            <span>
+              Loading 3D preview…
+            </span>
           </div>
         )}
-        {error && <div className="tsc-preview-error">{error}</div>}
+
+        {error && (
+          <div className="tsc-preview-error">
+            {error}
+          </div>
+        )}
       </div>
 
       {/* Zoom controls */}
@@ -742,20 +1283,29 @@ export default function TshirtPreview3D({
           type="button"
           className="tsc-zoom-btn"
           onClick={() => {
-            setZoom((z) => {
-              const next = Math.max(50, z - 25);
-              return next;
-            });
+            setZoom((z) =>
+              Math.max(
+                50,
+                z - 25
+              )
+            );
           }}
         >
           −
         </button>
+
         <span>{zoom}%</span>
+
         <button
           type="button"
           className="tsc-zoom-btn"
           onClick={() => {
-            setZoom((z) => Math.min(200, z + 25));
+            setZoom((z) =>
+              Math.min(
+                200,
+                z + 25
+              )
+            );
           }}
         >
           +
@@ -765,36 +1315,64 @@ export default function TshirtPreview3D({
   );
 }
 
-function applyColor(model, hexColor) {
-  const color = new THREE.Color(hexColor);
+function applyColor(
+  model,
+  hexColor
+) {
+  const color =
+    new THREE.Color(hexColor);
+
   model.traverse((node) => {
-    if (node.isMesh && !node.userData?.isDesignDecal) {
-      if (node.geometry.hasAttribute("color")) {
-        node.geometry.deleteAttribute("color");
+    if (
+      node.isMesh &&
+      !node.userData?.isDesignDecal
+    ) {
+      if (
+        node.geometry.hasAttribute(
+          "color"
+        )
+      ) {
+        node.geometry.deleteAttribute(
+          "color"
+        );
       }
 
       if (node.material) {
-        // preserve the old map and userData
-        const oldMap = node.material.map;
-        const oldUserData = node.material.userData;
-        const isZoneTexture = oldUserData?.isZoneTexture;
+        const oldMap =
+          node.material.map;
 
-        // If it's not a zone texture, dispose the old map
-        if (oldMap && !isZoneTexture) {
+        const oldUserData =
+          node.material.userData;
+
+        const isZoneTexture =
+          oldUserData?.isZoneTexture;
+
+        if (
+          oldMap &&
+          !isZoneTexture
+        ) {
           oldMap.dispose();
         }
 
-        // Recreate the material with a more predictable shading model that doesn't need env maps
-        const newMat = new THREE.MeshPhongMaterial({
-          color: isZoneTexture ? new THREE.Color("#ffffff") : color,
-          map: isZoneTexture ? oldMap : null,
-          shininess: 10,
-          side: THREE.DoubleSide,
-        });
-        
-        newMat.userData = oldUserData || {};
-        
+        const newMat =
+          new THREE.MeshPhongMaterial({
+            color: isZoneTexture
+              ? new THREE.Color(
+                  "#ffffff"
+                )
+              : color,
+            map: isZoneTexture
+              ? oldMap
+              : null,
+            shininess: 10,
+            side: THREE.DoubleSide,
+          });
+
+        newMat.userData =
+          oldUserData || {};
+
         node.material.dispose();
+
         node.material = newMat;
       }
     }

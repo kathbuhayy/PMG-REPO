@@ -279,6 +279,10 @@ export default function TshirtCustomizerPanel({
     initialWip?.aiLastPrompt ?? ""
   );
 
+  // Currently selected image/text layer (drives the size-adjust panel
+  // that sits above "Design Print Areas" in the sidebar)
+  const [selectedLayer, setSelectedLayer] = useState(null);
+
   const prevZonesKeyRef = useRef(zones.join(","));
 
   // Clear zoneDesigns and reset activeZone when print side (zones) changes
@@ -290,6 +294,7 @@ export default function TshirtCustomizerPanel({
     setZoneTexts({});
     setActiveTextId(null);
     setActiveZone(zones[0] || null);
+    setSelectedLayer(null);
   }, [zones]);
 
   // Sync activeZone when product print zones list changes
@@ -424,6 +429,9 @@ export default function TshirtCustomizerPanel({
       [zoneId]: (prev[zoneId] || []).filter((t) => t.id !== textId),
     }));
     setActiveTextId((prev) => (prev === textId ? null : prev));
+    setSelectedLayer((prev) =>
+      prev?.kind === "text" && prev.id === textId ? null : prev,
+    );
   };
 
   const handleTextSelect = (zoneId, textId) => {
@@ -464,11 +472,112 @@ export default function TshirtCustomizerPanel({
       delete next[zoneId];
       return next;
     });
+    setSelectedLayer((prev) =>
+      prev?.kind === "image" && prev.zoneId === zoneId ? null : prev,
+    );
   };
 
   // ── Zone select ───────────────────────────────────────────────────
   const handleZoneSelect = (zoneId) => {
     setActiveZone(zoneId);
+  };
+
+  // ── Selected layer (image/text) size controls ──────────────────────
+  // Reads the current x/y/w/h for whatever is selected, straight from
+  // zoneDesigns / zoneTexts so it always reflects live state.
+  const selectedLayerData = useMemo(() => {
+    if (!selectedLayer) return null;
+
+    if (selectedLayer.kind === "image") {
+      const design = zoneDesigns[selectedLayer.zoneId];
+      if (!design?.imageUrl) return null;
+
+      return {
+        kind: "image",
+        zoneId: selectedLayer.zoneId,
+        x: design.x ?? 10,
+        y: design.y ?? 10,
+        w: design.w ?? 80,
+        h: design.h ?? 80,
+      };
+    }
+
+    if (selectedLayer.kind === "text") {
+      const texts = zoneTexts[selectedLayer.zoneId] || [];
+      const text = texts.find((t) => t.id === selectedLayer.id);
+      if (!text) return null;
+
+      return {
+        kind: "text",
+        zoneId: selectedLayer.zoneId,
+        id: selectedLayer.id,
+        x: text.x ?? 10,
+        y: text.y ?? 10,
+        w: text.w ?? 80,
+        h: text.h ?? 20,
+      };
+    }
+
+    return null;
+  }, [selectedLayer, zoneDesigns, zoneTexts]);
+
+  // Resize the selected image/text layer while keeping its center fixed
+  const resizeSelectedLayer = (newW, newH) => {
+    if (!selectedLayer) return;
+
+    const clampValue = (v, min, max) => Math.max(min, Math.min(max, v));
+    const width = clampValue(Number(newW) || 5, 5, 100);
+    const height = clampValue(Number(newH) || 5, 5, 100);
+
+    if (selectedLayer.kind === "image") {
+      const design = zoneDesigns[selectedLayer.zoneId];
+      if (!design?.imageUrl) return;
+
+      const oldW = design.w ?? 80;
+      const oldH = design.h ?? 80;
+      const oldX = design.x ?? 10;
+      const oldY = design.y ?? 10;
+
+      const centerX = oldX + oldW / 2;
+      const centerY = oldY + oldH / 2;
+
+      const x = clampValue(centerX - width / 2, 0, 100 - width);
+      const y = clampValue(centerY - height / 2, 0, 100 - height);
+
+      handleZoneDesignChange(selectedLayer.zoneId, {
+        ...design,
+        x,
+        y,
+        w: width,
+        h: height,
+      });
+
+      return;
+    }
+
+    if (selectedLayer.kind === "text") {
+      const texts = zoneTexts[selectedLayer.zoneId] || [];
+      const text = texts.find((t) => t.id === selectedLayer.id);
+      if (!text) return;
+
+      const oldW = text.w ?? 80;
+      const oldH = text.h ?? 20;
+      const oldX = text.x ?? 10;
+      const oldY = text.y ?? 10;
+
+      const centerX = oldX + oldW / 2;
+      const centerY = oldY + oldH / 2;
+
+      const x = clampValue(centerX - width / 2, 0, 100 - width);
+      const y = clampValue(centerY - height / 2, 0, 100 - height);
+
+      handleTextChange(selectedLayer.zoneId, selectedLayer.id, {
+        x,
+        y,
+        w: width,
+        h: height,
+      });
+    }
   };
 
   // ── Use this design ───────────────────────────────────────────────
@@ -529,6 +638,7 @@ export default function TshirtCustomizerPanel({
             setZoneTexts({});
             setActiveTextId(null);
             setActiveZone(zones[0] || null);
+            setSelectedLayer(null);
             applyShirtColor("#ffffff");
             setSliderHue(0);
             onClear?.();
@@ -1119,6 +1229,83 @@ export default function TshirtCustomizerPanel({
             />
           )}
 
+          {/* Image/Text Size controls — shown above Design Print Areas
+              whenever an image or text layer is selected in the 3D preview */}
+          {selectedLayerData && (
+            <div className="tsc-sidebar-section tsc-size-controls">
+              <div className="tsc-size-header">
+                <div>
+                  <strong>
+                    {selectedLayerData.kind === "image"
+                      ? "Image Size"
+                      : "Text Size"}
+                  </strong>
+                  <span>Adjust width and height</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="tsc-size-close"
+                  onClick={() => setSelectedLayer(null)}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="tsc-size-control">
+                <div className="tsc-size-label-row">
+                  <span>Width</span>
+                  <strong>{Math.round(selectedLayerData.w)}%</strong>
+                </div>
+
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  step="1"
+                  value={Math.round(selectedLayerData.w)}
+                  onChange={(e) =>
+                    resizeSelectedLayer(e.target.value, selectedLayerData.h)
+                  }
+                  className="tsc-size-slider"
+                />
+              </div>
+
+              <div className="tsc-size-control">
+                <div className="tsc-size-label-row">
+                  <span>Height</span>
+                  <strong>{Math.round(selectedLayerData.h)}%</strong>
+                </div>
+
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  step="1"
+                  value={Math.round(selectedLayerData.h)}
+                  onChange={(e) =>
+                    resizeSelectedLayer(selectedLayerData.w, e.target.value)
+                  }
+                  className="tsc-size-slider"
+                />
+              </div>
+
+              <button
+                type="button"
+                className="tsc-size-reset"
+                onClick={() => {
+                  if (selectedLayerData.kind === "image") {
+                    resizeSelectedLayer(80, 80);
+                  } else {
+                    resizeSelectedLayer(80, 20);
+                  }
+                }}
+              >
+                Reset Size
+              </button>
+            </div>
+          )}
+
           {/* Persistent Design Print Areas — visible under every tab */}
           <ZoneUploadSlots
             zones={zones}
@@ -1151,6 +1338,8 @@ export default function TshirtCustomizerPanel({
               onTextChange={handleTextChange}
               onTextSelect={handleTextSelect}
               onTextRemove={handleTextRemove}
+              selectedLayer={selectedLayer}
+              onLayerSelect={setSelectedLayer}
               {...mergedPreviewProps}
             />
           </div>
