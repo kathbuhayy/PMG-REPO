@@ -1,5 +1,7 @@
 import React, { createContext, useEffect, useMemo, useState } from "react";
 import { buildApiUrl } from "../config/api";
+import { getGuestDesignDraft, clearGuestDesignDraft } from "../utils/guestCustomization";
+
 
 const CartContext = createContext();
 const CART_STORAGE_KEY = "printHub_cart";
@@ -16,6 +18,7 @@ const getCustomerUser = () => {
     return null;
   }
 };
+
 
 const normalizeMaterial = (material) =>
   material && typeof material === "object"
@@ -131,6 +134,16 @@ export function CartProvider({ children }) {
     }
 
     try {
+      const guestDraft = getGuestDesignDraft();
+    if (guestDraft) {
+      try {
+        await saveItemToServer(buildCartPayload(guestDraft));
+      } catch (e) {
+        console.error("Failed to restore guest design draft:", e);
+      } finally {
+        clearGuestDesignDraft();
+      }
+    }
       const res = await fetch(buildApiUrl(`/api/user/${userId}/cart`));
 
       if (res.status === 404) {
