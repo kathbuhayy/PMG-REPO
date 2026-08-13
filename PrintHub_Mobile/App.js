@@ -17,6 +17,7 @@ import OrdersScreen from "./screens/OrdersScreen";
 import OrderDetailScreen from "./screens/OrderDetailScreen";
 import InquiriesScreen from "./screens/InquiriesScreen";
 import PaymentScreen from "./screens/PaymentScreen";
+import PaymentLogsScreen from "./screens/PaymentLogsScreen";
 import EditProfileScreen from "./screens/EditProfileScreen";
 import PasswordSecurityScreen from "./screens/PasswordSecurityScreen";
 import RegisterScreen from "./screens/RegisterScreen";
@@ -38,6 +39,8 @@ function TabNavigator() {
             iconName = "grid-outline";
           } else if (route.name === "OrdersTab") {
             iconName = "receipt-outline";
+          } else if (route.name === "PaymentsTab") {
+            iconName = "card-outline";
           } else if (route.name === "InquiriesTab") {
             iconName = "chatbubbles-outline";
           } else if (route.name === "CartTab") {
@@ -85,6 +88,11 @@ function TabNavigator() {
         name="ProfileTab"
         component={ProfileScreen}
         options={{ title: "Profile" }}
+      />
+      <Tab.Screen
+        name="PaymentsTab"
+        component={PaymentLogsScreen}
+        options={{ title: "Payments" }}
       />
     </Tab.Navigator>
   );
@@ -165,6 +173,11 @@ export default function App() {
           name="Payment"
           component={PaymentScreen}
           options={{ title: "Mobile Checkout" }}
+        />
+        <Stack.Screen
+          name="PaymentLogs"
+          component={PaymentLogsScreen}
+          options={{ title: "Payments" }}
         />
         <Stack.Screen
           name="Login"

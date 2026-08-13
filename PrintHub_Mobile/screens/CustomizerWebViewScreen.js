@@ -525,10 +525,16 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
       var activePatternColor = '#ff6b6b';
       var activePatternBg = '#ffffff';
 
-      function applyPatternToModel(patternType, color, bgColor) {
+      function applyPatternToModel(
+        patternType,
+        color,
+        bgColor
+      ) {
         activePatternType = patternType;
-        activePatternColor = color || '#ff6b6b';
-        activePatternBg = bgColor || '#ffffff';
+        activePatternColor =
+          color || '#ff6b6b';
+        activePatternBg =
+          bgColor || '#ffffff';
         PMG_PATTERN_ACTIVE = true;
 
         window.dispatchEvent(
@@ -596,47 +602,47 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         }
 
         var patterns = [
-          { 
-            id: 'polka-red', 
-            name: 'Red Polka Dots', 
+          {
+            id: 'polka-red',
+            name: 'Red Polka Dots',
             type: PATTERN_TYPES.POLKA,
-            color: '#ff6b6b', 
-            bg: '#ffffff' 
+            color: '#ff6b6b',
+            bg: '#ffffff'
           },
-          { 
-            id: 'polka-blue', 
-            name: 'Blue Polka Dots', 
+          {
+            id: 'polka-blue',
+            name: 'Blue Polka Dots',
             type: PATTERN_TYPES.POLKA,
-            color: '#4a90d9', 
-            bg: '#ffffff' 
+            color: '#4a90d9',
+            bg: '#ffffff'
           },
-          { 
-            id: 'polka-black', 
-            name: 'Black Polka Dots', 
+          {
+            id: 'polka-black',
+            name: 'Black Polka Dots',
             type: PATTERN_TYPES.POLKA,
-            color: '#000000', 
-            bg: '#ffffff' 
+            color: '#000000',
+            bg: '#ffffff'
           },
-          { 
-            id: 'stripes-red', 
-            name: 'Red Stripes', 
+          {
+            id: 'stripes-red',
+            name: 'Red Stripes',
             type: PATTERN_TYPES.STRIPES,
-            color: '#ff6b6b', 
-            bg: '#ffffff' 
+            color: '#ff6b6b',
+            bg: '#ffffff'
           },
-          { 
-            id: 'stripes-blue', 
-            name: 'Blue Stripes', 
+          {
+            id: 'stripes-blue',
+            name: 'Blue Stripes',
             type: PATTERN_TYPES.STRIPES,
-            color: '#4a90d9', 
-            bg: '#ffffff' 
+            color: '#4a90d9',
+            bg: '#ffffff'
           },
-          { 
-            id: 'chevron-black', 
-            name: 'Black Chevron', 
+          {
+            id: 'chevron-black',
+            name: 'Black Chevron',
             type: PATTERN_TYPES.CHEVRON,
-            color: '#000000', 
-            bg: '#ffffff' 
+            color: '#000000',
+            bg: '#ffffff'
           },
         ];
 
@@ -648,21 +654,45 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         panel.id =
           "pmg-mobile-pattern-panel";
 
-        var html = '<div class="pmg-pattern-title">PATTERNS</div>';
-        
+        var html =
+          '<div class="pmg-pattern-title">PATTERNS</div>';
+
         patterns.forEach(function(p) {
           var bgStyle = p.bg;
           var dotColor = p.color;
-          
-          html += '<button type="button" class="pmg-pattern-option" data-pattern="' + p.id + '" data-type="' + p.type + '" data-color="' + p.color + '" data-bg="' + p.bg + '">';
-          html += '<span class="pmg-pattern-preview" style="background: ' + bgStyle + '; background-image: radial-gradient(circle, ' + dotColor + ' 0 4px, transparent 4.5px); background-size: 16px 16px;"></span>';
-          html += '<span>' + p.name + '</span>';
-          html += '</button>';
-        });
-        
-        html += '<button class="pmg-pattern-close" type="button">Close</button>';
 
-        panel.innerHTML = html;
+          html +=
+            '<button type="button" class="pmg-pattern-option" data-pattern="' +
+            p.id +
+            '" data-type="' +
+            p.type +
+            '" data-color="' +
+            p.color +
+            '" data-bg="' +
+            p.bg +
+            '">';
+
+          html +=
+            '<span class="pmg-pattern-preview" style="background: ' +
+            bgStyle +
+            '; background-image: radial-gradient(circle, ' +
+            dotColor +
+            ' 0 4px, transparent 4.5px); background-size: 16px 16px;"></span>';
+
+          html +=
+            '<span>' +
+            p.name +
+            '</span>';
+
+          html +=
+            '</button>';
+        });
+
+        html +=
+          '<button class="pmg-pattern-close" type="button">‹ Back</button>';
+
+        panel.innerHTML =
+          html;
 
         document.body.appendChild(
           panel
@@ -680,23 +710,47 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
                   e.preventDefault();
                   e.stopPropagation();
 
-                  var patternType = this.dataset.type;
-                  var color = this.dataset.color;
-                  var bg = this.dataset.bg;
+                  var patternType =
+                    this.dataset.type;
 
-                  applyPatternToModel(patternType, color, bg);
+                  var color =
+                    this.dataset.color;
+
+                  var bg =
+                    this.dataset.bg;
+
+                  applyPatternToModel(
+                    patternType,
+                    color,
+                    bg
+                  );
 
                   // Close panel after selection
-                  var panelEl = document.getElementById("pmg-mobile-pattern-panel");
+                  var panelEl =
+                    document.getElementById(
+                      "pmg-mobile-pattern-panel"
+                    );
+
                   if (panelEl) {
-                    panelEl.classList.remove("open");
+                    panelEl.classList.remove(
+                      "open"
+                    );
                   }
 
                   // Update button states
-                  document.querySelectorAll('.pmg-pattern-option').forEach(function(b) {
-                    b.style.border = '1px solid rgba(255,255,255,0.12)';
-                  });
-                  this.style.border = '2px solid #10b981';
+                  document
+                    .querySelectorAll(
+                      '.pmg-pattern-option'
+                    )
+                    .forEach(
+                      function(b) {
+                        b.style.border =
+                          '1px solid rgba(255,255,255,0.12)';
+                      }
+                    );
+
+                  this.style.border =
+                    '2px solid #10b981';
                 }
               );
             }
@@ -754,7 +808,8 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
             "div"
           );
 
-        menu.id = MENU_ID;
+        menu.id =
+          MENU_ID;
 
         var tools = [
           {
@@ -835,9 +890,15 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
                   );
 
                   // Close pattern panel if open
-                  var patternPanel = document.getElementById("pmg-mobile-pattern-panel");
+                  var patternPanel =
+                    document.getElementById(
+                      "pmg-mobile-pattern-panel"
+                    );
+
                   if (patternPanel) {
-                    patternPanel.classList.remove("open");
+                    patternPanel.classList.remove(
+                      "open"
+                    );
                   }
 
                   return;
@@ -893,6 +954,15 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
 
                 document.body.classList.add(
                   "pmg-tool-open"
+                );
+
+                // Add Back button after the
+                // selected customization panel opens.
+                setTimeout(
+                  function() {
+                    addCustomizationBackButton();
+                  },
+                  100
                 );
 
                 document
@@ -1400,6 +1470,47 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
           "}" +
 
           // ---------------------------------------------------
+          // CUSTOMIZATION BACK BUTTON
+          // ---------------------------------------------------
+
+          ".pmg-customization-back-button {" +
+          "width:100% !important;" +
+          "height:42px !important;" +
+          "margin:0 0 14px 0 !important;" +
+          "padding:0 12px !important;" +
+          "border:1px solid rgba(255,255,255,0.10) !important;" +
+          "border-radius:10px !important;" +
+          "background:rgba(255,255,255,0.06) !important;" +
+          "color:#ffffff !important;" +
+          "display:flex !important;" +
+          "align-items:center !important;" +
+          "justify-content:flex-start !important;" +
+          "gap:7px !important;" +
+          "font-size:13px !important;" +
+          "font-weight:700 !important;" +
+          "cursor:pointer !important;" +
+          "pointer-events:auto !important;" +
+          "touch-action:manipulation !important;" +
+          "box-sizing:border-box !important;" +
+          "}" +
+
+          ".pmg-customization-back-button:active {" +
+          "background:rgba(255,255,255,0.12) !important;" +
+          "transform:scale(0.98) !important;" +
+          "}" +
+
+          ".pmg-customization-back-icon {" +
+          "font-size:27px !important;" +
+          "font-weight:300 !important;" +
+          "line-height:18px !important;" +
+          "display:flex !important;" +
+          "align-items:center !important;" +
+          "justify-content:center !important;" +
+          "width:20px !important;" +
+          "height:20px !important;" +
+          "}" +
+
+          // ---------------------------------------------------
           // POLKA DOT PANEL
           // ---------------------------------------------------
 
@@ -1497,6 +1608,58 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
       }
 
       // -------------------------------------------------------
+      // ADD BACK BUTTON TO EACH CUSTOMIZATION PANEL
+      // -------------------------------------------------------
+
+      function addCustomizationBackButton() {
+        var sidebar =
+          document.querySelector(
+            ".tsc-left-docked, .tsc-sidebar"
+          );
+
+        if (!sidebar) {
+          return;
+        }
+
+        var existing =
+          sidebar.querySelector(
+            ".pmg-customization-back-button"
+          );
+
+        if (existing) {
+          return;
+        }
+
+        var backButton =
+          document.createElement("button");
+
+        backButton.type =
+          "button";
+
+        backButton.className =
+          "pmg-customization-back-button";
+
+        backButton.innerHTML =
+          '<span class="pmg-customization-back-icon">‹</span>' +
+          '<span>Back</span>';
+
+        backButton.addEventListener(
+          "click",
+          function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            closePanel();
+          }
+        );
+
+        sidebar.insertBefore(
+          backButton,
+          sidebar.firstChild
+        );
+      }
+
+      // -------------------------------------------------------
       // CLOSE PANEL
       // -------------------------------------------------------
 
@@ -1580,6 +1743,14 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         addCloseOnBackgroundClick();
         setupDesignChangeDetection();
         detectInitialDesignState();
+
+        if (
+          document.body.classList.contains(
+            "pmg-tool-open"
+          )
+        ) {
+          addCustomizationBackButton();
+        }
       }
 
       initialize();
@@ -1612,6 +1783,14 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
             applyStyles();
             createVerticalMenu();
             detectInitialDesignState();
+
+            if (
+              document.body.classList.contains(
+                "pmg-tool-open"
+              )
+            ) {
+              addCustomizationBackButton();
+            }
           }
         );
 
