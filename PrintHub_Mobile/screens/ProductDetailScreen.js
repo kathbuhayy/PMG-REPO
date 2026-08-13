@@ -573,31 +573,38 @@ const handleRequestQuote = () => {
     // OUT OF STOCK CHECK
     // -------------------------------------------------------
 
-    if (
-      Number(product.stock) ===
-      0
-    ) {
-      Alert.alert(
-        "Out of Stock",
-        "This item is currently out of stock. " +
-          "Do you still want to add it to your cart?",
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-          {
-            text: "Add to Cart",
-            onPress:
-              executePostCartItem,
-          },
-        ]
-      );
+// ---------------------------------------------------------
+// STOCK CHECK
+// ---------------------------------------------------------
 
-      return;
-    }
+const availableStock = Number(
+  liveProduct?.stock ??
+    product?.stock ??
+    0
+);
 
-    await executePostCartItem();
+const requestedQuantity =
+  Number(selectedQuantityNumber) || 0;
+
+// No stock
+if (availableStock <= 0) {
+  Alert.alert(
+    "Can't Add to Cart",
+    `Can't add to cart: low stock (${availableStock}).`
+  );
+  return;
+}
+
+// Requested quantity is greater than available stock
+if (requestedQuantity > availableStock) {
+  Alert.alert(
+    "Can't Add to Cart",
+    `Can't add to cart: low stock (${availableStock}). You requested ${requestedQuantity}.`
+  );
+  return;
+}
+
+await executePostCartItem();
   };
 
   /*
