@@ -23,12 +23,19 @@ export default function AIGeneratePanel({
   const [localPrompt, setLocalPrompt] = useState("");
   const [localLastPrompt, setLocalLastPrompt] = useState("");
 
-  const prompt = propPrompt !== undefined ? propPrompt : localPrompt;
-  const setPrompt = onPromptChange || setLocalPrompt;
+  const prompt =
+    propPrompt !== undefined ? propPrompt : localPrompt;
+
+  const setPrompt =
+    onPromptChange || setLocalPrompt;
 
   const lastPrompt =
-    propLastPrompt !== undefined ? propLastPrompt : localLastPrompt;
-  const setLastPrompt = onLastPromptChange || setLocalLastPrompt;
+    propLastPrompt !== undefined
+      ? propLastPrompt
+      : localLastPrompt;
+
+  const setLastPrompt =
+    onLastPromptChange || setLocalLastPrompt;
 
   /**
    * Triggers the AI generation handler and appends the resulting image
@@ -41,7 +48,24 @@ export default function AIGeneratePanel({
     }
 
     setGenError("");
-    const item = await handleGenerate(prompt, activeZone);
+
+    // Add transparent-background instructions
+    // without changing the user's original prompt.
+    const transparentPrompt = `${prompt.trim()}
+
+IMPORTANT:
+Create ONLY the requested main design or subject.
+Use a completely transparent background.
+Do NOT include any scenery, environment, room, landscape, sky, floor, background, backdrop, or surrounding objects.
+Do NOT add a white background or colored background.
+Do NOT place the design inside a rectangle, square, frame, or scene.
+The empty area around the design must remain transparent.
+Make the artwork clean, centered, and suitable for printing on a T-shirt.`;
+
+    const item = await handleGenerate(
+      transparentPrompt,
+      activeZone
+    );
 
     if (item && onGenerated) {
       onGenerated(item);
@@ -53,14 +77,23 @@ export default function AIGeneratePanel({
   return (
     <div className="tsc-sidebar-section ai-gen-panel">
       <div className="tsc-sidebar-header-row">
-        <h4 style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <h4
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
           <FaMagic style={{ color: "#455073" }} />
           AI Generate
         </h4>
       </div>
 
       <div className="ai-gen-field">
-        <label htmlFor="ai-prompt-input" className="ai-gen-label">
+        <label
+          htmlFor="ai-prompt-input"
+          className="ai-gen-label"
+        >
           Describe the design you want:
         </label>
 
@@ -74,15 +107,22 @@ export default function AIGeneratePanel({
             "or a minimalist palm tree"
           }
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) =>
+            setPrompt(e.target.value)
+          }
           disabled={generating}
         />
       </div>
 
       {lastPrompt && (
         <div className="ai-last-prompt">
-          <span className="ai-last-prompt-label">Previous Prompt: </span>
-          <span className="ai-last-prompt-text">"{lastPrompt}"</span>
+          <span className="ai-last-prompt-label">
+            Previous Prompt:{" "}
+          </span>
+
+          <span className="ai-last-prompt-text">
+            "{lastPrompt}"
+          </span>
         </div>
       )}
 
@@ -90,6 +130,7 @@ export default function AIGeneratePanel({
         <span className="ai-disclaimer-title">
           <FaExclamationTriangle /> Copyright Disclaimer
         </span>
+
         <p className="ai-disclaimer-text">
           Avoid prompting for copyrighted characters, brand logos,
           or trademarked names (e.g Mickey Mouse)
@@ -100,14 +141,19 @@ export default function AIGeneratePanel({
         type="button"
         className="ai-gen-btn"
         onClick={onSubmit}
-        disabled={generating || !prompt.trim()}
+        disabled={
+          generating || !prompt.trim()
+        }
       >
         {generating ? (
           <>
             <span
               className="aib-spinner"
-              style={{ marginRight: "6px" }}
+              style={{
+                marginRight: "6px",
+              }}
             />
+
             Generating...
           </>
         ) : (
@@ -115,7 +161,11 @@ export default function AIGeneratePanel({
         )}
       </button>
 
-      {genError && <div className="ai-gen-error">{genError}</div>}
+      {genError && (
+        <div className="ai-gen-error">
+          {genError}
+        </div>
+      )}
     </div>
   );
 }
