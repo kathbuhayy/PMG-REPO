@@ -418,6 +418,90 @@ app.post("/api/register/complete", async (req, res) => {
   }
 });
 
+// =================================================
+// RECYCLE BIN — Archived Users API
+// =================================================
+
+// GET all archived (soft-deleted) accounts
+app.get("/api/admin/archived-users", async (req, res) => {
+  try {
+    const rows = await prisma.archivedUser.findMany({
+      orderBy: { archived_at: "desc" },
+    });
+    const mapped = rows.map((u) => ({
+      id: u.id,
+      name: `${u.first_name} ${u.last_name}`,
+      email: u.email,
+      role: roleFromDb(u.role),
+      status: u.status || "active",
+      lastLogin: u.last_login,
+      joinDate: u.join_date,
+      archivedAt: u.archived_at,
+    }));
+    res.json(mapped);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "DB error" });
+  }
+});
+
+// POST restore an archived account back into active users
+app.post("/api/admin/archived-users/:id/restore", async (req, res) => {
+  const archivedId = parseInt(req.params.id);
+  try {
+    const u = await prisma.archivedUser.findUnique({ where: { id: archivedId } });
+    if (!u) return res.status(404).json({ message: "Archived user not found" });
+
+    const dup = await prisma.user.findUnique({ where: { email: u.email } });
+    if (dup) {
+      return res.status(400).json({
+        message: "A user with this email already exists. Cannot restore.",
+      });
+    }
+
+    const restored = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          first_name: u.first_name,
+          last_name: u.last_name,
+          phone: u.phone,
+          address: u.address,
+          email: u.email,
+          password: u.password,
+          role: u.role ?? 2,
+          status: "active",
+          last_login: u.last_login,
+          join_date: u.join_date,
+          gender: u.gender,
+          birthday: u.birthday,
+          position: u.position,
+        },
+      });
+      await tx.archivedUser.delete({ where: { id: archivedId } });
+      return newUser;
+    });
+
+    return res.json({ message: "Account restored", user: restored });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ message: "Restore failed" });
+  }
+});
+
+// DELETE permanently remove an archived account (no undo)
+app.delete("/api/admin/archived-users/:id", async (req, res) => {
+  const archivedId = parseInt(req.params.id);
+  try {
+    await prisma.archivedUser.delete({ where: { id: archivedId } });
+    return res.json({ message: "Account permanently deleted" });
+  } catch (e) {
+    console.error(e);
+    if (e.code === "P2025")
+      return res.status(404).json({ message: "Archived user not found" });
+    return res.status(500).json({ message: "Delete failed" });
+  }
+});
+
 // admin manage user
 app.get("/api/admin/users", async (req, res) => {
   try {

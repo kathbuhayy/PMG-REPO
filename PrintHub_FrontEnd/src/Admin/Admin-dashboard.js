@@ -1918,7 +1918,7 @@ function AdminDashboard() {
                 <div className="stats-card out-of-stock">
                   <div className="stat-top">
                     <div>
-                      <h3>Out of Stock</h3>
+                      <h3>Low Stock</h3>
                       <p className="stat-number">
                         {lowStockLoading ? "..." : outOfStockCount}
                       </p>

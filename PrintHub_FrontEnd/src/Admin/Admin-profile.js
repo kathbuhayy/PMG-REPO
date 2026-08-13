@@ -35,7 +35,11 @@ function AdminProfile() {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [changePassError, setChangePassError] = useState("");
   const [changePassSuccess, setChangePassSuccess] = useState("");
-
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
   // ✅ eye toggles for change password modal
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -225,6 +229,103 @@ function AdminProfile() {
       {ok ? "✅" : "❌"} {text}
     </p>
   );
+
+  // ✅ Step 1: request OTP, then open the OTP entry modal
+  const requestPasswordOtp = async () => {
+    setOtpError("");
+    setOtpCode("");
+    setOtpSending(true);
+
+    const stored = localStorage.getItem("user");
+    if (!stored) {
+      showAlert("No logged-in user found.");
+      setOtpSending(false);
+      return;
+    }
+
+    let user;
+    try {
+      user = JSON.parse(stored);
+    } catch {
+      showAlert("Invalid user session.");
+      setOtpSending(false);
+      return;
+    }
+
+    if (!user?.email) {
+      showAlert("User email missing.");
+      setOtpSending(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(buildApiUrl("/api/password/request-otp"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to send OTP");
+
+      setOtpSending(false);
+      setShowOtpModal(true);
+    } catch (err) {
+      setOtpSending(false);
+      showAlert(err.message || "Error sending OTP");
+    }
+  };
+
+  // ✅ Step 2: verify OTP, then open the actual Change Password modal
+  const verifyPasswordOtp = async (e) => {
+    e.preventDefault();
+    setOtpError("");
+
+    if (!otpCode.trim()) {
+      setOtpError("Please enter the code sent to your email.");
+      return;
+    }
+
+    const stored = localStorage.getItem("user");
+    if (!stored) {
+      setOtpError("No logged-in user found.");
+      return;
+    }
+
+    let user;
+    try {
+      user = JSON.parse(stored);
+    } catch {
+      setOtpError("Invalid user session.");
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const res = await fetch(buildApiUrl("/api/password/verify-otp"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email, otp: otpCode.trim() }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Invalid or expired code");
+
+      setOtpLoading(false);
+      setShowOtpModal(false);
+      setOtpCode("");
+      openChangePassword(); // ✅ only now open the real modal
+    } catch (err) {
+      setOtpLoading(false);
+      setOtpError(err.message || "Error verifying code");
+    }
+  };
+
+  const closeOtpModal = () => {
+    setShowOtpModal(false);
+    setOtpCode("");
+    setOtpError("");
+  };
 
   const openChangePassword = () => {
     setShowChangePassword(true);
@@ -453,9 +554,13 @@ function AdminProfile() {
             ✓ Save
           </button>
 
-          <button className="secondary-action" onClick={openChangePassword}>
+          <button
+            className="secondary-action"
+            onClick={requestPasswordOtp}
+            disabled={otpSending}
+          >
             <FaKey />
-            Change Password
+            {otpSending ? "Sending code..." : "Change Password"}
           </button>
         </div>
       </div>
@@ -585,6 +690,43 @@ function AdminProfile() {
           </div>
         </div>
       </div>
+
+      {showOtpModal && (
+        <div className="cp-modal-overlay" onClick={closeOtpModal}>
+          <div className="cp-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="cp-title">Verify It's You</h3>
+            <p className="cp-subtext">
+              We sent a 6-digit code to your email. Enter it below to continue.
+            </p>
+
+            <form onSubmit={verifyPasswordOtp}>
+              <div className="cp-form-row">
+                <label>OTP Code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="Enter 6-digit code"
+                  autoFocus
+                />
+              </div>
+
+              <div className="cp-actions">
+                <button type="button" className="cp-cancel" onClick={closeOtpModal}>
+                  Cancel
+                </button>
+                <button type="submit" className="cp-save" disabled={otpLoading}>
+                  {otpLoading ? "Verifying..." : "Verify"}
+                </button>
+              </div>
+            </form>
+
+            {otpError && <p className="cp-error">{otpError}</p>}
+          </div>
+        </div>
+      )}
 
       {/* ✅ Change Password Modal */}
       {showChangePassword && (

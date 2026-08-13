@@ -7,6 +7,7 @@ import {
   FaPlus,
   FaTimes,
   FaInfoCircle,
+  FaTrashRestore
 } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 
@@ -35,6 +36,12 @@ function AdminManageAccounts() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [archivedUsers, setArchivedUsers] = useState([]);
+  const [archivedSearch, setArchivedSearch] = useState("");
+  const [confirmRestoreUser, setConfirmRestoreUser] = useState(null);
+  const [confirmPermDeleteUser, setConfirmPermDeleteUser] = useState(null);
 
   // selected user for edit/delete
   const [selectedUser, setSelectedUser] = useState(null);
@@ -82,6 +89,67 @@ function AdminManageAccounts() {
       showToast(err.message || "Error fetching users", "error");
     }
   }, []);
+
+  const fetchArchivedUsers = useCallback(async () => {
+  try {
+    const res = await fetch(buildApiUrl("/api/admin/archived-users"));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || "Failed to fetch archived users");
+    setArchivedUsers(data);
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Error fetching recycle bin", "error");
+  }
+}, []);
+
+const openRecycleBin = () => {
+  fetchArchivedUsers();
+  setShowRecycleBin(true);
+};
+const closeRecycleBin = () => setShowRecycleBin(false);
+
+const filteredArchivedUsers = useMemo(() => {
+  const q = archivedSearch.trim().toLowerCase();
+  if (!q) return archivedUsers;
+  return archivedUsers.filter(
+    (u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+  );
+}, [archivedUsers, archivedSearch]);
+
+const restoreUser = async (u) => {
+  try {
+    const res = await fetch(buildApiUrl(`/api/admin/archived-users/${u.id}/restore`), {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || "Restore failed");
+
+    showToast(`${u.name} restored successfully!`, "success");
+    setConfirmRestoreUser(null);
+    await fetchArchivedUsers();
+    await fetchUsers();
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Error restoring user", "error");
+  }
+};
+
+const permanentlyDeleteUser = async (u) => {
+  try {
+    const res = await fetch(buildApiUrl(`/api/admin/archived-users/${u.id}`), {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || "Delete failed");
+
+    showToast(`${u.name} permanently deleted.`, "success");
+    setConfirmPermDeleteUser(null);
+    await fetchArchivedUsers();
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || "Error deleting user", "error");
+  }
+};
 
   // Fetch users from db on mount
   useEffect(() => {
@@ -305,16 +373,27 @@ function AdminManageAccounts() {
           </p>
         </div>
 
-        <button
-          className="manageacc-add-btn"
-          type="button"
-          onClick={handleAddUser}
-        >
-          <span className="manageacc-plus">
-            <FaPlus size={14} />
-          </span>
-          Add User
-        </button>
+        <div className="manageacc-top-actions">
+          <button
+            className="manageacc-recyclebin-btn"
+            type="button"
+            onClick={openRecycleBin}
+          >
+            <FaTrashRestore size={14} />
+            Recycle Bin{archivedUsers.length > 0 ? ` (${archivedUsers.length})` : ""}
+          </button>
+
+          <button
+            className="manageacc-add-btn"
+            type="button"
+            onClick={handleAddUser}
+          >
+            <span className="manageacc-plus">
+              <FaPlus size={14} />
+            </span>
+            Add User
+          </button>
+        </div>
       </div>
 
       {/* stat cards */}
@@ -688,6 +767,142 @@ function AdminManageAccounts() {
                   onClick={confirmDelete}
                 >
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRecycleBin && (
+        <div className="manageacc-modal-overlay" onMouseDown={closeRecycleBin}>
+          <div className="manageacc-modal large" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="manageacc-modal-header">
+              <h3>Recycle Bin — Archived Accounts</h3>
+              <button className="manageacc-modal-close" onClick={closeRecycleBin} type="button">
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="manageacc-modal-body">
+              <div className="manageacc-search" style={{ marginBottom: "12px" }}>
+                <span className="manageacc-search-icon"><FaSearch size={14} /></span>
+                <input
+                  type="text"
+                  placeholder="Search archived accounts..."
+                  value={archivedSearch}
+                  onChange={(e) => setArchivedSearch(e.target.value)}
+                />
+              </div>
+
+              <table className="manageacc-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Archived On</th>
+                    <th className="manageacc-actions-col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredArchivedUsers.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        <div className="manageacc-usercell">
+                          <div className="manageacc-avatar">{getInitials(u.name)}</div>
+                          <div className="manageacc-usertext">
+                            <div className="manageacc-name">{u.name}</div>
+                            <div className="manageacc-email">{u.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span className={`manageacc-pill role-${u.role}`}>{u.role}</span></td>
+                      <td>{formatDateOnly(u.archivedAt)}</td>
+                      <td className="manageacc-actions-col">
+                        <div className="manageacc-actions">
+                          <button
+                            type="button"
+                            className="manageacc-btn-edit"
+                            onClick={() => setConfirmRestoreUser(u)}
+                          >
+                            Restore
+                          </button>
+                          <button
+                            type="button"
+                            className="manageacc-btn-delete"
+                            onClick={() => setConfirmPermDeleteUser(u)}
+                          >
+                            <FaTrash size={12} />
+                            Delete Forever
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredArchivedUsers.length === 0 && (
+                    <tr>
+                      <td colSpan="4" className="manageacc-empty">Recycle bin is empty.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* restore confirmation */}
+      {confirmRestoreUser && (
+        <div className="manageacc-modal-overlay" onMouseDown={() => setConfirmRestoreUser(null)}>
+          <div className="manageacc-modal small" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="manageacc-modal-header">
+              <h3>Restore Account</h3>
+              <button className="manageacc-modal-close" onClick={() => setConfirmRestoreUser(null)} type="button">
+                <FaTimes />
+              </button>
+            </div>
+            <div className="manageacc-modal-body">
+              <p className="manageacc-delete-text">
+                Restore <strong>{confirmRestoreUser.name}</strong>'s account? They'll be able to log in again immediately.
+              </p>
+              <div className="manageacc-modal-actions">
+                <button type="button" className="manageacc-btn ghost" onClick={() => setConfirmRestoreUser(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="manageacc-btn primary" onClick={() => restoreUser(confirmRestoreUser)}>
+                  Restore
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* permanent delete confirmation */}
+      {confirmPermDeleteUser && (
+        <div className="manageacc-modal-overlay" onMouseDown={() => setConfirmPermDeleteUser(null)}>
+          <div className="manageacc-modal small" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="manageacc-modal-header">
+              <h3>Permanently Delete</h3>
+              <button className="manageacc-modal-close" onClick={() => setConfirmPermDeleteUser(null)} type="button">
+                <FaTimes />
+              </button>
+            </div>
+            <div className="manageacc-modal-body">
+              <p className="manageacc-delete-text">
+                This will <strong>permanently</strong> delete <strong>{confirmPermDeleteUser.name}</strong>'s
+                account and cannot be undone.
+              </p>
+              <div className="manageacc-modal-actions">
+                <button type="button" className="manageacc-btn ghost" onClick={() => setConfirmPermDeleteUser(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="manageacc-btn danger"
+                  onClick={() => permanentlyDeleteUser(confirmPermDeleteUser)}
+                >
+                  Delete Forever
                 </button>
               </div>
             </div>
