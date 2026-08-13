@@ -1403,7 +1403,7 @@ const attemptAddToCart = () => {
                   </div>
 
                   {/* Step 3: Printed Sides */}
-                  <div className="pd-option-group">
+                  {/* <div className="pd-option-group">
                     <label
                       htmlFor="pd-sides-select"
                       className="pd-option-label"
@@ -1428,7 +1428,7 @@ const attemptAddToCart = () => {
                         </option>
                       ))}
                     </select>
-                  </div>
+                  </div> */}
 
                   {/* Step 4: Finishing */}
                   <div className="pd-option-group">
