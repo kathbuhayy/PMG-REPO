@@ -18,6 +18,7 @@ import {
 
 import {
   FaMoneyBillWave,
+  FaTimes,
   FaUserPlus,
   FaShoppingBag,
   FaPlus,
@@ -209,6 +210,7 @@ function AdminDashboard() {
   const [outOfStockCount, setOutOfStockCount] = useState(0);
   const [lowStockLoading, setLowStockLoading] = useState(true);
   const [lowStockFilter, setLowStockFilter] = useState(null);
+  const [dismissedLowStockAlert, setDismissedLowStockAlert] = useState(false);
 
   // Out of stock state
   const [, setOutOfStock] = useState({
@@ -1838,6 +1840,47 @@ function AdminDashboard() {
           {/* ✅ DASHBOARD (UNCHANGED) */}
           {activeItem === "dashboard" && (
             <>
+              {!lowStockLoading &&
+                !dismissedLowStockAlert &&
+                (lowStock.pagination.total ?? 0) > 0 && (
+                  <div className="low-stock-alert">
+                    <div className="low-stock-alert-icon">
+                      <FaExclamationTriangle />
+                    </div>
+                    <div className="low-stock-alert-body">
+                      <strong>
+                        {lowStock.pagination.total} product
+                        {lowStock.pagination.total === 1 ? "" : "s"} running low on stock
+                      </strong>
+                      {outOfStockCount > 0 && (
+                        <span className="low-stock-alert-sub">
+                          {" "}
+                          — {outOfStockCount} completely out of stock
+                        </span>
+                      )}
+                    </div>
+                    <div className="low-stock-alert-actions">
+                      <button
+                        type="button"
+                        className="low-stock-alert-btn"
+                        onClick={() => {
+                          setLowStockFilter({ filter: "low_stock", threshold: 10 });
+                          navigate("/admin/products");
+                        }}
+                      >
+                        View Products
+                      </button>
+                      <button
+                        type="button"
+                        className="low-stock-alert-dismiss"
+                        onClick={() => setDismissedLowStockAlert(true)}
+                        aria-label="Dismiss"
+                      >
+                        <FaTimes />
+                      </button>
+                    </div>
+                  </div>
+                )}
               <div className="dash-hero">
                 <div className="dash-hero-left">
                   <div className="dash-kicker">Overview</div>
@@ -1920,14 +1963,14 @@ function AdminDashboard() {
                     <div>
                       <h3>Low Stock</h3>
                       <p className="stat-number">
-                        {lowStockLoading ? "..." : outOfStockCount}
+                        {lowStockLoading ? "..." : (lowStock.pagination.total ?? 0)}
                       </p>
                     </div>
                     <div className="stat-icon">
                       <FaExclamationTriangle />
                     </div>
                   </div>
-                  <div className="stat-foot">Products with 0 stock</div>
+                  <div className="stat-foot">Products with low stock</div>
                 </div>
               </div>
 

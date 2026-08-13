@@ -770,6 +770,31 @@ app.post("/api/password/send-otp", (req, res) => {
   app._router.handle(req, res);
 });
 
+// Verify the currently logged-in admin's password before a sensitive action
+app.post("/api/admin/verify-password", async (req, res) => {
+  const { userId, email, password } = req.body;
+
+  if ((!userId && !email) || !password) {
+    return res.status(400).json({ message: "Credentials required" });
+  }
+
+  try {
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: parseInt(userId) } })
+      : await prisma.user.findUnique({ where: { email } });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ message: "Incorrect password" });
+
+    return res.json({ verified: true });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ message: "Verification failed" });
+  }
+});
+
 // CHANGE PASSWORD (requires OTP verified)
 app.put("/api/profile/:id/password", async (req, res) => {
   const { currentPassword, newPassword } = req.body;

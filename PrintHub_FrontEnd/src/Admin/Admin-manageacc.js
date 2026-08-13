@@ -43,6 +43,12 @@ function AdminManageAccounts() {
   const [confirmRestoreUser, setConfirmRestoreUser] = useState(null);
   const [confirmPermDeleteUser, setConfirmPermDeleteUser] = useState(null);
 
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [pendingAction, setPendingAction] = useState(null);
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+
   // selected user for edit/delete
   const [selectedUser, setSelectedUser] = useState(null);
   const [toast, setToast] = useState({ message: "", type: "" });
@@ -74,6 +80,67 @@ function AdminManageAccounts() {
       return null;
     }
   }, []);
+
+  const requestPasswordConfirm = (actionFn) => {
+    setPendingAction(() => actionFn);
+    setPasswordInput("");
+    setPasswordError("");
+    setShowPasswordModal(true);
+  };
+
+  const closePasswordModal = () => {
+    if (verifyingPassword) return;
+    setShowPasswordModal(false);
+    setPendingAction(null);
+    setPasswordInput("");
+    setPasswordError("");
+  };
+
+  const submitPasswordConfirm = async (e) => {
+    e.preventDefault();
+
+    if (!passwordInput.trim()) {
+      setPasswordError("Password is required");
+      return;
+    }
+    if (!currentUser?.id && !currentUser?.email) {
+      setPasswordError("No active admin session found. Please log in again.");
+      return;
+    }
+
+    setVerifyingPassword(true);
+    try {
+      const res = await fetch(buildApiUrl("/api/admin/verify-password"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUser?.id,
+          email: currentUser?.email,
+          password: passwordInput,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPasswordError(data?.message || "Incorrect password");
+        setVerifyingPassword(false);
+        return;
+      }
+
+      const action = pendingAction;
+      setShowPasswordModal(false);
+      setPendingAction(null);
+      setPasswordInput("");
+      setPasswordError("");
+      setVerifyingPassword(false);
+
+      if (action) await action();
+    } catch (err) {
+      console.error(err);
+      setPasswordError("Verification failed. Please try again.");
+      setVerifyingPassword(false);
+    }
+  };
 
   // Fetches the list of all users from the admin API endpoint
   const fetchUsers = useCallback(async () => {
@@ -267,18 +334,8 @@ const permanentlyDeleteUser = async (u) => {
     }
   };
 
-  const submitEdit = async (e) => {
-    e.preventDefault();
+  const performEditSubmit = async () => {
     if (!selectedUser) return;
-
-    if (!form.name.trim()) {
-      showToast("Name is required", "error");
-      return;
-    }
-    if (!form.email.trim()) {
-      showToast("Email is required", "error");
-      return;
-    }
 
     try {
       const res = await fetch(
@@ -296,19 +353,7 @@ const permanentlyDeleteUser = async (u) => {
       );
 
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
-        console.log("❌ UPDATE USER FAILED:", {
-          status: res.status,
-          data,
-          sentPayload: {
-            name: form.name,
-            email: form.email,
-            role: form.role,
-            status: form.status,
-          },
-        });
-
         throw new Error(
           data?.message || data?.error?.sqlMessage || "Database update error",
         );
@@ -321,6 +366,29 @@ const permanentlyDeleteUser = async (u) => {
     } catch (err) {
       console.error(err);
       showToast(err.message || "Error updating user", "error");
+    }
+  };
+
+  const submitEdit = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+
+    if (!form.name.trim()) {
+      showToast("Name is required", "error");
+      return;
+    }
+    if (!form.email.trim()) {
+      showToast("Email is required", "error");
+      return;
+    }
+
+    const roleChanged =
+      (selectedUser.role || "").toLowerCase() !== form.role.toLowerCase();
+
+    if (roleChanged) {
+      requestPasswordConfirm(performEditSubmit);
+    } else {
+      await performEditSubmit();
     }
   };
 
@@ -764,7 +832,7 @@ const permanentlyDeleteUser = async (u) => {
                 <button
                   type="button"
                   className="manageacc-btn danger"
-                  onClick={confirmDelete}
+                  onClick={() => requestPasswordConfirm(confirmDelete)}
                 >
                   Delete
                 </button>
@@ -869,7 +937,11 @@ const permanentlyDeleteUser = async (u) => {
                 <button type="button" className="manageacc-btn ghost" onClick={() => setConfirmRestoreUser(null)}>
                   Cancel
                 </button>
-                <button type="button" className="manageacc-btn primary" onClick={() => restoreUser(confirmRestoreUser)}>
+                <button
+                  type="button"
+                  className="manageacc-btn primary"
+                  onClick={() => requestPasswordConfirm(() => restoreUser(confirmRestoreUser))}
+                >
                   Restore
                 </button>
               </div>
@@ -900,12 +972,72 @@ const permanentlyDeleteUser = async (u) => {
                 <button
                   type="button"
                   className="manageacc-btn danger"
-                  onClick={() => permanentlyDeleteUser(confirmPermDeleteUser)}
+                  onClick={() => requestPasswordConfirm(() => permanentlyDeleteUser(confirmPermDeleteUser))}
                 >
-                  Delete Forever
+                  Permanent Delete
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showPasswordModal && (
+        <div className="manageacc-modal-overlay" onMouseDown={closePasswordModal}>
+          <div className="manageacc-modal small" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="manageacc-modal-header">
+              <h3>Confirm Your Password</h3>
+              <button
+                className="manageacc-modal-close"
+                onClick={closePasswordModal}
+                type="button"
+                disabled={verifyingPassword}
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <form onSubmit={submitPasswordConfirm} className="manageacc-modal-body">
+              <p className="manageacc-delete-text" style={{ marginBottom: "16px" }}>
+                For security, please re-enter your password to continue.
+              </p>
+
+              <div className="manageacc-field">
+                <label>Password</label>
+                <input
+                  type="password"
+                  autoFocus
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    if (passwordError) setPasswordError("");
+                  }}
+                  placeholder="Enter your password"
+                />
+              </div>
+
+              {passwordError && (
+                <p className="manageacc-password-error">{passwordError}</p>
+              )}
+
+              <div className="manageacc-modal-actions">
+                <button
+                  type="button"
+                  className="manageacc-btn ghost"
+                  onClick={closePasswordModal}
+                  disabled={verifyingPassword}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="manageacc-btn primary"
+                  disabled={verifyingPassword}
+                >
+                  {verifyingPassword ? "Verifying..." : "Confirm"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
