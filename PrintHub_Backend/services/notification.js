@@ -102,7 +102,7 @@ function renderBaseEmailTemplate({ title, category, contentHtml }) {
     `rgba(2, 68, 148, 1) 100%);padding:24px 32px;text-align:left;">` +
     `<span style="color:#ffffff;font-size:22px;` +
     `font-weight:700;letter-spacing:0.5px;">` +
-    `PrintHub` +
+    `PrintSync` +
     `</span>` +
     `${catBadge}` +
     `</td>` +
@@ -121,10 +121,10 @@ function renderBaseEmailTemplate({ title, category, contentHtml }) {
     `text-align:center;border-top:1px solid #e2e8f0;` +
     `font-size:12px;color:#64748b;">` +
     `<p style="margin:0 0 6px 0;">` +
-    `This is an automated message from PrintHub.` +
+    `This is an automated message from PrintSync.` +
     `</p>` +
     `<p style="margin:0;">` +
-    `&copy; PrintHub. All rights reserved.` +
+    `&copy; PrintSync. All rights reserved.` +
     `</p>` +
     `</td>` +
     `</tr>` +
@@ -289,7 +289,7 @@ async function notifyOrderStatus(order, statusOverride) {
 
   return sendSystemEmail({
     to: order.user?.email,
-    subject: `PrintHub Order #${order.id}: ${label}`,
+    subject: `PrintSync Order #${order.id}: ${label}`,
     text:
       `Hi ${customerName}, your Order #${order.id} ` +
       `status is now "${label}". Total: ${money(order.total)}.`,
@@ -411,7 +411,7 @@ async function notifyPaymentConfirmation(order) {
 
   return sendSystemEmail({
     to: order.user?.email,
-    subject: `PrintHub Payment Confirmed: Order #${order.id}`,
+    subject: `PrintSync Payment Confirmed: Order #${order.id}`,
     text:
       `Hi ${receipt.customerName}, payment for Order #${order.id} ` +
       `is confirmed. Receipt: ${receipt.receiptNo}. ` +
@@ -442,12 +442,12 @@ async function notifyPaymentFailed(order) {
     `border-radius:8px;padding:20px;margin-bottom:24px;` +
     `font-size:14px;color:#9f1239;">` +
     `Please check your payment method status or retry the payment ` +
-    `from the "My Orders" tab on your PrintHub profile.` +
+    `from the "My Orders" tab on your PrintSync profile.` +
     `</div>`;
 
   return sendSystemEmail({
     to: order.user?.email,
-    subject: `PrintHub Payment ${statusLabel}: Order #${order.id}`,
+    subject: `PrintSync Payment ${statusLabel}: Order #${order.id}`,
     text:
       `Hi ${receipt.customerName}, payment for Order #${order.id} ` +
       `was marked as ${statusLabel.toLowerCase()}. ` +
@@ -492,7 +492,7 @@ async function notifyReturnComplaintReceived(order, inquiry) {
 
   return sendSystemEmail({
     to: order.user?.email,
-    subject: `PrintHub Return Request Received: Order #${order.id}`,
+    subject: `PrintSync Return Request Received: Order #${order.id}`,
     text:
       `Hi ${customerName}, we received your return request for ` +
       `Order #${order.id} (Inquiry ID: ${inquiry.id}). ` +
@@ -566,7 +566,7 @@ async function notifyLowStockProducts(products, threshold = 10) {
 
   return sendSystemEmail({
     to: recipients.join(","),
-    subject: `PrintHub Inventory Alert: Low Stock Items`,
+    subject: `PrintSync Inventory Alert: Low Stock Items`,
     text: low
       .map(
         (product) =>
@@ -626,7 +626,7 @@ async function notifyAdminsNewOrderForReview(order) {
 
   return sendSystemEmail({
     to: recipients.join(","),
-    subject: `PrintHub Admin Alert: Order #${order.id} Design Review`,
+    subject: `PrintSync Admin Alert: Order #${order.id} Design Review`,
     text:
       `Order #${order.id} from ${customerName} is waiting ` +
       `for admin design approval before payment. ` +
@@ -660,7 +660,7 @@ async function notifyDesignApproval(order) {
 
   return sendSystemEmail({
     to: order.user?.email,
-    subject: `PrintHub Order #${order.id}: Design Approved`,
+    subject: `PrintSync Order #${order.id}: Design Approved`,
     text:
       `Hi ${customerName}, your design for Order #${order.id} ` +
       `has been approved. You can now proceed with payment.`,
@@ -680,7 +680,7 @@ async function sendOtpEmail({ email, code, expiresAt, subject }) {
   const emojiRegex = new RegExp(emojiPattern, "gu");
   const cleanSubject =
     (subject || "").replace(emojiRegex, "").trim() ||
-    `PrintHub Verification Code: ${code}`;
+    `PrintSync Verification Code: ${code}`;
 
   const text = `Your verification code is: ${code}. It expires in 5 minutes.`;
 
@@ -781,7 +781,7 @@ async function notifyOutOfStockProducts(products) {
 
   return sendSystemEmail({
     to: recipients.join(","),
-    subject: `PrintHub Inventory Alert: Out of Stock Items`,
+    subject: `PrintSync Inventory Alert: Out of Stock Items`,
     text: outOfStock
       .map(
         (product) =>

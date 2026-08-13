@@ -199,7 +199,7 @@ function UserLoginPage() {
           <div className="login-card">
             <div className="auth-mini-brand">
               <span>P</span>
-              <strong>PrintHub</strong>
+              <strong>PrintSync</strong>
             </div>
             <div className="login-header">
               <h1>Welcome Back</h1>
