@@ -55,6 +55,24 @@ const STATUS_COLOR_GROUPS = {
   },
 };
 
+const RUSH_COLOR = {
+  label: "Rush Order",
+  color: "#9333ea",
+  bg: "rgba(147, 51, 234, 0.12)",
+  border: "rgba(147, 51, 234, 0.35)",
+};
+
+function orderHasRushOrder(order) {
+  return (order.items || []).some((item) => item.customizations?.isRushOrder);
+}
+
+function getOrderRushFee(order) {
+  return (order.items || []).reduce(
+    (sum, item) => sum + Number(item.customizations?.rushOrderFee || 0),
+    0,
+  );
+}
+
 function colorKeyForStatus(status) {
   for (const [key, group] of Object.entries(STATUS_COLOR_GROUPS)) {
     if (group.statuses.includes(status)) return key;
@@ -165,12 +183,13 @@ function AdminProductionCalendar() {
   }, [visibleOrders]);
 
   const stats = useMemo(() => {
-    const counts = { orange: 0, blue: 0, green: 0, red: 0 };
-    orders.forEach((o) => {
-      counts[colorKeyForStatus(o.status)] += 1;
-    });
-    return counts;
-  }, [orders]);
+  const counts = { orange: 0, blue: 0, green: 0, red: 0, rush: 0 };
+  orders.forEach((o) => {
+    counts[colorKeyForStatus(o.status)] += 1;
+    if (orderHasRushOrder(o)) counts.rush += 1;
+  });
+  return counts;
+}, [orders]);
 
   /* ── Calendar grid (6 weeks x 7 days, classic month view) ────────────── */
   const year = viewDate.getFullYear();
@@ -220,9 +239,8 @@ function AdminProductionCalendar() {
           <FaDatabase size={11} />
           {error
             ? `Database connection issue: ${error}`
-            : `Connected — synced ${
-                lastSynced ? lastSynced.toLocaleTimeString() : "..."
-              }`}
+            : `Connected — synced ${lastSynced ? lastSynced.toLocaleTimeString() : "..."
+            }`}
         </span>
         <button
           type="button"
@@ -266,6 +284,12 @@ function AdminProductionCalendar() {
           </div>
           <div className="dashpage-stat-value red">{stats.red}</div>
         </div>
+        <div className="dashpage-stat-card">
+          <div className="dashpage-stat-label">Rush Orders</div>
+          <div className="dashpage-stat-value" style={{ color: RUSH_COLOR.color }}>
+            {stats.rush}
+          </div>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -300,6 +324,8 @@ function AdminProductionCalendar() {
           </button>
         </div>
       </div>
+
+
 
       {/* Legend / filters — click to toggle a color on/off */}
       <div
@@ -348,6 +374,33 @@ function AdminProductionCalendar() {
             </button>
           );
         })}
+
+        {/* Rush order indicator — static, not a toggle */}
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 12px",
+            borderRadius: 999,
+            border: `1px solid ${RUSH_COLOR.border}`,
+            background: RUSH_COLOR.bg,
+            color: RUSH_COLOR.color,
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: RUSH_COLOR.color,
+              display: "inline-block",
+            }}
+          />
+          Rush Order
+        </span>
       </div>
 
       {/* Calendar card */}
@@ -459,7 +512,10 @@ function AdminProductionCalendar() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                   {visible.map((o) => {
-                    const group = STATUS_COLOR_GROUPS[colorKeyForStatus(o.status)];
+                    const isRush = orderHasRushOrder(o);
+                    const group = isRush
+                      ? RUSH_COLOR
+                      : STATUS_COLOR_GROUPS[colorKeyForStatus(o.status)];
                     return (
                       <div
                         key={o.id}
@@ -467,7 +523,7 @@ function AdminProductionCalendar() {
                           e.stopPropagation();
                           setSelectedOrder(o);
                         }}
-                        title={`ORD-${String(o.id).padStart(4, "0")} — ${customerName(o)}`}
+                        title={`ORD-${String(o.id).padStart(4, "0")} — ${customerName(o)}${isRush ? " (Rush)" : ""}`}
                         style={{
                           fontSize: 10.5,
                           fontWeight: 600,
@@ -481,7 +537,7 @@ function AdminProductionCalendar() {
                           textOverflow: "ellipsis",
                         }}
                       >
-                        #{o.id} · {customerName(o)}
+                        {isRush ? "⚡ " : ""}#{o.id} · {customerName(o)}
                       </div>
                     );
                   })}
@@ -543,13 +599,14 @@ function AdminProductionCalendar() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {(ordersByDay.get(dateKey(selectedDay)) || []).map((o) => {
-                  const group = STATUS_COLOR_GROUPS[colorKeyForStatus(o.status)];
+                  const isRush = orderHasRushOrder(o);
+                  const group = isRush
+                    ? RUSH_COLOR
+                    : STATUS_COLOR_GROUPS[colorKeyForStatus(o.status)];
                   return (
                     <div
                       key={o.id}
-                      onClick={() => {
-                        setSelectedOrder(o);
-                      }}
+                      onClick={() => setSelectedOrder(o)}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -563,10 +620,10 @@ function AdminProductionCalendar() {
                     >
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>
-                          ORD-{String(o.id).padStart(4, "0")} — {customerName(o)}
+                          {isRush ? "⚡ " : ""}ORD-{String(o.id).padStart(4, "0")} — {customerName(o)}
                         </div>
                         <div style={{ fontSize: 11.5, color: group.color, fontWeight: 600 }}>
-                          {o.status.replace(/_/g, " ")}
+                          {isRush ? "Rush Order" : o.status.replace(/_/g, " ")}
                         </div>
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 13, color: "#059669" }}>
@@ -658,6 +715,24 @@ function AdminProductionCalendar() {
                   <strong>Payment:</strong>{" "}
                   {(selectedOrder.payment_status || "unpaid").replace(/_/g, " ")}
                 </div>
+                {orderHasRushOrder(selectedOrder) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <strong>Rush Order:</strong>
+                    <span
+                      style={{
+                        color: RUSH_COLOR.color,
+                        background: RUSH_COLOR.bg,
+                        border: `1px solid ${RUSH_COLOR.border}`,
+                        fontWeight: 700,
+                        fontSize: 12,
+                        padding: "3px 10px",
+                        borderRadius: 999,
+                      }}
+                    >
+                      ⚡ +₱{getOrderRushFee(selectedOrder).toLocaleString()}
+                    </span>
+                  </div>
+                )}
                 <div>
                   <strong>Items:</strong> {selectedOrder.items?.length || 0}
                 </div>
