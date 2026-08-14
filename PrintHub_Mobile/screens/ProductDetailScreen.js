@@ -418,13 +418,11 @@ export default function ProductDetailScreen({
 
         const customizations = {
           size: selectedSize,
-          material:
-            selectedMaterial?.label,
+          material: selectedMaterial?.label,
           side: selectedSide,
           finishing: selectedFinish,
           color: selectedColor,
-          quantity:
-            selectedQty?.label,
+          quantity: selectedQty?.label || `${selectedQuantityNumber} pcs`,
 
           rushOrder: isRushOrder,
           rushFee: rushFee,
@@ -497,25 +495,31 @@ export default function ProductDetailScreen({
   // GET NUMERIC QUANTITY
   // ---------------------------------------------------------
 
-  const getSelectedQuantityNumber =
-    () => {
-      if (!selectedQty?.label) {
-        return 0;
-      }
+ const getSelectedQuantityNumber =
+  () => {
+    // Text quantity products
+    if (liveProduct?.quantity_mode === "text") {
+      return Math.max(
+        0,
+        parseInt(customQty, 10) || 0
+      );
+    }
 
-      // Handles:
-      // "5 pcs"
-      // "25 pcs"
-      // "50 pcs"
-      // "100 pcs"
+    // Products with a quantity option/bundle
+    if (selectedQty?.label) {
       const match = String(
         selectedQty.label
       ).match(/\d+/);
 
-      return match
-        ? Number(match[0])
-        : 0;
-    };
+      if (match) {
+        return Number(match[0]);
+      }
+    }
+
+    // Products that don't have quantity options:
+    // allow 1 piece by default.
+    return 1;
+  };
 
   const selectedQuantityNumber =
     getSelectedQuantityNumber();

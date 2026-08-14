@@ -15,6 +15,7 @@ import {
   Alert,
   Image,
   ScrollView,
+  Linking,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -508,11 +509,123 @@ export default function OrdersScreen({ navigation }) {
   // PAY NOW
   // =========================================================
 
-  const handlePayNow = (order) => {
-    navigation.navigate("Payment", {
-      orderId: order.id,
-    });
-  };
+const handlePayNow = async (order) => {
+  try {
+    if (!order?.id) {
+      Alert.alert("Payment Error", "Invalid order.");
+      return;
+    }
+
+    const paymentStatus = normalizeStatus(
+      order?.paymentStatus || order?.payment_status
+    );
+
+    const status = normalizeStatus(order?.status);
+
+    if (
+      paymentStatus === "paid" ||
+      status === "paid"
+    ) {
+      Alert.alert(
+        "Already Paid",
+        "This order has already been paid."
+      );
+      return;
+    }
+
+    if (!isProofApproved(order)) {
+      Alert.alert(
+        "Payment Unavailable",
+        "Please wait for admin to approve your design before paying."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Proceed to Payment",
+      `Pay ₱${Number(order.total || 0).toLocaleString()} for Order #${order.id}?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Pay Now",
+          onPress: async () => {
+            try {
+              const response = await fetch(
+                `${API_BASE_URL}/api/payments/checkout`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    orderId: order.id,
+                  }),
+                }
+              );
+
+              let data = {};
+
+              try {
+                data = await response.json();
+              } catch (jsonError) {
+                console.error(
+                  "[OrdersScreen] Payment response JSON error:",
+                  jsonError
+                );
+              }
+
+              console.log(
+                "[OrdersScreen] PayMongo checkout response:",
+                data
+              );
+
+              if (!response.ok) {
+                throw new Error(
+                  data?.message ||
+                    "Failed to create payment checkout."
+                );
+              }
+
+              const checkoutUrl = data?.checkout_url;
+
+              if (!checkoutUrl) {
+                throw new Error(
+                  "PayMongo did not return a checkout URL."
+                );
+              }
+
+              await Linking.openURL(checkoutUrl);
+            } catch (err) {
+              console.error(
+                "[OrdersScreen] {PayNow}:",
+                err
+              );
+
+              Alert.alert(
+                "Payment Error",
+                err.message ||
+                  "Unable to open the payment page. Please try again."
+              );
+            }
+          },
+        },
+      ]
+    );
+  } catch (err) {
+    console.error(
+      "[OrdersScreen] {HandlePayNow}:",
+      err
+    );
+
+    Alert.alert(
+      "Payment Error",
+      err.message || "Unable to start payment."
+    );
+  }
+};
 
   // =========================================================
   // CAN CANCEL

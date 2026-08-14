@@ -147,13 +147,20 @@ export default function CartScreen({ navigation }) {
       : "";
 
     return (
-      <View style={[styles.card, { alignItems: 'center' }]}>
-        <TouchableOpacity 
-          style={styles.checkboxContainer} 
+      <View style={[styles.card, { alignItems: "center" }]}>
+        <TouchableOpacity
+          style={styles.checkboxContainer}
           onPress={() => toggleSelection(item.id)}
         >
-          <View style={[styles.checkbox, selectedItemIds.includes(item.id) && styles.checkboxSelected]}>
-            {selectedItemIds.includes(item.id) && <Text style={styles.checkmark}>✓</Text>}
+          <View
+            style={[
+              styles.checkbox,
+              selectedItemIds.includes(item.id) && styles.checkboxSelected,
+            ]}
+          >
+            {selectedItemIds.includes(item.id) && (
+              <Text style={styles.checkmark}>✓</Text>
+            )}
           </View>
         </TouchableOpacity>
         <Image source={{ uri: imageUrl }} style={styles.itemImage} />
@@ -162,7 +169,8 @@ export default function CartScreen({ navigation }) {
             <Text style={styles.title} numberOfLines={1}>
               {item.title}
             </Text>
-            {(item.stock === 0 || item.product?.stock === 0) && (
+            {Number(item.stock ?? item.product?.stock ?? 0) <
+              Number(item.qty) && (
               <Text
                 style={{
                   color: COLORS.danger,
@@ -209,7 +217,23 @@ export default function CartScreen({ navigation }) {
               <Text style={styles.qtyVal}>{item.qty}</Text>
               <TouchableOpacity
                 style={styles.qtyBtn}
-                onPress={() => PatchCartItem(item.id, item.qty + 1)}
+                onPress={async () => {
+                  const availableStock = Number(
+                    item.stock ?? item.product?.stock ?? 0,
+                  );
+
+                  const newQty = item.qty + 1;
+
+                  if (newQty > availableStock) {
+                    Alert.alert(
+                      "Can't Add to Cart",
+                      `Can't add to cart: low stock (${availableStock}).`,
+                    );
+                    return;
+                  }
+
+                  await PatchCartItem(item.id, newQty);
+                }}
               >
                 <Text style={styles.qtyText}>+</Text>
               </TouchableOpacity>
