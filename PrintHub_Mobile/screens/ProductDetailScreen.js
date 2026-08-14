@@ -137,8 +137,8 @@ export default function ProductDetailScreen({
   const [liveProduct, setLiveProduct] =
     useState(product);
 
- const [customQty, setCustomQty] =
-  useState("1");
+  const [customQty, setCustomQty] =
+    useState("0");
 
   useEffect(() => {
     if (route.params?.completedDesign) {
@@ -182,7 +182,7 @@ export default function ProductDetailScreen({
         );
 
         if (data.quantity_mode === "text") {
-          setCustomQty("1");
+          setCustomQty("0");
         }
       } catch (error) {
         console.error(
@@ -245,8 +245,8 @@ export default function ProductDetailScreen({
   const [selectedQty, setSelectedQty] =
     useState(null);
 
-    const [isRushOrder, setIsRushOrder] =
-  useState(false);
+  const [isRushOrder, setIsRushOrder] =
+    useState(false);
 
   const [openDropdown, setOpenDropdown] =
     useState(null);
@@ -317,65 +317,70 @@ export default function ProductDetailScreen({
     );
 
     setSelectedQty(
-      parsedQuantities[0] || null
+      liveProduct.quantity_mode === "text"
+        ? null
+        : parsedQuantities[0] || null
     );
   }, [liveProduct]);
 
   // Price Calculation
-const basePrice =
-  Number(product.price) || 0;
+  const basePrice =
+    Number(product.price) || 0;
 
-const qtyPrice =
-  selectedQty?.price || basePrice;
+  const qtyPrice =
+    liveProduct?.quantity_mode === "text"
+      ? (parseInt(customQty, 10) || 0) *
+        basePrice
+      : selectedQty?.price || 0;
 
-const matPrice =
-  selectedMaterial?.price || 0;
+  const matPrice =
+    selectedMaterial?.price || 0;
 
-// Size-based price adjustment
-const normalizedSize =
-  String(selectedSize || "")
-    .trim()
-    .toUpperCase();
+  // Size-based price adjustment
+  const normalizedSize =
+    String(selectedSize || "")
+      .trim()
+      .toUpperCase();
 
-const sizePriceAdjustment =
-  SIZE_PRICE_ADJUSTMENTS[
-    normalizedSize
-  ] || 0;
+  const sizePriceAdjustment =
+    SIZE_PRICE_ADJUSTMENTS[
+      normalizedSize
+    ] || 0;
 
-// Get quantity for size adjustment
-const pricingQuantity =
-  liveProduct?.quantity_mode === "text"
-    ? Math.max(
-        1,
-        parseInt(customQty, 10) || 1
-      )
-    : (() => {
-        const match =
-          String(
-            selectedQty?.label || ""
-          ).match(/\d+/);
+  // Get quantity for size adjustment
+  const pricingQuantity =
+    liveProduct?.quantity_mode === "text"
+      ? Math.max(
+          0,
+          parseInt(customQty, 10) || 0
+        )
+      : (() => {
+          const match =
+            String(
+              selectedQty?.label || ""
+            ).match(/\d+/);
 
-        return match
-          ? Number(match[0])
-          : 1;
-      })();
+          return match
+            ? Number(match[0])
+            : 1;
+        })();
 
-// Size adjustment is charged per piece
-const sizeTotalAdjustment =
-  sizePriceAdjustment *
-  pricingQuantity;
+  // Size adjustment is charged per piece
+  const sizeTotalAdjustment =
+    sizePriceAdjustment *
+    pricingQuantity;
 
-const grandTotal =
-  qtyPrice +
-  matPrice +
-  sizeTotalAdjustment;
+  const grandTotal =
+    qtyPrice +
+    matPrice +
+    sizeTotalAdjustment;
 
   const rushFee = isRushOrder
-  ? grandTotal * 0.2
-  : 0;
+    ? grandTotal * 0.2
+    : 0;
 
-const finalTotal =
-  grandTotal + rushFee;
+  const finalTotal =
+    grandTotal + rushFee;
 
   const executePostCartItem =
     async () => {
@@ -413,11 +418,13 @@ const finalTotal =
 
         const customizations = {
           size: selectedSize,
-          material: selectedMaterial?.label,
+          material:
+            selectedMaterial?.label,
           side: selectedSide,
           finishing: selectedFinish,
           color: selectedColor,
-          quantity: selectedQty?.label,
+          quantity:
+            selectedQty?.label,
 
           rushOrder: isRushOrder,
           rushFee: rushFee,
@@ -435,7 +442,8 @@ const finalTotal =
             method: "POST",
 
             headers: {
-              "Content-Type": "application/json",
+              "Content-Type":
+                "application/json",
             },
 
             body: JSON.stringify({
@@ -447,11 +455,13 @@ const finalTotal =
 
               qty: 1,
 
-              productImage: product.images?.[0] || null,
+              productImage:
+                product.images?.[0] ||
+                null,
 
               customizations,
             }),
-          },
+          }
         );
 
         const data =
@@ -519,44 +529,47 @@ const finalTotal =
   // REQUEST QUOTE
   // ---------------------------------------------------------
 
-const handleRequestQuote = () => {
-  navigation.navigate("Main", {
-    screen: "InquiriesTab",
-    params: {
-      bulkInquiry: {
-        product: liveProduct || product,
-
-        quantity: selectedQuantityNumber,
-
-        customizations: {
-          size: selectedSize,
-
-          material:
-            selectedMaterial?.label || "",
-
-          side:
-            selectedSide || "",
-
-          finishing:
-            selectedFinish || "",
-
-          color:
-            selectedColor || "",
+  const handleRequestQuote = () => {
+    navigation.navigate("Main", {
+      screen: "InquiriesTab",
+      params: {
+        bulkInquiry: {
+          product:
+            liveProduct || product,
 
           quantity:
-            selectedQty?.label ||
-            `${selectedQuantityNumber} pcs`,
+            selectedQuantityNumber,
 
-          ...(activeDesign
-            ? {
-                design: activeDesign,
-              }
-            : {}),
+          customizations: {
+            size: selectedSize,
+
+            material:
+              selectedMaterial?.label ||
+              "",
+
+            side:
+              selectedSide || "",
+
+            finishing:
+              selectedFinish || "",
+
+            color:
+              selectedColor || "",
+
+            quantity:
+              selectedQty?.label ||
+              `${selectedQuantityNumber} pcs`,
+
+            ...(activeDesign
+              ? {
+                  design: activeDesign,
+                }
+              : {}),
+          },
         },
       },
-    },
-  });
-};
+    });
+  };
 
   // ---------------------------------------------------------
   // ADD TO CART
@@ -573,38 +586,41 @@ const handleRequestQuote = () => {
     // OUT OF STOCK CHECK
     // -------------------------------------------------------
 
-// ---------------------------------------------------------
-// STOCK CHECK
-// ---------------------------------------------------------
+    // ---------------------------------------------------------
+    // STOCK CHECK
+    // ---------------------------------------------------------
 
-const availableStock = Number(
-  liveProduct?.stock ??
-    product?.stock ??
-    0
-);
+    const availableStock = Number(
+      liveProduct?.stock ??
+        product?.stock ??
+        0
+    );
 
-const requestedQuantity =
-  Number(selectedQuantityNumber) || 0;
+    const requestedQuantity =
+      Number(selectedQuantityNumber) || 0;
 
-// No stock
-if (availableStock <= 0) {
-  Alert.alert(
-    "Can't Add to Cart",
-    `Can't add to cart: low stock (${availableStock}).`
-  );
-  return;
-}
+    // No stock
+    if (availableStock <= 0) {
+      Alert.alert(
+        "Can't Add to Cart",
+        `Can't add to cart: low stock (${availableStock}).`
+      );
+      return;
+    }
 
-// Requested quantity is greater than available stock
-if (requestedQuantity > availableStock) {
-  Alert.alert(
-    "Can't Add to Cart",
-    `Can't add to cart: low stock (${availableStock}). You requested ${requestedQuantity}.`
-  );
-  return;
-}
+    // Requested quantity is greater than available stock
+    if (
+      requestedQuantity >
+      availableStock
+    ) {
+      Alert.alert(
+        "Can't Add to Cart",
+        `Can't add to cart: low stock (${availableStock}). You requested ${requestedQuantity}.`
+      );
+      return;
+    }
 
-await executePostCartItem();
+    await executePostCartItem();
   };
 
   /*
@@ -994,11 +1010,11 @@ await executePostCartItem();
                     parseInt(
                       customQty,
                       10
-                    ) || 1;
+                    ) || 0;
 
                   const next =
                     Math.max(
-                      1,
+                      0,
                       current - 1
                     );
 
@@ -1006,15 +1022,19 @@ await executePostCartItem();
                     String(next)
                   );
 
-                  setSelectedQty(
-                    {
-                      label: `${next} pcs`,
-                      price:
-                        Number(
-                          product.price
-                        ) * next,
-                    }
-                  );
+                  if (next <= 0) {
+                    setSelectedQty(
+                      null
+                    );
+                    return;
+                  }
+
+                  setSelectedQty({
+                    label: `${next} pcs`,
+                    price:
+                      Number(product.price) *
+                      next,
+                  });
                 }}
               >
                 <Text
@@ -1039,15 +1059,59 @@ await executePostCartItem();
                       ""
                     );
 
-                  setCustomQty(
-                    numericValue
-                  );
-
                   const n =
                     parseInt(
                       numericValue,
                       10
                     ) || 0;
+
+                  const availableStock =
+                    Number(
+                      liveProduct?.stock ??
+                        product?.stock ??
+                        0
+                    );
+
+                  if (
+                    n >
+                    availableStock
+                  ) {
+                    Alert.alert(
+                      "Out of Stock",
+                      `Can't add more product: only ${availableStock} units are in stock.`
+                    );
+
+                    setCustomQty(
+                      String(
+                        availableStock
+                      )
+                    );
+
+                    if (
+                      availableStock <=
+                      0
+                    ) {
+                      setSelectedQty(
+                        null
+                      );
+                      return;
+                    }
+
+                    setSelectedQty({
+                      label: `${availableStock} pcs`,
+                      price:
+                        Number(
+                          product.price
+                        ) *
+                        availableStock,
+                    });
+
+                    return;
+                  }
+
+                  setCustomQty(
+                    numericValue
+                  );
 
                   if (n <= 0) {
                     setSelectedQty(
@@ -1056,15 +1120,13 @@ await executePostCartItem();
                     return;
                   }
 
-                  setSelectedQty(
-                    {
-                      label: `${n} pcs`,
-                      price:
-                        Number(
-                          product.price
-                        ) * n,
-                    }
-                  );
+                  setSelectedQty({
+                    label: `${n} pcs`,
+                    price:
+                      Number(
+                        product.price
+                      ) * n,
+                  });
                 }}
                 keyboardType="numeric"
                 placeholder="Qty"
@@ -1087,6 +1149,24 @@ await executePostCartItem();
                       10
                     ) || 0;
 
+                  const availableStock =
+                    Number(
+                      liveProduct?.stock ??
+                        product?.stock ??
+                        0
+                    );
+
+                  if (
+                    current >=
+                    availableStock
+                  ) {
+                    Alert.alert(
+                      "Out of Stock",
+                      `Can't add more product: only ${availableStock} units are in stock.`
+                    );
+                    return;
+                  }
+
                   const next =
                     current + 1;
 
@@ -1094,15 +1174,13 @@ await executePostCartItem();
                     String(next)
                   );
 
-                  setSelectedQty(
-                    {
-                      label: `${next} pcs`,
-                      price:
-                        Number(
-                          product.price
-                        ) * next,
-                    }
-                  );
+                  setSelectedQty({
+                    label: `${next} pcs`,
+                    price:
+                      Number(
+                        product.price
+                      ) * next,
+                  });
                 }}
               >
                 <Text
@@ -1142,68 +1220,84 @@ await executePostCartItem();
           )
         )}
 
-        <View style={styles.rushOrderContainer}>
-  <TouchableOpacity
-    style={[
-      styles.rushOrderButton,
-      isRushOrder &&
-        styles.rushOrderButtonActive,
-    ]}
-    onPress={() =>
-      setIsRushOrder((current) => !current)
-    }
-  >
-    <View style={styles.rushOrderLeft}>
-      <Ionicons
-        name={
-          isRushOrder
-            ? "flash"
-            : "flash-outline"
-        }
-        size={22}
-        color={
-          isRushOrder
-            ? "#FFFFFF"
-            : COLORS.accentCyan
-        }
-      />
-
-      <View style={styles.rushOrderTextContainer}>
-        <Text
-          style={[
-            styles.rushOrderTitle,
-            isRushOrder &&
-              styles.rushOrderTitleActive,
-          ]}
+        <View
+          style={
+            styles.rushOrderContainer
+          }
         >
-          Rush Order
-        </Text>
+          <TouchableOpacity
+            style={[
+              styles.rushOrderButton,
+              isRushOrder &&
+                styles.rushOrderButtonActive,
+            ]}
+            onPress={() =>
+              setIsRushOrder(
+                (current) =>
+                  !current
+              )
+            }
+          >
+            <View
+              style={
+                styles.rushOrderLeft
+              }
+            >
+              <Ionicons
+                name={
+                  isRushOrder
+                    ? "flash"
+                    : "flash-outline"
+                }
+                size={22}
+                color={
+                  isRushOrder
+                    ? "#FFFFFF"
+                    : COLORS.accentCyan
+                }
+              />
 
-        <Text
-          style={[
-            styles.rushOrderDescription,
-            isRushOrder &&
-              styles.rushOrderDescriptionActive,
-          ]}
-        >
-          Priority production (+20%)
-        </Text>
-      </View>
-    </View>
+              <View
+                style={
+                  styles.rushOrderTextContainer
+                }
+              >
+                <Text
+                  style={[
+                    styles.rushOrderTitle,
+                    isRushOrder &&
+                      styles.rushOrderTitleActive,
+                  ]}
+                >
+                  Rush Order
+                </Text>
 
-    <Text
-      style={[
-        styles.rushOrderPrice,
-        isRushOrder &&
-          styles.rushOrderPriceActive,
-      ]}
-    >
-      {isRushOrder
-        ? `+₱${rushFee.toLocaleString()}`
-        : "+20%"}
-    </Text>
-  </TouchableOpacity>
-</View>
+                <Text
+                  style={[
+                    styles.rushOrderDescription,
+                    isRushOrder &&
+                      styles.rushOrderDescriptionActive,
+                  ]}
+                >
+                  Priority production
+                  (+20%)
+                </Text>
+              </View>
+            </View>
+
+            <Text
+              style={[
+                styles.rushOrderPrice,
+                isRushOrder &&
+                  styles.rushOrderPriceActive,
+              ]}
+            >
+              {isRushOrder
+                ? `+₱${rushFee.toLocaleString()}`
+                : "+20%"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <Text
           style={styles.sectionTitle}
@@ -1351,7 +1445,10 @@ await executePostCartItem();
                 ? handleRequestQuote
                 : PostCartItem
             }
-            disabled={adding}
+            disabled={
+              adding ||
+              selectedQuantityNumber <= 0
+            }
           >
             {adding ? (
               <ActivityIndicator
@@ -1596,65 +1693,72 @@ const styles = StyleSheet.create({
   },
 
   rushOrderContainer: {
-  marginBottom: 16,
-},
+    marginBottom: 16,
+  },
 
-rushOrderButton: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-  backgroundColor: COLORS.cardBg,
-  borderWidth: 1,
-  borderColor: COLORS.borderLight,
-  borderRadius: 12,
-  paddingHorizontal: 14,
-  paddingVertical: 12,
-},
+  rushOrderButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor:
+      COLORS.cardBg,
+    borderWidth: 1,
+    borderColor:
+      COLORS.borderLight,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
 
-rushOrderButtonActive: {
-  backgroundColor: COLORS.accentCyan,
-  borderColor: COLORS.accentCyan,
-},
+  rushOrderButtonActive: {
+    backgroundColor:
+      COLORS.accentCyan,
+    borderColor:
+      COLORS.accentCyan,
+  },
 
-rushOrderLeft: {
-  flexDirection: "row",
-  alignItems: "center",
-  flex: 1,
-},
+  rushOrderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
 
-rushOrderTextContainer: {
-  marginLeft: 10,
-},
+  rushOrderTextContainer: {
+    marginLeft: 10,
+  },
 
-rushOrderTitle: {
-  fontSize: 14,
-  fontWeight: "800",
-  color: COLORS.textPrimary,
-},
+  rushOrderTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color:
+      COLORS.textPrimary,
+  },
 
-rushOrderTitleActive: {
-  color: "#FFFFFF",
-},
+  rushOrderTitleActive: {
+    color: "#FFFFFF",
+  },
 
-rushOrderDescription: {
-  fontSize: 12,
-  color: COLORS.textMuted,
-  marginTop: 2,
-},
+  rushOrderDescription: {
+    fontSize: 12,
+    color:
+      COLORS.textMuted,
+    marginTop: 2,
+  },
 
-rushOrderDescriptionActive: {
-  color: "#FFFFFF",
-},
+  rushOrderDescriptionActive: {
+    color: "#FFFFFF",
+  },
 
-rushOrderPrice: {
-  fontSize: 13,
-  fontWeight: "800",
-  color: COLORS.accentCyan,
-},
+  rushOrderPrice: {
+    fontSize: 13,
+    fontWeight: "800",
+    color:
+      COLORS.accentCyan,
+  },
 
-rushOrderPriceActive: {
-  color: "#FFFFFF",
-},
+  rushOrderPriceActive: {
+    color: "#FFFFFF",
+  },
 
   // ---------------------------------------------------------
   // BULK ORDER

@@ -777,10 +777,6 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
             label: "TEXT",
             icon: "A",
           },
-          {
-            label: "PATTERNS",
-            icon: "◉",
-          },
         ];
 
         tools.forEach(
@@ -1639,55 +1635,29 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
   // WEBVIEW MESSAGE
   // ---------------------------------------------------------
 
-  const handleWebViewMessage = (
-    event
-  ) => {
+  const handleWebViewMessage = (event) => {
     try {
-      const data = JSON.parse(
-        event.nativeEvent.data
-      );
+      const data = JSON.parse(event.nativeEvent.data);
 
-      if (
-        data.type ===
-        "DESIGN_STATE"
-      ) {
-        setDesignDirty(
-          !!data.dirty
-        );
+      if (data.type === "DESIGN_STATE") {
+        setDesignDirty(!!data.dirty);
 
         return;
       }
 
-      if (
-        data.type ===
-        "DESIGN_COMPLETED"
-      ) {
-        Alert.alert(
-          "Design Applied",
-          "Your 3D customization has been synchronized!",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                navigation.navigate({
-                  name: "ProductDetail",
-                  params: {
-                    product,
-                    completedDesign:
-                      data.design,
-                  },
-                  merge: true,
-                });
-              },
-            },
-          ]
-        );
+      if (data.type === "DESIGN_COMPLETED") {
+        Alert.alert("Success", "Added to cart with custom options!", [
+          {
+            text: "OK",
+            onPress: () =>
+              navigation.navigate("Main", {
+                screen: "CartTab",
+              }),
+          },
+        ]);
       }
     } catch (err) {
-      console.error(
-        "[handleWebViewMessage] {ParseEvent}: " +
-          err.message
-      );
+      console.error("[handleWebViewMessage] {ParseEvent}: " + err.message);
     }
   };
 
