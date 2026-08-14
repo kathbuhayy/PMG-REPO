@@ -288,7 +288,7 @@ export default function HomePage() {
             <button
               type="button"
               className="hero-secondary-btn"
-              onClick={() => navigate("/user-regis")}
+              onClick={() => navigate("/user-register")}
             >
               Sign Up
             </button>
