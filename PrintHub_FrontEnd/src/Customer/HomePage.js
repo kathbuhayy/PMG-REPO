@@ -290,7 +290,7 @@ export default function HomePage() {
               className="hero-secondary-btn"
               onClick={() => navigate("/user-regis")}
             >
-              Sign In
+              Sign Up
             </button>
           </div>
         </div>
