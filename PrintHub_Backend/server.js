@@ -39,6 +39,8 @@ const {
   createInquiryAndUpdateOrder,
 } = require("./services/paymongo");
 
+const { generateInvoicePdf } = require("./services/invoice");
+
 const {
   roleToDb,
   roleFromDb,
@@ -3853,6 +3855,35 @@ app.get("/api/orders/:id/payment-summary", async (req, res) => {
   } catch (e) {
     console.error("Payment summary error:", e.message);
     res.status(500).json({ message: "Failed to fetch payment summary" });
+  }
+});
+
+// GET /api/orders/:id/invoice — downloadable PDF invoice
+app.get("/api/orders/:id/invoice", async (req, res) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: {
+        user: true,
+        items: { include: { product: true } },
+      },
+    });
+
+    if (!order || order.deleted_at) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const pdfBuffer = await generateInvoicePdf(order);
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="invoice-order-${order.id}.pdf"`,
+      "Content-Length": pdfBuffer.length,
+    });
+    return res.send(pdfBuffer);
+  } catch (e) {
+    console.error("Invoice generation error:", e.message);
+    return res.status(500).json({ message: "Failed to generate invoice" });
   }
 });
 
