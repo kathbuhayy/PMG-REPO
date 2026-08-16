@@ -5,6 +5,32 @@ const { roleFromDb } = require("./auth");
 // Confirm these strings match what roleFromDb() actually returns in your auth.js.
 const CLEARED_CORE_ROLES = new Set(["staff", "admin"]);
 
+// Maps each StaffRole to the ProductionStatus stage(s) it's responsible for.
+// Used to scope the production queue so staff only see orders relevant to
+// their department. Roles not tied to an order-stage (INVENTORY_CONTROLLER,
+// PROCUREMENT_OFFICER) are omitted — they work off inventory/requisition
+// endpoints instead, not the order queue.
+const STAFF_ROLE_TO_PRODUCTION_STATUSES = {
+  DESIGN_APPROVER: ["PENDING_FILE_CHECK"],
+  PRINT_TECHNICIAN: ["PRINTING_QUEUE"],
+  QUALITY_ASSURANCE_INSPECTOR: ["QUALITY_ASSURANCE"],
+  LOGISTICS_PACKER: ["PACKAGING_READY"],
+};
+
+async function getRelevantProductionStatuses(userId) {
+  const activeRoles = await prisma.userStaffRole.findMany({
+    where: { userId: Number(userId), unassignedAt: null },
+    select: { role: true },
+  });
+
+  const statuses = new Set();
+  for (const { role } of activeRoles) {
+    const mapped = STAFF_ROLE_TO_PRODUCTION_STATUSES[role];
+    if (mapped) mapped.forEach((s) => statuses.add(s));
+  }
+
+  return statuses.size > 0 ? Array.from(statuses) : [];
+}
 /**
  * Verifies the target user exists, holds core STAFF/ADMIN clearance,
  * and actively holds the specific StaffRole (job function) being assigned.
@@ -73,19 +99,47 @@ async function assignStaffToOrder({ orderId, staffId, role, status, assignedById
  * so callers can surface low-stock warnings (Sub-Module 7.2).
  */
 async function decrementMaterialsForOrder(tx, orderId) {
-  const items = await tx.orderItem.findMany({
-    where: { orderId: Number(orderId) },
-    include: { product: true },
-  });
+  const [items, order] = await Promise.all([
+    tx.orderItem.findMany({
+      where: { orderId: Number(orderId) },
+      include: { product: true },
+    }),
+    tx.order.findUnique({
+      where: { id: Number(orderId) },
+      select: { printWidthInches: true, printHeightInches: true },
+    }),
+  ]);
 
   const results = [];
+
+  // Computes a scale factor relative to the product's reference print size.
+  // Falls back to 1 (flat per-unit rate, unchanged behavior) whenever the
+  // order has no recorded print dimensions or the product has no reference
+  // size configured — this keeps existing seeded rates working exactly as
+  // before until a product is explicitly calibrated for area-based scaling.
+  const getAreaScale = (product) => {
+    if (
+      !order?.printWidthInches ||
+      !order?.printHeightInches ||
+      !product.referenceWidthInches ||
+      !product.referenceHeightInches
+    ) {
+      return 1;
+    }
+    const orderArea = order.printWidthInches * order.printHeightInches;
+    const referenceArea = product.referenceWidthInches * product.referenceHeightInches;
+    if (referenceArea <= 0) return 1;
+    return orderArea / referenceArea;
+  };
 
   for (const item of items) {
     const product = item.product;
     if (!product) continue;
 
+    const areaScale = getAreaScale(product);
+
     if (product.substrateMaterialName && product.substrateUsagePerUnit) {
-      const amount = product.substrateUsagePerUnit * item.quantity;
+      const amount = product.substrateUsagePerUnit * areaScale * item.quantity;
       const updated = await tx.inventorySubstrate.updateMany({
         where: { materialName: product.substrateMaterialName },
         data: { stockMeters: { decrement: amount } },
@@ -110,7 +164,7 @@ async function decrementMaterialsForOrder(tx, orderId) {
     }
 
     if (product.inkColorChannel && product.inkUsagePerUnit) {
-      const amount = product.inkUsagePerUnit * item.quantity;
+      const amount = product.inkUsagePerUnit * areaScale * item.quantity;
       const updated = await tx.inventoryInk.updateMany({
         where: { colorChannel: product.inkColorChannel },
         data: { volumeMl: { decrement: amount } },
@@ -202,4 +256,5 @@ module.exports = {
   assignStaffToOrder,
   decrementMaterialsForOrder,
   createRequisitionsFromAlerts,
+  getRelevantProductionStatuses,
 };

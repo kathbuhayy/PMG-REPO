@@ -672,6 +672,54 @@ async function notifyDesignApproval(order) {
   });
 }
 
+// Sends an email notification to the customer that production is complete
+// and their remaining balance is due before delivery/pickup.
+async function notifyFinalPaymentDue(order, remainingBalance) {
+  const customerName = getCustomerName(order);
+
+  const contentHtml =
+    `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;">` +
+    `Hi ${customerName},` +
+    `</p>` +
+    `<p style="margin:0 0 20px 0;font-size:15px;line-height:1.5;">` +
+    `Great news! Production for your Order ` +
+    `<strong>#${order.id}</strong> is now complete.` +
+    `</p>` +
+    `<div style="background:#fffbeb;border:1px solid #fde68a;` +
+    `border-radius:8px;padding:20px;margin-bottom:20px;">` +
+    `<div style="margin-bottom:8px;">` +
+    `<span style="font-size:12px;color:#92400e;` +
+    `text-transform:uppercase;font-weight:600;">Remaining Balance</span>` +
+    `<br>` +
+    `<span style="font-size:20px;font-weight:700;color:#92400e;">` +
+    `${money(remainingBalance)}` +
+    `</span>` +
+    `</div>` +
+    `<p style="margin:0;font-size:14px;color:#92400e;">` +
+    `Please settle the remaining balance before delivery or pickup ` +
+    `can be scheduled.` +
+    `</p>` +
+    `</div>` +
+    `<p style="margin:0;font-size:14px;color:#475569;">` +
+    `You can complete this payment from the "My Orders" tab on your ` +
+    `PrintSync profile.` +
+    `</p>`;
+
+  return sendSystemEmail({
+    to: order.user?.email,
+    subject: `PrintSync Order #${order.id}: Final Payment Due`,
+    text:
+      `Hi ${customerName}, production for Order #${order.id} is complete. ` +
+      `Remaining balance of ${money(remainingBalance)} is due before ` +
+      `delivery/pickup. Please pay from My Orders.`,
+    html: renderBaseEmailTemplate({
+      title: "Final Payment Due",
+      category: "Payment Reminder",
+      contentHtml,
+    }),
+  });
+}
+
 // Sends an OTP email to the user, logging to console in development.
 async function sendOtpEmail({ email, code, expiresAt, subject }) {
   const emojiPattern =
@@ -810,4 +858,5 @@ module.exports = {
   notifyOutOfStockProducts,
   notifyAdminsNewOrderForReview,
   notifyDesignApproval,
+  notifyFinalPaymentDue,
 };

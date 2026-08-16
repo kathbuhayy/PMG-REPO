@@ -52,6 +52,23 @@ model User {
   assignedJobs      OrderAssignment[] @relation("StaffAssignee")
   // Assignments this user made as the assigning admin
   assignmentsMade   OrderAssignment[] @relation("AssignedByAdmin")
+  notifications     Notification[]
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      String   // "order_status" | "design_approved" | "payment_due" | "low_stock" | "requisition" | "assignment"
+  link      String?  // frontend route to deep-link to, e.g. "/orders/74"
+  metadata  Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@index([createdAt])
 }
 
 model UserStaffRole {
@@ -118,9 +135,11 @@ model Product {
   quantity_mode String?   // 'dropdown' | 'text' — admin-configurable quantity input mode
   quantity_count Int?     // threshold for auto-selecting contact/quote when using text mode
   substrateMaterialName String? @map("substrate_material_name") // must match InventorySubstrate.materialName
-  substrateUsagePerUnit Float?  @map("substrate_usage_per_unit") // meters consumed per unit
+  substrateUsagePerUnit Float?  @map("substrate_usage_per_unit") // meters consumed per unit, calibrated at reference print size below
   inkColorChannel       String? @map("ink_color_channel")        // must match InventoryInk.colorChannel
-  inkUsagePerUnit       Float?  @map("ink_usage_per_unit")        // ml consumed per unit
+  inkUsagePerUnit       Float?  @map("ink_usage_per_unit")        // ml consumed per unit, calibrated at reference print size below
+  referenceWidthInches  Float?  @map("reference_width_inches")   // print width the usage rates above were calibrated for
+  referenceHeightInches Float?  @map("reference_height_inches")  // print height the usage rates above were calibrated for
   active       Boolean   @default(true)
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")

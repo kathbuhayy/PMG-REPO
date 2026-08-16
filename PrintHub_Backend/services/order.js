@@ -45,6 +45,15 @@ function getPaymentPhaseLabel(order) {
   return paid <= 0 ? "Down Payment (50%)" : "Final Payment (Balance)";
 }
 
+/** Returns true if the order has paid enough to enter production.
+ *  Bulk orders: at least 50% of total. Non-bulk orders: fully paid. */
+function hasMetProductionPaymentThreshold(order) {
+  const total = parseFloat(order.total);
+  const paid = parseFloat(order.amountPaid || 0);
+  const requiredMinimum = order.isBulkOrder ? total * 0.5 : total;
+  return paid >= requiredMinimum;
+}
+
 module.exports = {
   money,
   getCustomerName,
@@ -52,4 +61,5 @@ module.exports = {
   PRODUCTION_STATUSES,
   getRequiredPaymentAmount,
   getPaymentPhaseLabel,
+  hasMetProductionPaymentThreshold,
 };

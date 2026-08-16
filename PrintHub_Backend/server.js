@@ -52,6 +52,7 @@ const {
   PRODUCTION_STATUSES,
   getRequiredPaymentAmount,
   getPaymentPhaseLabel,
+  hasMetProductionPaymentThreshold,
 } = require("./services/order");
 
 const { 
@@ -59,6 +60,7 @@ const {
   assignStaffToOrder,
   decrementMaterialsForOrder,
   createRequisitionsFromAlerts,
+  getRelevantProductionStatuses,
 } = require("./services/production");
 
 const {
@@ -75,9 +77,16 @@ const {
   notifyOutOfStockProducts,
   notifyAdminsNewOrderForReview,
   notifyDesignApproval,
+  notifyFinalPaymentDue,
 } = require("./services/notification");
 
-const { handleChat } = require("./services/chatbot");
+const { 
+  handleChat 
+} = require("./services/chatbot");
+
+const { createNotification, 
+  createNotificationForAdmins 
+} = require("./services/notificationCenter");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1440,13 +1449,25 @@ app.get("/api/admin/orders", async (req, res) => {
   }
 });
 
-app.get("/api/admin/production-queue", async (req, res) => {
+app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
   try {
+    const where = {
+      deleted_at: null,
+      status: { in: PRODUCTION_STATUSES },
+    };
+
+    let scopedToStatuses = null;
+    if (req.actor.role === "staff") {
+      const relevantStatuses = await getRelevantProductionStatuses(req.actor.id);
+      if (relevantStatuses.length === 0) {
+        return res.json({ statuses: PRODUCTION_STATUSES, queue: [], scoped: true });
+      }
+      scopedToStatuses = relevantStatuses;
+      where.productionStatus = { in: relevantStatuses };
+    }
+
     const orders = await prisma.order.findMany({
-      where: {
-        deleted_at: null,
-        status: { in: PRODUCTION_STATUSES },
-      },
+      where,
       include: {
         user: true,
         items: { include: { product: true } },
@@ -1456,11 +1477,14 @@ app.get("/api/admin/production-queue", async (req, res) => {
 
     res.json({
       statuses: PRODUCTION_STATUSES,
+      scoped: !!scopedToStatuses,
+      scopedToStatuses,
       queue: orders.map((order) => ({
         id: order.id,
         customer: getCustomerName(order),
         status: order.status,
         statusLabel: ORDER_STATUS_LABELS[order.status] || order.status,
+        productionStatus: order.productionStatus,
         payment_status: order.payment_status,
         total: order.total,
         createdAt: order.createdAt,
@@ -1500,6 +1524,14 @@ app.post("/api/production/assign", requireAuth(prisma), requireRole("staff", "ad
       role,
       status,
       assignedById,
+    });
+
+    await createNotification({
+      userId: clearance.user.id,
+      title: `New assignment — Order #${orderId}`,
+      body: `You've been assigned as ${role} on order #${orderId}.`,
+      type: "assignment",
+      link: `/staff/my-tasks`,
     });
 
     await logActivity({
@@ -1549,11 +1581,11 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
         });
       }
 
-      const total = parseFloat(existing.total);
-      const paid = parseFloat(existing.amountPaid);
-      const requiredAmount = existing.isBulkOrder ? total * 0.5 : total;
+      if (!hasMetProductionPaymentThreshold(existing)) {
+        const total = parseFloat(existing.total);
+        const paid = parseFloat(existing.amountPaid);
+        const requiredAmount = existing.isBulkOrder ? total * 0.5 : total;
 
-      if (paid < requiredAmount) {
         return res.status(403).json({
           message: existing.isBulkOrder
             ? `This bulk order requires at least 50% down payment before entering production. Paid: ₱${paid.toFixed(2)} / Required: ₱${requiredAmount.toFixed(2)}.`
@@ -1647,6 +1679,40 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
       description: `Order #${orderId} production status changed to "${productionStatus}"`,
       metadata: { orderId, previousStatus: existing.productionStatus, newStatus: productionStatus },
     });
+
+    if (requisitions.length > 0) {
+      await createNotificationForAdmins({
+        title: `${requisitions.length} purchase requisition(s) generated`,
+        body: `Order #${orderId} triggered automatic restock requisitions for low-stock materials.`,
+        type: "requisition",
+        link: `/admin/inventory`,
+      });
+    }
+
+    // When production finishes, notify the customer if a balance remains
+    // (bulk orders that only paid the 50% down payment).
+    if (productionStatus === "COMPLETED") {
+      const total = parseFloat(updatedOrder.total);
+      const paid = parseFloat(updatedOrder.amountPaid || 0);
+      const remaining = Math.max(total - paid, 0);
+
+      if (remaining > 0) {
+        const orderWithUser = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: { user: true },
+        });
+        await notifyFinalPaymentDue(orderWithUser, remaining);
+        if (orderWithUser.userId) {
+          await createNotification({
+            userId: orderWithUser.userId,
+            title: `Balance due — Order #${orderId}`,
+            body: `Production is complete. Remaining balance: ₱${remaining.toFixed(2)}.`,
+            type: "payment_due",
+            link: `/orders/${orderId}`,
+          });
+        }
+      }
+    }
 
     return res.json({
       message: "Production status updated",
@@ -1764,6 +1830,99 @@ app.patch("/api/production/requisitions/:id", requireAuth(prisma), requireRole("
     console.error("Requisition update error:", e.message);
     if (e.code === "P2025") return res.status(404).json({ message: "Requisition not found" });
     return res.status(500).json({ message: "Failed to update requisition" });
+  }
+});
+
+// GET /api/production/requisitions/:id/document — plain-text restock sheet for printing/emailing
+app.get("/api/production/requisitions/:id/document", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  try {
+    const requisition = await prisma.purchaseRequisition.findUnique({
+      where: { id: parseInt(req.params.id) },
+    });
+    if (!requisition) return res.status(404).json({ message: "Requisition not found" });
+
+    res.set("Content-Type", "text/plain");
+    return res.send(requisition.documentText);
+  } catch (e) {
+    console.error("Requisition document error:", e.message);
+    return res.status(500).json({ message: "Failed to fetch requisition document" });
+  }
+});
+
+// GET /api/notifications — current user's notifications, paginated
+app.get("/api/notifications", requireAuth(prisma), async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const [notifications, unreadCount, total] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId: req.actor.id },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.notification.count({ where: { userId: req.actor.id, isRead: false } }),
+      prisma.notification.count({ where: { userId: req.actor.id } }),
+    ]);
+
+    res.json({
+      notifications,
+      unreadCount,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
+  } catch (e) {
+    console.error("Notifications fetch error:", e.message);
+    res.status(500).json({ message: "Failed to fetch notifications" });
+  }
+});
+
+// GET /api/notifications/unread-count — lightweight badge-count check
+app.get("/api/notifications/unread-count", requireAuth(prisma), async (req, res) => {
+  try {
+    const unreadCount = await prisma.notification.count({
+      where: { userId: req.actor.id, isRead: false },
+    });
+    res.json({ unreadCount });
+  } catch (e) {
+    console.error("Unread count error:", e.message);
+    res.status(500).json({ message: "Failed to fetch unread count" });
+  }
+});
+
+// PATCH /api/notifications/:id/read — mark a single notification read
+app.patch("/api/notifications/:id/read", requireAuth(prisma), async (req, res) => {
+  try {
+    const notification = await prisma.notification.findUnique({
+      where: { id: parseInt(req.params.id) },
+    });
+    if (!notification || notification.userId !== req.actor.id) {
+      return res.status(404).json({ message: "Notification not found" });
+    }
+
+    const updated = await prisma.notification.update({
+      where: { id: notification.id },
+      data: { isRead: true },
+    });
+    res.json({ notification: updated });
+  } catch (e) {
+    console.error("Notification read error:", e.message);
+    res.status(500).json({ message: "Failed to update notification" });
+  }
+});
+
+// PATCH /api/notifications/mark-all-read
+app.patch("/api/notifications/mark-all-read", requireAuth(prisma), async (req, res) => {
+  try {
+    await prisma.notification.updateMany({
+      where: { userId: req.actor.id, isRead: false },
+      data: { isRead: true },
+    });
+    res.json({ message: "All notifications marked as read" });
+  } catch (e) {
+    console.error("Mark-all-read error:", e.message);
+    res.status(500).json({ message: "Failed to mark notifications as read" });
   }
 });
 
@@ -2799,6 +2958,15 @@ app.put("/api/orders/:id", async (req, res) => {
     }
 
     const notification = status ? await notifyOrderStatus(order, status) : null;
+    if (status && order.userId) {
+      await createNotification({
+        userId: order.userId,
+        title: `Order #${order.id} updated`,
+        body: `Your order status is now "${ORDER_STATUS_LABELS[status] || status}".`,
+        type: "order_status",
+        link: `/orders/${order.id}`,
+      });
+    }
 
     await logActivity({
       actor: req.actor,
@@ -2898,6 +3066,16 @@ app.post("/api/orders/:id/approve-design", async (req, res) => {
       },
     });
     const notification = await notifyDesignApproval(order);
+
+    if (order.userId) {
+      await createNotification({
+        userId: order.userId,
+        title: `Design approved — Order #${order.id}`,
+        body: `Your design has been approved. You can now proceed with payment.`,
+        type: "design_approved",
+        link: `/orders/${order.id}`,
+      });
+    }
 
     await logActivity({
       actor: req.actor,
