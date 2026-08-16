@@ -29,6 +29,8 @@ const {
   customerBillingForOrder,
   generateLineItems,
   createSessionPayload,
+  generatePartialPaymentLineItem,
+  createPartialSessionPayload,
   createCheckoutSession,
   createQrphPayment,
   retrievePaymentIntent,
@@ -48,6 +50,8 @@ const {
   getCustomerName,
   ORDER_STATUS_LABELS,
   PRODUCTION_STATUSES,
+  getRequiredPaymentAmount,
+  getPaymentPhaseLabel,
 } = require("./services/order");
 
 const { 
@@ -2825,7 +2829,7 @@ app.post("/api/orders/:id/onsite-payment", async (req, res) => {
     const { payment_reference } = req.body || {};
     const existing = await prisma.order.findUnique({
       where: { id: parseInt(req.params.id) },
-      select: { id: true, proofApproved: true, deleted_at: true },
+      select: { id: true, proofApproved: true, deleted_at: true, total: true, amountPaid: true, isBulkOrder: true },
     });
     if (!existing || existing.deleted_at) {
       return res.status(404).json({ message: "Order not found" });
@@ -2837,14 +2841,19 @@ app.post("/api/orders/:id/onsite-payment", async (req, res) => {
       });
     }
 
+    const requiredAmount = getRequiredPaymentAmount(existing);
+    const newAmountPaid = parseFloat(existing.amountPaid || 0) + requiredAmount;
+    const isFullyPaid = newAmountPaid >= parseFloat(existing.total);
+
     const order = await prisma.order.update({
       where: { id: parseInt(req.params.id) },
       data: {
-        payment_status: "paid",
+        payment_status: isFullyPaid ? "paid" : "partially_paid",
         status: "confirmed",
         payment_method: "onsite",
         payment_reference:
           payment_reference || `ONSITE-${Date.now()}-${req.params.id}`,
+        amountPaid: newAmountPaid,
       },
       include: {
         user: true,
@@ -3639,6 +3648,36 @@ app.get("/api/orders/:id/receipt", async (req, res) => {
   }
 });
 
+// GET /api/orders/:id/payment-summary — payment breakdown for order-detail UI
+app.get("/api/orders/:id/payment-summary", async (req, res) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: parseInt(req.params.id) },
+    });
+    if (!order || order.deleted_at) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const total = parseFloat(order.total);
+    const amountPaid = parseFloat(order.amountPaid || 0);
+    const remaining = Math.max(total - amountPaid, 0);
+
+    res.json({
+      total,
+      amountPaid,
+      remaining,
+      isBulkOrder: order.isBulkOrder,
+      paymentStatus: order.payment_status,
+      requiredNow: getRequiredPaymentAmount(order),
+      phaseLabel: getPaymentPhaseLabel(order),
+      isFullyPaid: remaining <= 0,
+    });
+  } catch (e) {
+    console.error("Payment summary error:", e.message);
+    res.status(500).json({ message: "Failed to fetch payment summary" });
+  }
+});
+
 app.post("/api/orders/:id/return-complaint", async (req, res) => {
   const orderId = parseInt(req.params.id);
   const { userId, reason, details } = req.body;
@@ -3730,6 +3769,11 @@ app.post("/api/payments/checkout", async (req, res) => {
       });
     }
 
+    const requiredAmount = getRequiredPaymentAmount(order);
+    if (requiredAmount <= 0) {
+      return res.status(400).json({ message: "Order already paid in full" });
+    }
+
     const publicFrontendUrl =
       process.env.FRONTEND_URL || "https://project-n80jh.vercel.app";
     const paymentReturnBase =
@@ -3746,17 +3790,27 @@ app.post("/api/payments/checkout", async (req, res) => {
       return `${paymentReturnBase}${separator}payment/return?orderId=${order.id}&status=${status}`;
     };
 
-    const lineItems = generateLineItems(
-      order,
-      publicFrontendUrl,
-      compactCheckout
-    );
-    const sessionPayload = createSessionPayload(
-      order,
-      lineItems,
-      paymentMethods,
-      buildPaymentReturnUrl
-    );
+    const lineItems = order.isBulkOrder
+      ? generatePartialPaymentLineItem(
+          order,
+          requiredAmount,
+          getPaymentPhaseLabel(order)
+        )
+      : generateLineItems(order, publicFrontendUrl, compactCheckout);
+
+    const sessionPayload = order.isBulkOrder
+      ? createPartialSessionPayload(
+          order,
+          lineItems,
+          paymentMethods,
+          buildPaymentReturnUrl
+        )
+      : createSessionPayload(
+          order,
+          lineItems,
+          paymentMethods,
+          buildPaymentReturnUrl
+        );
 
     const pmData = await createCheckoutSession(sessionPayload);
     const sessionId = pmData.data.id;
@@ -3773,6 +3827,7 @@ app.post("/api/payments/checkout", async (req, res) => {
         paymongo_session_id: compositeSessionId,
         checkout_url: checkoutUrl,
         payment_status: "awaiting_payment",
+        pendingPaymentAmount: requiredAmount,
       },
     });
 
@@ -3812,9 +3867,14 @@ app.post("/api/payments/qrph", async (req, res) => {
       });
     }
 
-    const amount = Math.round(parseFloat(order.total) * 100);
+    const requiredAmount = getRequiredPaymentAmount(order);
+    if (requiredAmount <= 0) {
+      return res.status(400).json({ message: "Order already paid in full" });
+    }
+
+    const amount = Math.round(requiredAmount * 100);
     if (!Number.isFinite(amount) || amount <= 0) {
-      return res.status(400).json({ message: "Invalid order total" });
+      return res.status(400).json({ message: "Invalid payment amount" });
     }
 
     const { intentId, clientKey, qrImageUrl } = await createQrphPayment(
@@ -3835,6 +3895,7 @@ app.post("/api/payments/qrph", async (req, res) => {
         checkout_url: null,
         payment_status: "awaiting_payment",
         payment_method: "qrph",
+        pendingPaymentAmount: requiredAmount,
       },
     });
 
@@ -3898,16 +3959,24 @@ app.get("/api/payments/:orderId/status", async (req, res) => {
       });
 
       if (attrs.status === "succeeded" || paidPayment) {
+        const chargedAmount = order.pendingPaymentAmount != null
+          ? parseFloat(order.pendingPaymentAmount)
+          : parseFloat(order.total);
+        const newAmountPaid = parseFloat(order.amountPaid || 0) + chargedAmount;
+        const isFullyPaid = newAmountPaid >= parseFloat(order.total);
+
         const paidOrder = await prisma.order.update({
           where: { id: orderId },
           data: {
-            payment_status: "paid",
+            payment_status: isFullyPaid ? "paid" : "partially_paid",
             status: "confirmed",
             payment_method:
               paidPayment?.attributes?.source?.type ||
               attrs.payment_method_allowed?.[0] ||
               "qrph",
             payment_reference: paidPayment?.id || order.paymongo_session_id,
+            amountPaid: newAmountPaid,
+            pendingPaymentAmount: null,
           },
           include: {
             user: true,
@@ -3924,7 +3993,7 @@ app.get("/api/payments/:orderId/status", async (req, res) => {
         const emailSent = paymentNotification?.status === "sent";
 
         return res.json({
-          payment_status: "paid",
+          payment_status: paidOrder.payment_status,
           order: paidOrder,
           receipt: buildReceiptPayload(paidOrder, undefined, emailSent),
           notifications: [paymentNotification, statusNotification],
@@ -3993,13 +4062,21 @@ app.get("/api/payments/:orderId/status", async (req, res) => {
           const reference =
             payments.length > 0 ? payments[0].id : order.paymongo_session_id;
 
+          const chargedAmount = order.pendingPaymentAmount != null
+            ? parseFloat(order.pendingPaymentAmount)
+            : parseFloat(order.total);
+          const newAmountPaid = parseFloat(order.amountPaid || 0) + chargedAmount;
+          const isFullyPaid = newAmountPaid >= parseFloat(order.total);
+
           const paidOrder = await prisma.order.update({
             where: { id: orderId },
             data: {
-              payment_status: "paid",
+              payment_status: isFullyPaid ? "paid" : "partially_paid",
               status: "confirmed",
               payment_method: pmPaymentMethod,
               payment_reference: reference,
+              amountPaid: newAmountPaid,
+              pendingPaymentAmount: null,
             },
             include: {
               user: true,
@@ -4016,7 +4093,7 @@ app.get("/api/payments/:orderId/status", async (req, res) => {
           const emailSent = paymentNotification?.status === "sent";
 
           return res.json({
-            payment_status: "paid",
+            payment_status: paidOrder.payment_status,
             order: paidOrder,
             receipt: buildReceiptPayload(paidOrder, undefined, emailSent),
             notifications: [paymentNotification, statusNotification],
@@ -4121,13 +4198,28 @@ app.post(
             attrs.payment_method_type || attrs.source?.type || null;
           const paymentReference = eventData?.id || null;
 
+          const orderForPayment = await prisma.order.findUnique({
+            where: { id: orderId },
+            select: { total: true, amountPaid: true, pendingPaymentAmount: true },
+          });
+
+          const chargedAmount = orderForPayment?.pendingPaymentAmount != null
+            ? parseFloat(orderForPayment.pendingPaymentAmount)
+            : parseFloat(orderForPayment?.total ?? 0);
+          const newAmountPaid =
+            parseFloat(orderForPayment?.amountPaid ?? 0) + chargedAmount;
+          const isFullyPaid =
+            newAmountPaid >= parseFloat(orderForPayment?.total ?? 0);
+
           const paidOrder = await prisma.order.update({
             where: { id: orderId },
             data: {
-              payment_status: "paid",
+              payment_status: isFullyPaid ? "paid" : "partially_paid",
               status: "confirmed",
               payment_method: paymentMethod,
               payment_reference: paymentReference,
+              amountPaid: newAmountPaid,
+              pendingPaymentAmount: null,
             },
             include: {
               user: true,

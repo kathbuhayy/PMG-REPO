@@ -190,6 +190,7 @@ model Order {
   payment_status       String      @default("unpaid")
   isBulkOrder          Boolean     @default(false) @map("is_bulk_order")
   amountPaid           Decimal     @default(0) @db.Decimal(14,2) @map("amount_paid")
+  pendingPaymentAmount Decimal?    @db.Decimal(14,2) @map("pending_payment_amount")
   payment_method       String?
   payment_reference    String?
   paymongo_session_id  String?

@@ -250,6 +250,51 @@ const createSessionPayload = (
   };
 };
 
+// Builds a single line item representing a partial (down/final) payment
+// amount for bulk orders, instead of itemizing individual products.
+const generatePartialPaymentLineItem = (order, amount, phaseLabel) => {
+  return [
+    {
+      currency: "PHP",
+      amount: Math.round(amount * 100), // centavos
+      name: `${phaseLabel} — Order #${order.id}`,
+      quantity: 1,
+    },
+  ];
+};
+
+// Builds the checkout session payload for a partial (down/final) bulk-order
+// payment. Unlike createSessionPayload, this does NOT add a shipping line —
+// the single line item already equals the exact amount due.
+const createPartialSessionPayload = (
+  order,
+  lineItems,
+  paymentMethods,
+  buildPaymentReturnUrl
+) => {
+  const checkoutPaymentMethods = paymongoPaymentMethods(paymentMethods);
+
+  return {
+    data: {
+      attributes: {
+        line_items: lineItems,
+        payment_method_types: checkoutPaymentMethods,
+        success_url: buildPaymentReturnUrl("success"),
+        cancel_url: buildPaymentReturnUrl("cancelled"),
+        description: `PrintHub Order #${order.id}`,
+        reference_number: String(order.id),
+        metadata: { order_id: String(order.id) },
+        billing: order.billing_address
+          ? {
+              name: `Order #${order.id}`,
+              address: { line1: order.billing_address, country: "PH" },
+            }
+          : undefined,
+      },
+    },
+  };
+};
+
 // Creates a PayMongo Checkout Session and returns response session details
 const createCheckoutSession = async (sessionPayload) => {
   return paymongoRequest("/checkout_sessions", {
@@ -444,6 +489,8 @@ module.exports = {
   customerBillingForOrder,
   generateLineItems,
   createSessionPayload,
+  generatePartialPaymentLineItem,
+  createPartialSessionPayload,
   createCheckoutSession,
   createQrphPayment,
   retrievePaymentIntent,
