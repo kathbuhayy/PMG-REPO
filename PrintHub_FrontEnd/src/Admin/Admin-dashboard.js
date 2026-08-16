@@ -1,5 +1,26 @@
-// Admin-dashboard.js (FULL UPDATED FILE — adds Logout confirmation modal ONLY, no other UI/layout changes)
-import React, { useState, useMemo, useEffect } from "react";
+// Admin-dashboard.js (FULL UPDATED FILE)
+// Redesigned to match the PMG Printing House dashboard mock: new dark sidebar
+// with grouped navigation (MAIN / PRODUCTION / INVENTORY / CUSTOMERS & STAFF /
+// FINANCE / REPORTS / COMMUNICATION / SETTINGS), a richer Dashboard tab
+// (stat cards, production overview donut, urgent actions, today's schedule,
+// low stock table, recent orders, sales overview chart).
+//
+// WHAT'S REAL vs MOCK
+// - Today's Revenue, Pending Orders, Low Stock Items, Orders/Customers/Avg Order
+//   footer stats, and the Low Stock table all use your existing API data.
+// - "In Production" and "Recent Orders" are best-effort from /api/admin/orders
+//   (status === "processing", sorted by created_at) — adjust the field names
+//   in fetchDashboardStats() if your order objects use different keys.
+// - Everything under MOCK_DASHBOARD (Deliveries/Pickup, Production Overview
+//   donut breakdown, Urgent Actions, Today's Production Schedule, Sales
+//   Overview trend, sidebar badge counts for Quotations/Design Approvals) is
+//   placeholder data structured so it's easy to swap for real endpoints later.
+// - Sidebar items with no backend/page yet (Quotations, Design Approvals,
+//   Production Queue, Print Jobs, Quality Control, Inventory, Users & Staff,
+//   Payments, Reports & Analytics, System Settings) render a <ComingSoonPanel />
+//   instead of breaking the route.
+
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import "./Admin-dashboard.css";
@@ -37,108 +58,164 @@ import {
   FaUsers,
   FaUser,
   FaSignOutAlt,
-  FaHistory
+  FaHistory,
+  FaFileInvoiceDollar,
+  FaClipboardCheck,
+  FaListOl,
+  FaPrint,
+  FaCheckDouble,
+  FaWarehouse,
+  FaUserCog,
+  FaMoneyCheckAlt,
+  FaChartBar,
+  FaCog,
+  FaSearch,
+  FaBell,
+  FaSyncAlt,
+  FaChevronDown,
+  FaTruck,
+  FaTools,
 } from "react-icons/fa";
 
-// Resolves the normalized category key for customizer mapping
-const getCustomizerCategoryKey = (category) => {
-  const norm = String(category || "").toLowerCase();
-  if (norm === "tshirt" || norm === "t-shirts") return "T-shirts";
-  if (norm === "jersey" || norm === "jersery") return "Jersey";
-  if (norm === "cap" || norm === "hat") return "Cap";
-  if (norm === "mug" || norm === "mugs") return "Mug";
-  if (norm === "notebook") return "Notebook";
-  if (norm === "calling_card" || norm === "business_card") return "Business Card";
-  if (norm === "brochures") return "Brochures";
-  if (norm === "hang_tags") return "Hang Tags";
-  if (norm === "banners") return "Banners";
-  return null;
+// ─────────────────────────────────────────────────────────────────────────
+// MOCK DATA — clearly isolated so it's easy to find/replace with real API
+// calls later. Nothing here should be treated as production data.
+// ─────────────────────────────────────────────────────────────────────────
+const MOCK_DASHBOARD = {
+  deliveriesPickup: 5,
+  revenueChangePercent: 12.5,
+  sidebarBadges: {
+    quotations: 8,
+    designApprovals: 4,
+  },
+  notificationCount: 7,
+  productionOverview: [
+    { id: "pending", label: "Pending", value: 12, color: "#3b82f6" },
+    { id: "in_production", label: "In Production", value: 8, color: "#2563eb" },
+    { id: "quality_check", label: "Quality Check", value: 4, color: "#f59e0b" },
+    { id: "ready", label: "Ready for Release", value: 9, color: "#eab308" },
+    { id: "completed", label: "Completed Today", value: 21, color: "#10b981" },
+  ],
+  urgentActions: [
+    {
+      id: "deadline",
+      tone: "red",
+      icon: <FaExclamationTriangle />,
+      title: "2 orders are approaching their deadline",
+      subtitle: "Check production queue",
+      actionLabel: "View Jobs",
+      actionTab: "productionQueue",
+    },
+    {
+      id: "lowstock",
+      tone: "amber",
+      icon: <FaBoxOpen />,
+      title: "3 products are running low on stock",
+      subtitle: "Update inventory or create purchase order",
+      actionLabel: "View Inventory",
+      actionTab: "inventory",
+    },
+    {
+      id: "designs",
+      tone: "blue",
+      icon: <FaClipboardCheck />,
+      title: "4 designs waiting for approval",
+      subtitle: "Customer designs need your review",
+      actionLabel: "Review Designs",
+      actionTab: "designApprovals",
+    },
+    {
+      id: "payments",
+      tone: "green",
+      icon: <FaMoneyCheckAlt />,
+      title: "2 payment verifications pending",
+      subtitle: "Payment proof needs confirmation",
+      actionLabel: "View Payments",
+      actionTab: "payments",
+    },
+  ],
+  todaysSchedule: [
+    {
+      id: "PJ-1045",
+      time: "10:00 AM",
+      title: "T-Shirt Printing (50 pcs)",
+      staff: "Kat",
+      status: "In Production",
+      statusTone: "amber",
+      progress: 60,
+    },
+    {
+      id: "PJ-1046",
+      time: "1:00 PM",
+      title: "Flyers (500 pcs)",
+      staff: "Patrizia",
+      status: "Quality Check",
+      statusTone: "blue",
+      progress: 75,
+    },
+    {
+      id: "PJ-1047",
+      time: "3:00 PM",
+      title: "Business Cards (200 pcs)",
+      staff: "Rica",
+      status: "Pending",
+      statusTone: "grey",
+      progress: 0,
+    },
+  ],
+  // Simple relative trend line (not tied to real dates yet)
+  salesOverviewTrend: [10, 13, 12, 16, 15, 19, 18, 22, 21, 25, 24, 28, 27, 31],
 };
 
-// Generates valid side options based on category and enabled print zones
-const generateSideOptions = (category, zones) => {
-  const norm = String(category || "").toLowerCase();
-  const options = [];
-
-  if (norm === "tshirt" || norm === "t-shirts") {
-    if (zones.includes("front")) options.push("Front Chest");
-    if (zones.includes("back")) options.push("Back");
-    if (zones.includes("front") && zones.includes("back")) {
-      options.push("Front & Back");
-    }
-    if (zones.includes("left_sleeve") || zones.includes("right_sleeve")) {
-      options.push("Sleeve");
-    }
-    if (
-      zones.includes("front") &&
-      zones.includes("back") &&
-      zones.includes("left_sleeve") &&
-      zones.includes("right_sleeve")
-    ) {
-      options.push("Full Body Wrap");
-    }
-  } else if (norm === "jersey" || norm === "jersery") {
-    if (zones.includes("front")) options.push("Front");
-    if (zones.includes("back")) options.push("Back");
-    if (zones.includes("front") && zones.includes("back")) {
-      options.push("Front & Back");
-    }
-    if (zones.includes("left_sleeve")) options.push("Sleeve (Left)");
-    if (zones.includes("right_sleeve")) options.push("Sleeve (Right)");
-    if (
-      zones.includes("front") &&
-      zones.includes("back") &&
-      zones.includes("left_sleeve") &&
-      zones.includes("right_sleeve")
-    ) {
-      options.push("Full Sublimation");
-    }
-  } else if (norm === "cap" || norm === "hat") {
-    if (zones.includes("front")) options.push("Front Center");
-    if (zones.includes("back")) options.push("Back Closure");
-    if (zones.includes("left_side")) options.push("Left Side");
-    if (zones.includes("right_side")) options.push("Right Side");
-    if (
-      zones.includes("front") &&
-      zones.includes("back") &&
-      zones.includes("left_side") &&
-      zones.includes("right_side")
-    ) {
-      options.push("Full Panel");
-    }
-  } else if (norm === "mug" || norm === "mugs") {
-    if (zones.includes("front")) options.push("Front Only");
-    if (zones.includes("back")) options.push("Back");
-    if (zones.includes("wrap")) options.push("360° Wrap");
-    if (zones.includes("front") && zones.includes("back")) {
-      options.push("Front & Back");
-      options.push("Two Sides");
-    }
-  } else if (norm === "notebook") {
-    if (zones.includes("front_cover")) options.push("Single Side");
-    if (zones.includes("front_cover") && zones.includes("back_cover")) {
-      options.push("Double Side");
-    }
-  } else if (norm === "calling_card" || norm === "business_card") {
-    if (zones.includes("front")) options.push("Single Side");
-    if (zones.includes("front") && zones.includes("back")) {
-      options.push("Double Side");
-    }
-  } else if (norm === "brochures") {
-    if (zones.includes("front") && zones.includes("back")) {
-      options.push("Double Side");
-    }
-  } else if (norm === "hang_tags") {
-    if (zones.includes("front")) options.push("Single Side");
-    if (zones.includes("front") && zones.includes("back")) {
-      options.push("Double Side");
-    }
-  } else if (norm === "banners") {
-    if (zones.includes("front")) options.push("Single Side");
-  }
-
-  return options;
+// Builds a CSS conic-gradient string from [{ value, color }]
+const buildConicGradient = (segments) => {
+  const total = segments.reduce((sum, s) => sum + s.value, 0) || 1;
+  let cursor = 0;
+  const stops = segments.map((seg) => {
+    const start = (cursor / total) * 360;
+    cursor += seg.value;
+    const end = (cursor / total) * 360;
+    return `${seg.color} ${start}deg ${end}deg`;
+  });
+  return `conic-gradient(${stops.join(", ")})`;
 };
+
+// Builds an SVG path string for a simple line/area chart from an array of numbers
+const buildSparklinePath = (points, width, height, padding = 6) => {
+  if (!points || points.length === 0) return { line: "", area: "" };
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = max - min || 1;
+  const stepX = (width - padding * 2) / (points.length - 1 || 1);
+  const coords = points.map((p, i) => {
+    const x = padding + i * stepX;
+    const y =
+      height - padding - ((p - min) / range) * (height - padding * 2);
+    return [x, y];
+  });
+  const line = coords
+    .map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(" ");
+  const area = `${line} L${coords[coords.length - 1][0].toFixed(1)},${(
+    height - padding
+  ).toFixed(1)} L${coords[0][0].toFixed(1)},${(height - padding).toFixed(1)} Z`;
+  return { line, area };
+};
+
+// Small reusable placeholder for sidebar destinations that don't have a
+// backing page/component yet.
+function ComingSoonPanel({ title, icon }) {
+  return (
+    <div className="coming-soon">
+      <div className="coming-soon-icon">{icon || <FaTools />}</div>
+      <h3>{title}</h3>
+      <p>
+        This section isn't wired up yet. Once the backend endpoint and page
+        for &ldquo;{title}&rdquo; are ready, this is where they'll go.
+      </p>
+    </div>
+  );
+}
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -160,10 +237,10 @@ function AdminDashboard() {
   // ✅ Mobile sidebar drawer
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // ✅ NEW: Logout confirm modal
+  // ✅ Logout confirm modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // ✅ NEW: Add Product modal
+  // ✅ Add Product modal
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [refreshProductsKey, setRefreshProductsKey] = useState(0);
   const [productForm, setProductForm] = useState({
@@ -202,7 +279,7 @@ function AdminDashboard() {
   const [addImageUploading, setAddImageUploading] = useState(false);
   const [addImageError, setAddImageError] = useState("");
 
-  // ✅ NEW: Dashboard stats from API
+  // ✅ Dashboard stats from API
   const [dashStats, setDashStats] = useState({
     totalRevenue: 0,
     totalOrders: 0,
@@ -210,6 +287,10 @@ function AdminDashboard() {
     totalUsers: 0,
   });
   const [, setStatsLoading] = useState(true);
+  // Best-effort derived data (see header notes for field-name caveats)
+  const [inProductionCount, setInProductionCount] = useState(0);
+  const [recentOrders, setRecentOrders] = useState([]);
+
   // Low stock state
   const [lowStock, setLowStock] = useState({ products: [], pagination: {} });
   const [outOfStockCount, setOutOfStockCount] = useState(0);
@@ -234,109 +315,152 @@ function AdminDashboard() {
   }, []);
 
   // Fetch low-stock products for dashboard
-  useEffect(() => {
-    const fetchLowStock = async () => {
-      try {
-        setLowStockLoading(true);
-        const threshold = 10; // default threshold
-        const limit = 5; // show top 5 on dashboard
-        const res = await adminFetch(
-          buildApiUrl(
-            `/api/admin/low-stock?threshold=${threshold}&limit=${limit}`,
-          ),
-        );
-        if (!res.ok) throw new Error("Failed to fetch low-stock");
-        const data = await res.json();
-        setLowStock({
-          products: data.products || [],
-          pagination: data.pagination || {},
-        });
-        setOutOfStockCount(data.outOfStockCount || 0);
-      } catch (err) {
-        console.error("Error fetching low-stock:", err);
-      } finally {
-        setLowStockLoading(false);
-      }
-    };
+  const fetchLowStock = useCallback(async () => {
+    try {
+      setLowStockLoading(true);
+      const threshold = 10; // default threshold
+      const limit = 5; // show top 5 on dashboard
+      const res = await adminFetch(
+        buildApiUrl(
+          `/api/admin/low-stock?threshold=${threshold}&limit=${limit}`,
+        ),
+      );
+      if (!res.ok) throw new Error("Failed to fetch low-stock");
+      const data = await res.json();
+      setLowStock({
+        products: data.products || [],
+        pagination: data.pagination || {},
+      });
+      setOutOfStockCount(data.outOfStockCount || 0);
+    } catch (err) {
+      console.error("Error fetching low-stock:", err);
+    } finally {
+      setLowStockLoading(false);
+    }
+  }, []);
 
+  useEffect(() => {
     fetchLowStock();
     const lsInterval = setInterval(fetchLowStock, 30000);
     return () => clearInterval(lsInterval);
-  }, []);
+  }, [fetchLowStock]);
 
   // Fetch out-of-stock products for dashboard
-  useEffect(() => {
-    const fetchOutOfStock = async () => {
-      try {
-        setOutOfStockLoading(true);
-        const threshold = 0;
-        const limit = 5;
-        const res = await adminFetch(
-          buildApiUrl(
-            `/api/admin/low-stock?threshold=${threshold}&limit=${limit}`,
-          ),
-        );
-        if (!res.ok) throw new Error("Failed to fetch out-of-stock");
-        const data = await res.json();
-        setOutOfStock({
-          products: data.products || [],
-          pagination: data.pagination || {},
-        });
-      } catch (err) {
-        console.error("Error fetching out-of-stock:", err);
-      } finally {
-        setOutOfStockLoading(false);
-      }
-    };
+  const fetchOutOfStock = useCallback(async () => {
+    try {
+      setOutOfStockLoading(true);
+      const threshold = 0;
+      const limit = 5;
+      const res = await adminFetch(
+        buildApiUrl(
+          `/api/admin/low-stock?threshold=${threshold}&limit=${limit}`,
+        ),
+      );
+      if (!res.ok) throw new Error("Failed to fetch out-of-stock");
+      const data = await res.json();
+      setOutOfStock({
+        products: data.products || [],
+        pagination: data.pagination || {},
+      });
+    } catch (err) {
+      console.error("Error fetching out-of-stock:", err);
+    } finally {
+      setOutOfStockLoading(false);
+    }
+  }, []);
 
+  useEffect(() => {
     fetchOutOfStock();
     const oosInterval = setInterval(fetchOutOfStock, 30000);
     return () => clearInterval(oosInterval);
+  }, [fetchOutOfStock]);
+
+  // ✅ Fetch dashboard stats from API
+  const fetchDashboardStats = useCallback(async () => {
+    try {
+      setStatsLoading(true);
+      const [ordersRes, usersRes] = await Promise.all([
+        adminFetch(buildApiUrl("/api/admin/orders")),
+        adminFetch(buildApiUrl("/api/admin/users")),
+      ]);
+
+      const ordersData = await ordersRes.json();
+      const usersData = await usersRes.json();
+
+      const ordersList = Array.isArray(ordersData) ? ordersData : [];
+
+      // Calculate stats
+      const totalOrders = ordersList.length;
+      const pendingOrders = ordersList.filter(
+        (o) => o.status === "pending",
+      ).length;
+      const totalRevenue = ordersList
+        .filter((o) => o.status === "completed")
+        .reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+      const totalUsers = Array.isArray(usersData)
+        ? usersData.length
+        : (usersData?.users?.length ?? 0);
+
+      // Best-effort "in production" count — adjust the status string below
+      // if your orders use a different value (e.g. "in_production").
+      const inProduction = ordersList.filter(
+        (o) => String(o.status || "").toLowerCase() === "processing",
+      ).length;
+      setInProductionCount(inProduction);
+
+      // Best-effort recent orders list for the dashboard table — adjust the
+      // field names below to match your actual order object shape.
+      const sortedRecent = [...ordersList]
+        .sort(
+          (a, b) =>
+            new Date(b.created_at || b.createdAt || 0) -
+            new Date(a.created_at || a.createdAt || 0),
+        )
+        .slice(0, 5)
+        .map((o) => ({
+          id: o.order_number || o.orderNumber || `#${o.id ?? "—"}`,
+          customer:
+            o.customer_name ||
+            o.customerName ||
+            o.user?.name ||
+            o.user_name ||
+            "Customer",
+          total: parseFloat(o.total || 0),
+          status: o.status || "pending",
+        }));
+      setRecentOrders(sortedRecent);
+
+      setDashStats({
+        totalRevenue,
+        totalOrders,
+        pendingOrders,
+        totalUsers,
+      });
+    } catch (err) {
+      console.error("Error fetching dashboard stats:", err);
+    } finally {
+      setStatsLoading(false);
+    }
   }, []);
 
-  // ✅ NEW: Fetch dashboard stats from API
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setStatsLoading(true);
-        const [ordersRes, usersRes] = await Promise.all([
-          adminFetch(buildApiUrl("/api/admin/orders")),
-          adminFetch(buildApiUrl("/api/admin/users")),
-        ]);
-
-        const ordersData = await ordersRes.json();
-        const usersData = await usersRes.json();
-
-        // Calculate stats
-        const totalOrders = ordersData.length;
-        const pendingOrders = ordersData.filter(
-          (o) => o.status === "pending",
-        ).length;
-        const totalRevenue = ordersData
-          .filter((o) => o.status === "completed")
-          .reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
-        const totalUsers = Array.isArray(usersData)
-          ? usersData.length
-          : (usersData?.users?.length ?? 0);
-
-        setDashStats({
-          totalRevenue,
-          totalOrders,
-          pendingOrders,
-          totalUsers,
-        });
-      } catch (err) {
-        console.error("Error fetching dashboard stats:", err);
-      } finally {
-        setStatsLoading(false);
-      }
-    };
-
-    fetchStats();
+    fetchDashboardStats();
     // Refresh stats every 30 seconds
-    const interval = setInterval(fetchStats, 30000);
+    const interval = setInterval(fetchDashboardStats, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchDashboardStats]);
+
+  // ✅ Manual refresh (header button) — re-runs all dashboard fetches
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      fetchDashboardStats(),
+      fetchLowStock(),
+      fetchOutOfStock(),
+    ]);
+    setIsRefreshing(false);
+  };
 
   const storedUser = useMemo(() => {
     try {
@@ -407,56 +531,107 @@ function AdminDashboard() {
     }
   }, [sidebarUser, role, navigate]);
 
-  const menuItems = useMemo(() => {
-    const base = [
+  // ✅ Grouped sidebar navigation — mirrors the PMG Printing House dashboard
+  // design (MAIN / PRODUCTION / INVENTORY / CUSTOMERS & STAFF / FINANCE /
+  // REPORTS / COMMUNICATION / SETTINGS). Items without a real page yet fall
+  // back to <ComingSoonPanel /> below.
+  const menuGroups = useMemo(() => {
+    const groups = [
       {
-        id: "dashboard",
-        label: "Dashboard",
-        icon: <FaTachometerAlt />,
-      },
-      { id: "calendar", 
-        label: "Production Calendar", 
-        icon: <FaCalendarAlt /> 
-      },
-      {
-        id: "activity",
-        label: "Activity Log",
-        icon: <FaHistory />,
-      },
-      {
-        id: "orders",
-        label: "Orders",
-        icon: <FaShoppingBag />,
-      },
-      {
-        id: "inquiries",
-        label: "Inquiries",
-        icon: <FaEnvelope />,
-      },
-      {
-        id: "products",
-        label: "Products",
-        icon: <FaBoxOpen />,
-      },
-      {
-        id: "customers",
-        label: "Manage Accounts",
-        icon: <FaUsers />,
+        label: "MAIN",
+        items: [
+          { id: "dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
+          {
+            id: "orders",
+            label: "Orders",
+            icon: <FaShoppingBag />,
+            badge: dashStats.totalOrders || null,
+          },
+          {
+            id: "quotations",
+            label: "Quotations",
+            icon: <FaFileInvoiceDollar />,
+            badge: MOCK_DASHBOARD.sidebarBadges.quotations,
+          },
+          {
+            id: "designApprovals",
+            label: "Design Approvals",
+            icon: <FaClipboardCheck />,
+            badge: MOCK_DASHBOARD.sidebarBadges.designApprovals,
+          },
+        ],
       },
       {
-        id: "profile",
-        label: "Profile",
-        icon: <FaUser />,
+        label: "PRODUCTION",
+        items: [
+          { id: "productionQueue", label: "Production Queue", icon: <FaListOl /> },
+          { id: "printJobs", label: "Print Jobs", icon: <FaPrint /> },
+          { id: "calendar", label: "Production Calendar", icon: <FaCalendarAlt /> },
+          { id: "qualityControl", label: "Quality Control", icon: <FaCheckDouble /> },
+        ],
+      },
+      {
+        label: "INVENTORY",
+        items: [
+          {
+            id: "inventory",
+            label: "Inventory",
+            icon: <FaWarehouse />,
+            badge: lowStock.pagination.total || null,
+          },
+          { id: "products", label: "Products", icon: <FaBoxOpen /> },
+        ],
+      },
+      {
+        label: "CUSTOMERS & STAFF",
+        items: [
+          { id: "customers", label: "Customers", icon: <FaUsers /> },
+          { id: "usersStaff", label: "Users & Staff", icon: <FaUserCog /> },
+        ],
+      },
+      {
+        label: "FINANCE",
+        items: [
+          { id: "payments", label: "Payments", icon: <FaMoneyCheckAlt /> },
+        ],
+      },
+      {
+        label: "REPORTS",
+        items: [
+          { id: "reports", label: "Reports & Analytics", icon: <FaChartBar /> },
+        ],
+      },
+      {
+        label: "COMMUNICATION",
+        items: [{ id: "inquiries", label: "Inquiries", icon: <FaEnvelope /> }],
+      },
+      {
+        label: "SETTINGS",
+        items: [
+          { id: "activity", label: "Activity Log", icon: <FaHistory /> },
+          { id: "profile", label: "Profile", icon: <FaUser /> },
+          { id: "systemSettings", label: "System Settings", icon: <FaCog /> },
+        ],
       },
     ];
 
-    // Staff: remove Manage Accounts
+    // Staff: remove Manage Accounts (same restriction as before)
     if (role === "staff") {
-      return base.filter((i) => i.id !== "customers");
+      return groups
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.id !== "customers") }))
+        .filter((g) => g.items.length > 0);
     }
 
-    return base;
-  }, [role]);
+    return groups;
+  }, [role, dashStats.totalOrders, lowStock.pagination.total]);
+
+  const pageTitleMap = useMemo(() => {
+    const map = {};
+    menuGroups.forEach((g) => g.items.forEach((i) => (map[i.id] = i.label)));
+    return map;
+  }, [menuGroups]);
+
+  const pageTitle = pageTitleMap[activeItem] || "Dashboard";
 
   const handleMenuItemClick = (item) => {
     if (role === "staff" && item.id === "customers") return;
@@ -465,7 +640,7 @@ function AdminDashboard() {
     setIsMobileSidebarOpen(false);
   };
 
-  // ✅ unchanged logout logic moved here (same behavior)
+  // ✅ unchanged logout logic
   const doLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -484,12 +659,11 @@ function AdminDashboard() {
     setTimeout(() => navigate("/"), 100);
   };
 
-  // ✅ NEW: open confirm modal instead of immediate logout
   const handleLogout = () => {
     setShowLogoutModal(true);
   };
 
-  // ✅ NEW: Open add product modal
+  // ✅ Open add product modal
   const handleAddProduct = () => {
     setProductForm({
       name: "",
@@ -526,6 +700,106 @@ function AdminDashboard() {
     });
     setAddImageError("");
     setShowAddProductModal(true);
+  };
+
+  // Resolves the normalized category key for customizer mapping
+  const getCustomizerCategoryKey = (category) => {
+    const norm = String(category || "").toLowerCase();
+    if (norm === "tshirt" || norm === "t-shirts") return "T-shirts";
+    if (norm === "jersey" || norm === "jersery") return "Jersey";
+    if (norm === "cap" || norm === "hat") return "Cap";
+    if (norm === "mug" || norm === "mugs") return "Mug";
+    if (norm === "notebook") return "Notebook";
+    if (norm === "calling_card" || norm === "business_card") return "Business Card";
+    if (norm === "brochures") return "Brochures";
+    if (norm === "hang_tags") return "Hang Tags";
+    if (norm === "banners") return "Banners";
+    return null;
+  };
+
+  // Generates valid side options based on category and enabled print zones
+  const generateSideOptions = (category, zones) => {
+    const norm = String(category || "").toLowerCase();
+    const options = [];
+
+    if (norm === "tshirt" || norm === "t-shirts") {
+      if (zones.includes("front")) options.push("Front Chest");
+      if (zones.includes("back")) options.push("Back");
+      if (zones.includes("front") && zones.includes("back")) {
+        options.push("Front & Back");
+      }
+      if (zones.includes("left_sleeve") || zones.includes("right_sleeve")) {
+        options.push("Sleeve");
+      }
+      if (
+        zones.includes("front") &&
+        zones.includes("back") &&
+        zones.includes("left_sleeve") &&
+        zones.includes("right_sleeve")
+      ) {
+        options.push("Full Body Wrap");
+      }
+    } else if (norm === "jersey" || norm === "jersery") {
+      if (zones.includes("front")) options.push("Front");
+      if (zones.includes("back")) options.push("Back");
+      if (zones.includes("front") && zones.includes("back")) {
+        options.push("Front & Back");
+      }
+      if (zones.includes("left_sleeve")) options.push("Sleeve (Left)");
+      if (zones.includes("right_sleeve")) options.push("Sleeve (Right)");
+      if (
+        zones.includes("front") &&
+        zones.includes("back") &&
+        zones.includes("left_sleeve") &&
+        zones.includes("right_sleeve")
+      ) {
+        options.push("Full Sublimation");
+      }
+    } else if (norm === "cap" || norm === "hat") {
+      if (zones.includes("front")) options.push("Front Center");
+      if (zones.includes("back")) options.push("Back Closure");
+      if (zones.includes("left_side")) options.push("Left Side");
+      if (zones.includes("right_side")) options.push("Right Side");
+      if (
+        zones.includes("front") &&
+        zones.includes("back") &&
+        zones.includes("left_side") &&
+        zones.includes("right_side")
+      ) {
+        options.push("Full Panel");
+      }
+    } else if (norm === "mug" || norm === "mugs") {
+      if (zones.includes("front")) options.push("Front Only");
+      if (zones.includes("back")) options.push("Back");
+      if (zones.includes("wrap")) options.push("360° Wrap");
+      if (zones.includes("front") && zones.includes("back")) {
+        options.push("Front & Back");
+        options.push("Two Sides");
+      }
+    } else if (norm === "notebook") {
+      if (zones.includes("front_cover")) options.push("Single Side");
+      if (zones.includes("front_cover") && zones.includes("back_cover")) {
+        options.push("Double Side");
+      }
+    } else if (norm === "calling_card" || norm === "business_card") {
+      if (zones.includes("front")) options.push("Single Side");
+      if (zones.includes("front") && zones.includes("back")) {
+        options.push("Double Side");
+      }
+    } else if (norm === "brochures") {
+      if (zones.includes("front") && zones.includes("back")) {
+        options.push("Double Side");
+      }
+    } else if (norm === "hang_tags") {
+      if (zones.includes("front")) options.push("Single Side");
+      if (zones.includes("front") && zones.includes("back")) {
+        options.push("Double Side");
+      }
+    } else if (norm === "banners") {
+      if (zones.includes("front")) options.push("Single Side");
+    }
+
+    return options;
   };
 
   // Apply category template to productForm
@@ -678,23 +952,12 @@ function AdminDashboard() {
       showToast(err.message || "Error adding product", "error");
     }
   };
+
   useEffect(() => {
     if (role === "staff" && activeItem === "customers") {
       navigate("/admin/dashboard");
     }
   }, [role, activeItem, navigate]);
-
-  const pageTitle = useMemo(() => {
-    if (activeItem === "dashboard") return "Dashboard";
-    if (activeItem === "calendar") return "Production Calendar";
-    if (activeItem === "activity") return "Activity Log";
-    if (activeItem === "profile") return "Profile";
-    if (activeItem === "customers") return "Manage Accounts";
-    if (activeItem === "orders") return "Orders";
-    if (activeItem === "inquiries") return "Inquiries";
-    if (activeItem === "products") return "Products";
-    return "Dashboard";
-  }, [activeItem]);
 
   const isDetailsValid = useMemo(() => {
     return (
@@ -707,6 +970,72 @@ function AdminDashboard() {
   const isImagesValid = useMemo(() => {
     return productForm.images.length > 0;
   }, [productForm.images]);
+
+  // ── Dashboard derived visuals ─────────────────────────────────────────
+  const donutGradient = useMemo(
+    () => buildConicGradient(MOCK_DASHBOARD.productionOverview),
+    [],
+  );
+  const donutTotal = useMemo(
+    () =>
+      MOCK_DASHBOARD.productionOverview.reduce((s, x) => s + x.value, 0),
+    [],
+  );
+  const salesChart = useMemo(
+    () => buildSparklinePath(MOCK_DASHBOARD.salesOverviewTrend, 300, 100),
+    [],
+  );
+  const avgOrderValue = dashStats.totalOrders
+    ? dashStats.totalRevenue / dashStats.totalOrders
+    : 0;
+
+  const statCards = [
+    {
+      key: "revenue",
+      label: "Today's Revenue",
+      value: `₱${dashStats.totalRevenue.toLocaleString(undefined, {
+        maximumFractionDigits: 0,
+      })}`,
+      icon: <FaMoneyBillWave />,
+      tone: "green",
+      foot: `+${MOCK_DASHBOARD.revenueChangePercent}% vs yesterday`,
+    },
+    {
+      key: "pending",
+      label: "Pending Orders",
+      value: dashStats.pendingOrders,
+      icon: <FaShoppingBag />,
+      tone: "blue",
+      foot: "View all orders",
+      onClick: () => navigate("/admin/orders"),
+    },
+    {
+      key: "production",
+      label: "In Production",
+      value: inProductionCount,
+      icon: <FaPrint />,
+      tone: "indigo",
+      foot: "View production queue",
+      onClick: () => navigate("/admin/productionQueue"),
+    },
+    {
+      key: "deliveries",
+      label: "Deliveries / Pickup",
+      value: MOCK_DASHBOARD.deliveriesPickup,
+      icon: <FaTruck />,
+      tone: "orange",
+      foot: "Ready for release",
+    },
+    {
+      key: "lowstock",
+      label: "Low Stock Items",
+      value: lowStockLoading ? "…" : (lowStock.pagination.total ?? 0),
+      icon: <FaExclamationTriangle />,
+      tone: "red",
+      foot: "View inventory",
+      onClick: () => navigate("/admin/inventory"),
+    },
+  ];
 
   return (
     <div className="admin-dashboard">
@@ -726,7 +1055,7 @@ function AdminDashboard() {
         />
       )}
 
-      {/* ✅ NEW: Logout confirmation modal */}
+      {/* Logout confirmation modal */}
       {showLogoutModal &&
         createPortal(
           <div
@@ -764,7 +1093,7 @@ function AdminDashboard() {
           document.body,
         )}
 
-      {/* ✅ NEW: Add Product modal */}
+      {/* Add Product modal */}
       {showAddProductModal &&
         createPortal(
           <div
@@ -1007,26 +1336,6 @@ function AdminDashboard() {
                           rows="2"
                         />
                       </div>
-
-                      {/* <div className="dashform-group">
-                      <label>
-                        AI Prompt Rules{" "}
-                        <span style={{ color: "#9ca3af", fontWeight: "400" }}>
-                          (instructions the AI must follow)
-                        </span>
-                      </label>
-                      <textarea
-                        value={productForm.ai_prompt_rules}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            ai_prompt_rules: e.target.value,
-                          })
-                        }
-                        placeholder="Always use 300dpi. Bleed must be 0.125in..."
-                        rows="3"
-                      />
-                    </div> */}
                     </>
                   )}
 
@@ -1745,7 +2054,17 @@ function AdminDashboard() {
           }`}
       >
         <div className="sidebar-header">
-          {!isCollapsed && <h2 className="sidebar-title">Admin Panel</h2>}
+          {!isCollapsed && (
+            <div className="brand-block">
+              <span className="brand-mark">PM</span>
+              <div className="brand-text">
+                <h2 className="sidebar-title">
+                  PM<span className="brand-accent">G</span>
+                </h2>
+                <span className="brand-sub">PRINTING HOUSE</span>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             className="collapse-btn"
@@ -1763,7 +2082,7 @@ function AdminDashboard() {
                 {sidebarUser?.avatar_url ? (
                   <img src={sidebarUser.avatar_url} alt="avatar" />
                 ) : (
-                  <div>AD</div>
+                  <div>{(sidebarUser?.firstName || "A").charAt(0)}</div>
                 )}
               </div>
             </div>
@@ -1779,6 +2098,7 @@ function AdminDashboard() {
                     : "Customer"}
               </p>
             </div>
+            <span className="user-online-dot" title="Online" />
           </div>
         )}
 
@@ -1795,16 +2115,28 @@ function AdminDashboard() {
         )}
 
         <nav className="sidebar-menu">
-          {menuItems.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              className={`menu-item ${activeItem === item.id ? "active" : ""}`}
-              onClick={() => handleMenuItemClick(item)}
-            >
-              <span className="menu-icon">{item.icon}</span>
-              {!isCollapsed && <span className="menu-label">{item.label}</span>}
-            </button>
+          {menuGroups.map((group) => (
+            <div className="sidebar-group" key={group.label}>
+              {!isCollapsed && (
+                <div className="sidebar-group-label">{group.label}</div>
+              )}
+              {group.items.map((item) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={`menu-item ${activeItem === item.id ? "active" : ""}`}
+                  onClick={() => handleMenuItemClick(item)}
+                >
+                  <span className="menu-icon">{item.icon}</span>
+                  {!isCollapsed && (
+                    <span className="menu-label">{item.label}</span>
+                  )}
+                  {!isCollapsed && item.badge ? (
+                    <span className="menu-badge">{item.badge}</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -1834,26 +2166,50 @@ function AdminDashboard() {
 
               <div className="page-title-wrap">
                 <h1 className="page-title">{pageTitle}</h1>
+                {activeItem === "dashboard" && (
+                  <p className="subtitle">
+                    Overview of your printing business operations.
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* ✅ top button ONLY (this is the one you want to keep) */}
-          {/* <div className="header-actions">
-            {activeItem === "products" && (
-              <button
-                className="header-pill"
-                type="button"
-                onClick={handleAddProduct}
-              >
-                <FaPlus /> New Product
-              </button>
-            )}
-          </div> */}
+          <div className="header-actions">
+            <button type="button" className="header-icon-btn" aria-label="Search">
+              <FaSearch />
+            </button>
+            <button
+              type="button"
+              className="header-icon-btn"
+              aria-label="Notifications"
+            >
+              <FaBell />
+              {MOCK_DASHBOARD.notificationCount > 0 && (
+                <span className="header-icon-badge">
+                  {MOCK_DASHBOARD.notificationCount}
+                </span>
+              )}
+            </button>
+            <button type="button" className="header-daterange">
+              <FaCalendarAlt />
+              <span>Aug 1 – Aug 15, 2026</span>
+              <FaChevronDown style={{ fontSize: "10px" }} />
+            </button>
+            <button
+              type="button"
+              className="header-refresh-btn"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <FaSyncAlt className={isRefreshing ? "spinning" : ""} />
+              Refresh
+            </button>
+          </div>
         </header>
 
         <div className="content-wrapper">
-          {/* ✅ DASHBOARD (UNCHANGED) */}
+          {/* ✅ DASHBOARD */}
           {activeItem === "dashboard" && (
             <>
               {!lowStockLoading &&
@@ -1897,111 +2253,142 @@ function AdminDashboard() {
                     </div>
                   </div>
                 )}
-              <div className="dash-hero">
-                <div className="dash-hero-left">
-                  <div className="dash-kicker">Overview</div>
-                  <h2 className="dash-title">Your store at a glance</h2>
-                  <p className="dash-desc">
-                    Track performance and manage operations faster.
-                  </p>
+
+              {/* Stat cards row */}
+              <div className="dash-stat-grid">
+                {statCards.map((card) => (
+                  <div
+                    key={card.key}
+                    className={`dash-stat-card tone-${card.tone} ${card.onClick ? "clickable" : ""
+                      }`}
+                    onClick={card.onClick}
+                    role={card.onClick ? "button" : undefined}
+                  >
+                    <div className="dash-stat-top">
+                      <span className="dash-stat-label">{card.label}</span>
+                      <span className="dash-stat-icon">{card.icon}</span>
+                    </div>
+                    <p className="dash-stat-value">{card.value}</p>
+                    <p className="dash-stat-foot">{card.foot}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Production overview / urgent actions / today's schedule */}
+              <div className="dash-triple-grid">
+                <div className="dash-panel donut-panel">
+                  <div className="dash-panel-head">
+                    <h3>Production Overview</h3>
+                  </div>
+                  <div className="donut-body">
+                    <div className="donut-wrap">
+                      <div
+                        className="donut-ring"
+                        style={{ background: donutGradient }}
+                      />
+                      <div className="donut-center">
+                        <span className="donut-total">{donutTotal}</span>
+                        <span className="donut-total-label">Total Jobs</span>
+                      </div>
+                    </div>
+                    <ul className="donut-legend">
+                      {MOCK_DASHBOARD.productionOverview.map((seg) => (
+                        <li key={seg.id}>
+                          <span
+                            className="legend-dot"
+                            style={{ background: seg.color }}
+                          />
+                          <span className="legend-label">{seg.label}</span>
+                          <span className="legend-value">
+                            {seg.value} (
+                            {Math.round((seg.value / donutTotal) * 100)}%)
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    className="dash-panel-link"
+                    onClick={() => navigate("/admin/productionQueue")}
+                  >
+                    View full production →
+                  </button>
                 </div>
 
-                <div className="dash-hero-right">
-                  <button
-                    className="dash-quick-btn"
-                    type="button"
-                    onClick={() => navigate("/admin/manageaccount")}
-                  >
-                    Manage Accounts
-                  </button>
+                <div className="dash-panel urgent-panel">
+                  <div className="dash-panel-head">
+                    <h3>Urgent Actions</h3>
+                  </div>
+                  <div className="urgent-list">
+                    {MOCK_DASHBOARD.urgentActions.map((action) => (
+                      <div className={`urgent-item tone-${action.tone}`} key={action.id}>
+                        <span className="urgent-icon">{action.icon}</span>
+                        <div className="urgent-text">
+                          <strong>{action.title}</strong>
+                          <span>{action.subtitle}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="urgent-action-btn"
+                          onClick={() => navigate(`/admin/${action.actionTab}`)}
+                        >
+                          {action.actionLabel}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
+                <div className="dash-panel schedule-panel">
+                  <div className="dash-panel-head">
+                    <h3>Today's Production Schedule</h3>
+                    <button
+                      type="button"
+                      className="row-btn"
+                      onClick={() => navigate("/admin/calendar")}
+                    >
+                      View Calendar
+                    </button>
+                  </div>
+                  <div className="schedule-list">
+                    {MOCK_DASHBOARD.todaysSchedule.map((job) => (
+                      <div className="schedule-item" key={job.id}>
+                        <div className="schedule-time">{job.time}</div>
+                        <div className="schedule-body">
+                          <div className="schedule-top">
+                            <span className="schedule-id">#{job.id}</span>
+                            <span className={`dashpage-pill status-${job.statusTone === "amber" ? "processing" : job.statusTone === "blue" ? "quoted" : "pending"}`}>
+                              {job.status}
+                            </span>
+                          </div>
+                          <p className="schedule-title">{job.title}</p>
+                          <p className="schedule-staff">Staff: {job.staff}</p>
+                          <div className="schedule-progress-track">
+                            <div
+                              className="schedule-progress-fill"
+                              style={{ width: `${job.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   <button
-                    className="dash-quick-btn ghost"
                     type="button"
-                    onClick={() => navigate("/admin/orders")}
+                    className="dash-panel-link"
+                    onClick={() => navigate("/admin/calendar")}
                   >
-                    View Orders
+                    View full schedule →
                   </button>
                 </div>
               </div>
 
-              <div className="content-grid">
-                <div className="stats-card revenue">
-                  <div className="stat-top">
-                    <div>
-                      <h3>Total Revenue</h3>
-                      <p className="stat-number">
-                        ₱{" "}
-                        {dashStats.totalRevenue.toLocaleString(undefined, {
-                          maximumFractionDigits: 0,
-                        })}
-                      </p>
-                    </div>
-                    <div className="stat-icon">
-                      <FaMoneyBillWave />
-                    </div>
-                  </div>
-                  <div className="stat-foot">From all orders</div>
-                </div>
-
-                <div className="stats-card users">
-                  <div className="stat-top">
-                    <div>
-                      <h3>Total Users</h3>
-                      <p className="stat-number">
-                        {(dashStats.totalUsers ?? 0).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="stat-icon">
-                      <FaUserPlus />
-                    </div>
-                  </div>
-                  <div className="stat-foot">Registered customers</div>
-                </div>
-
-                <div className="stats-card orders">
-                  <div className="stat-top">
-                    <div>
-                      <h3>Orders</h3>
-                      <p className="stat-number">{dashStats.totalOrders}</p>
-                    </div>
-                    <div className="stat-icon">
-                      <FaShoppingBag />
-                    </div>
-                  </div>
-                  <div className="stat-foot">
-                    Pending: {dashStats.pendingOrders}
-                  </div>
-                </div>
-
-                <div className="stats-card out-of-stock">
-                  <div className="stat-top">
-                    <div>
-                      <h3>Low Stock</h3>
-                      <p className="stat-number">
-                        {lowStockLoading ? "..." : (lowStock.pagination.total ?? 0)}
-                      </p>
-                    </div>
-                    <div className="stat-icon">
-                      <FaExclamationTriangle />
-                    </div>
-                  </div>
-                  <div className="stat-foot">Products with low stock</div>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                  gap: "24px",
-                  marginTop: "12px",
-                }}
-              >
-                {/* Low Stock Card */}
+              {/* Low stock / recent orders / sales overview */}
+              <div className="dash-bottom-grid">
                 <div className="data-table-card" style={{ marginTop: 0 }}>
                   <div className="data-table-head">
-                    <h3>Low Stock</h3>
+                    <h3>Low Stock Items</h3>
                     <div>
                       <button
                         type="button"
@@ -2023,7 +2410,7 @@ function AdminDashboard() {
                     <table className="data-table">
                       <thead>
                         <tr>
-                          <th>Name</th>
+                          <th>Item</th>
                           <th>SKU</th>
                           <th className="left">Stock</th>
                           <th>Status</th>
@@ -2070,32 +2457,174 @@ function AdminDashboard() {
                     </table>
                   </div>
                 </div>
+
+                <div className="data-table-card" style={{ marginTop: 0 }}>
+                  <div className="data-table-head">
+                    <h3>Recent Orders</h3>
+                    <button
+                      type="button"
+                      className="row-btn"
+                      onClick={() => navigate("/admin/orders")}
+                    >
+                      View all
+                    </button>
+                  </div>
+                  <div className="table-scroll">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Order</th>
+                          <th>Customer</th>
+                          <th>Total</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentOrders.length === 0 ? (
+                          <tr>
+                            <td className="empty-row" colSpan={4}>
+                              No recent orders
+                            </td>
+                          </tr>
+                        ) : (
+                          recentOrders.map((o, i) => (
+                            <tr key={`${o.id}-${i}`}>
+                              <td>{o.id}</td>
+                              <td>{o.customer}</td>
+                              <td>
+                                ₱
+                                {o.total.toLocaleString(undefined, {
+                                  maximumFractionDigits: 0,
+                                })}
+                              </td>
+                              <td>
+                                <span className={`dashpage-pill status-${o.status}`}>
+                                  {o.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="data-table-card sales-card" style={{ marginTop: 0 }}>
+                  <div className="data-table-head">
+                    <h3>Sales Overview</h3>
+                    <span className="sales-period-pill">This Month</span>
+                  </div>
+                  <div className="sales-card-body">
+                    <div className="sales-total-row">
+                      <span className="sales-total-label">Total Sales</span>
+                      <p className="sales-total-value">
+                        ₱
+                        {dashStats.totalRevenue.toLocaleString(undefined, {
+                          maximumFractionDigits: 0,
+                        })}
+                      </p>
+                    </div>
+                    <svg
+                      className="sales-chart"
+                      viewBox="0 0 300 100"
+                      preserveAspectRatio="none"
+                    >
+                      <defs>
+                        <linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="rgba(37,99,235,0.35)" />
+                          <stop offset="100%" stopColor="rgba(37,99,235,0)" />
+                        </linearGradient>
+                      </defs>
+                      <path d={salesChart.area} fill="url(#salesFill)" stroke="none" />
+                      <path
+                        d={salesChart.line}
+                        fill="none"
+                        stroke="#2563eb"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                    <div className="sales-footer-stats">
+                      <div>
+                        <span className="sales-footer-label">Orders</span>
+                        <p className="sales-footer-value">
+                          {dashStats.totalOrders}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="sales-footer-label">Customers</span>
+                        <p className="sales-footer-value">
+                          {dashStats.totalUsers}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="sales-footer-label">Avg. Order</span>
+                        <p className="sales-footer-value">
+                          ₱
+                          {avgOrderValue.toLocaleString(undefined, {
+                            maximumFractionDigits: 0,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </>
           )}
 
-              {activeItem === "profile" && <AdminProfile />}
-              {activeItem === "customers" && role !== "staff" && (
-                <AdminManageAccounts />
-              )}
+          {activeItem === "profile" && <AdminProfile />}
+          {activeItem === "customers" && role !== "staff" && (
+            <AdminManageAccounts />
+          )}
 
-              {/* ✅ ORDERS - Dynamic component */}
-              {activeItem === "orders" && <AdminOrders />}
+          {/* Orders — real component */}
+          {activeItem === "orders" && <AdminOrders />}
 
-{activeItem === "calendar" && <AdminProductionCalendar />}
-{activeItem === "activity" && <AdminActivityLog />}
-              {/* ✅ INQUIRIES - Dynamic component */}
-              {activeItem === "inquiries" && <AdminInquiries />}
+          {activeItem === "calendar" && <AdminProductionCalendar />}
+          {activeItem === "activity" && <AdminActivityLog />}
+          {activeItem === "inquiries" && <AdminInquiries />}
 
-              {/* ✅ PRODUCTS - Dynamic component */}
-              {activeItem === "products" && (
-                <AdminProducts
-                  refreshTrigger={refreshProductsKey}
-                  onAddProduct={handleAddProduct}
-                  lowStockFilter={lowStockFilter}
-                />
-              )}
-            </div>
+          {activeItem === "products" && (
+            <AdminProducts
+              refreshTrigger={refreshProductsKey}
+              onAddProduct={handleAddProduct}
+              lowStockFilter={lowStockFilter}
+            />
+          )}
+
+          {/* New sections without a page yet — placeholders */}
+          {activeItem === "quotations" && (
+            <ComingSoonPanel title="Quotations" icon={<FaFileInvoiceDollar />} />
+          )}
+          {activeItem === "designApprovals" && (
+            <ComingSoonPanel title="Design Approvals" icon={<FaClipboardCheck />} />
+          )}
+          {activeItem === "productionQueue" && (
+            <ComingSoonPanel title="Production Queue" icon={<FaListOl />} />
+          )}
+          {activeItem === "printJobs" && (
+            <ComingSoonPanel title="Print Jobs" icon={<FaPrint />} />
+          )}
+          {activeItem === "qualityControl" && (
+            <ComingSoonPanel title="Quality Control" icon={<FaCheckDouble />} />
+          )}
+          {activeItem === "inventory" && (
+            <ComingSoonPanel title="Inventory" icon={<FaWarehouse />} />
+          )}
+          {activeItem === "usersStaff" && (
+            <ComingSoonPanel title="Users & Staff" icon={<FaUserCog />} />
+          )}
+          {activeItem === "payments" && (
+            <ComingSoonPanel title="Payments" icon={<FaMoneyCheckAlt />} />
+          )}
+          {activeItem === "reports" && (
+            <ComingSoonPanel title="Reports & Analytics" icon={<FaChartBar />} />
+          )}
+          {activeItem === "systemSettings" && (
+            <ComingSoonPanel title="System Settings" icon={<FaCog />} />
+          )}
+        </div>
       </main>
     </div>
   );
