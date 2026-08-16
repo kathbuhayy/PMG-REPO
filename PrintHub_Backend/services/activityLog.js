@@ -47,4 +47,63 @@ function identifyActor(prismaClient) {
   };
 }
 
-module.exports = { logActivity, identifyActor };
+const { verifyAuthToken } = require("./auth");
+
+/** Middleware: verifies a Bearer JWT from the Authorization header and
+ *  sets req.actor from the DB record matching the token's verified id.
+ *  Unlike identifyActor, this is NOT spoofable — the id comes from a
+ *  cryptographically signed token, not a client-supplied header.
+ *  Rejects the request with 401 if the token is missing or invalid. */
+function requireAuth(prismaClient) {
+  return async (req, res, next) => {
+    const authHeader = req.headers["authorization"] || "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : null;
+
+    if (!token) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    try {
+      const decoded = verifyAuthToken(token);
+      const user = await prismaClient.user.findUnique({
+        where: { id: decoded.id },
+      });
+
+      if (!user) {
+        return res.status(401).json({ message: "Invalid session" });
+      }
+
+      req.actor = {
+        id: user.id,
+        name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email,
+        email: user.email,
+        role: roleFromDb(user.role),
+      };
+      next();
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+  };
+}
+
+/** Middleware factory: use after requireAuth to restrict a route to
+ *  specific core roles, e.g. requireRole("admin") or requireRole("staff","admin"). */
+function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.actor || !allowedRoles.includes(req.actor.role)) {
+      return res.status(403).json({
+        error: "Access Denied: insufficient permissions for this action.",
+      });
+    }
+    next();
+  };
+}
+
+module.exports = { 
+  logActivity, 
+  identifyActor, 
+  requireAuth, 
+  requireRole 
+};

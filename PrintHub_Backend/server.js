@@ -9,7 +9,12 @@ const multer = require("multer");
 const supabase = require("./db/supabase");
 const { generateImage } = require("./services/falai");
 
-const { logActivity, identifyActor } = require("./services/activityLog");
+const { 
+  logActivity, 
+  identifyActor, 
+  requireAuth, 
+  requireRole  
+} = require("./services/activityLog");
 
 const {
   generateModelFromText,
@@ -35,6 +40,7 @@ const {
 const {
   roleToDb,
   roleFromDb,
+  signAuthToken,
 } = require("./services/auth");
 
 const {
@@ -43,6 +49,13 @@ const {
   ORDER_STATUS_LABELS,
   PRODUCTION_STATUSES,
 } = require("./services/order");
+
+const { 
+  verifyStaffClearance, 
+  assignStaffToOrder,
+  decrementMaterialsForOrder,
+  createRequisitionsFromAlerts,
+} = require("./services/production");
 
 const {
   saveOtp,
@@ -145,8 +158,11 @@ app.post("/api/login", async (req, res) => {
         data: { last_login: new Date() },
       });
 
+      const token = signAuthToken(user);
+
       return res.json({
         message: "Login successful",
+        token,
         user: {
           id: user.id,
           email: user.email,
@@ -1454,6 +1470,299 @@ app.get("/api/admin/production-queue", async (req, res) => {
   }
 });
 
+// POST /api/production/assign — admin assigns/reassigns a staff member to an order job
+app.post("/api/production/assign", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  const { orderId, staffId, role, status } = req.body;
+  const assignedById = req.actor?.id ?? null; // set by identifyActor middleware
+
+  if (!orderId || !staffId || !role) {
+    return res.status(400).json({ message: "orderId, staffId, and role are required" });
+  }
+
+  try {
+    const clearance = await verifyStaffClearance(staffId, role);
+    if (!clearance.ok) {
+      return res.status(403).json({
+        error: "Access Denied: Target user account does not possess active workforce staff clearance.",
+      });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: parseInt(orderId) } });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const assignment = await assignStaffToOrder({
+      orderId,
+      staffId,
+      role,
+      status,
+      assignedById,
+    });
+
+    await logActivity({
+      actor: req.actor,
+      action: "assigned",
+      module: "orders",
+      description: `Assigned ${clearance.user.first_name} ${clearance.user.last_name} as ${role} on order #${orderId}`,
+      metadata: { orderId, staffId, role },
+    });
+
+    return res.status(201).json({ message: "Staff assigned", assignment });
+  } catch (e) {
+    console.error("Production assign error:", e.message);
+    return res.status(500).json({ message: "Failed to assign staff" });
+  }
+});
+
+// PUT /api/production/orders/:id/status — advance an order's production status
+app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  const orderId = parseInt(req.params.id);
+  const { productionStatus } = req.body;
+
+  const VALID_STATUSES = [
+    "PENDING_FILE_CHECK",
+    "PRINTING_QUEUE",
+    "QUALITY_ASSURANCE",
+    "PACKAGING_READY",
+    "COMPLETED",
+  ];
+
+  if (!orderId || !productionStatus) {
+    return res.status(400).json({ message: "id and productionStatus are required" });
+  }
+  if (!VALID_STATUSES.includes(productionStatus)) {
+    return res.status(400).json({ message: `Invalid productionStatus. Must be one of: ${VALID_STATUSES.join(", ")}` });
+  }
+
+  try {
+    const existing = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!existing) return res.status(404).json({ message: "Order not found" });
+
+    if (productionStatus === "PRINTING_QUEUE") {
+      if (!existing.proofApproved) {
+        return res.status(403).json({
+          message:
+            "This order cannot enter the print queue until the design proof has been approved.",
+        });
+      }
+
+      const total = parseFloat(existing.total);
+      const paid = parseFloat(existing.amountPaid);
+      const requiredAmount = existing.isBulkOrder ? total * 0.5 : total;
+
+      if (paid < requiredAmount) {
+        return res.status(403).json({
+          message: existing.isBulkOrder
+            ? `This bulk order requires at least 50% down payment before entering production. Paid: ₱${paid.toFixed(2)} / Required: ₱${requiredAmount.toFixed(2)}.`
+            : `This order must be fully paid before entering production. Paid: ₱${paid.toFixed(2)} / Required: ₱${requiredAmount.toFixed(2)}.`,
+        });
+      }
+    }
+
+    let lowStockAlerts = [];
+    let requisitions = [];
+
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.update({
+        where: { id: orderId },
+        data: { productionStatus },
+      });
+
+      if (productionStatus === "PRINTING_QUEUE") {
+        const decrementResults = await decrementMaterialsForOrder(tx, orderId);
+        lowStockAlerts = decrementResults.filter((r) => r.belowThreshold);
+
+        await tx.activityLog.create({
+          data: {
+            userId: req.actor?.id ?? null,
+            userName: req.actor?.name ?? null,
+            userEmail: req.actor?.email ?? null,
+            userRole: req.actor?.role ?? null,
+            action: "inventory_decremented",
+            module: "inventory",
+            description:
+              `Order #${orderId} entered PRINTING_QUEUE — decremented materials ` +
+              `for ${decrementResults.length} tracked item(s).`,
+            metadata: { orderId, productionStatus, decrementResults },
+          },
+        });
+
+        for (const alert of lowStockAlerts) {
+          const label = alert.type === "substrate" ? alert.materialName : alert.colorChannel;
+          await tx.activityLog.create({
+            data: {
+              userId: req.actor?.id ?? null,
+              userName: req.actor?.name ?? null,
+              userEmail: req.actor?.email ?? null,
+              userRole: req.actor?.role ?? null,
+              action: "low_stock_alert",
+              module: "inventory",
+              description:
+                `⚠️ ${alert.type === "substrate" ? "Substrate" : "Ink"} "${label}" ` +
+                `dropped to ${alert.remainingStock} (safety threshold: ${alert.safetyThreshold}) ` +
+                `after order #${orderId}.`,
+              metadata: alert,
+            },
+          });
+        }
+
+        // Auto-generate purchase requisitions for every material that
+        // breached its safety threshold, so procurement has an actionable
+        // document without waiting on someone to notice the alert log.
+        if (lowStockAlerts.length > 0) {
+          requisitions = await createRequisitionsFromAlerts(
+            tx,
+            lowStockAlerts,
+            orderId,
+            req.actor?.id
+          );
+
+          await tx.activityLog.create({
+            data: {
+              userId: req.actor?.id ?? null,
+              userName: req.actor?.name ?? null,
+              userEmail: req.actor?.email ?? null,
+              userRole: req.actor?.role ?? null,
+              action: "requisition_generated",
+              module: "inventory",
+              description:
+                `Auto-generated ${requisitions.length} purchase requisition(s) ` +
+                `from order #${orderId}'s low-stock alerts.`,
+              metadata: { orderId, requisitionIds: requisitions.map((r) => r.id) },
+            },
+          });
+        }
+      }
+
+      return order;
+    });
+
+    await logActivity({
+      actor: req.actor,
+      action: "status_changed",
+      module: "orders",
+      description: `Order #${orderId} production status changed to "${productionStatus}"`,
+      metadata: { orderId, previousStatus: existing.productionStatus, newStatus: productionStatus },
+    });
+
+    return res.json({
+      message: "Production status updated",
+      order: updatedOrder,
+      lowStockAlerts,
+      requisitions,
+    });
+  } catch (e) {
+    console.error("Production status update error:", e.message);
+    if (e.code === "P2025") {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    return res.status(500).json({ message: "Failed to update production status" });
+  }
+});
+
+// GET /api/production/my-tasks — the logged-in staff member's active job assignments
+app.get("/api/production/my-tasks", requireAuth(prisma), async (req, res) => {
+  const staffId = req.actor?.id;
+
+  if (!staffId) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+
+  try {
+    const tasks = await prisma.orderAssignment.findMany({
+      where: {
+        staffId: Number(staffId),
+        unassignedAt: null,
+      },
+      include: {
+        order: {
+          select: {
+            id: true,
+            status: true,
+            productionStatus: true,
+            mockupImageUrl: true,
+            baseColorHex: true,
+            printWidthInches: true,
+            printHeightInches: true,
+            due_date: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { assignedAt: "desc" },
+    });
+
+    return res.json({ tasks });
+  } catch (e) {
+    console.error("My-tasks fetch error:", e.message);
+    return res.status(500).json({ message: "Failed to fetch assigned tasks" });
+  }
+});
+
+// GET /api/production/requisitions — list purchase requisitions (admin/staff)
+app.get("/api/production/requisitions", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  try {
+    const { status } = req.query;
+    const requisitions = await prisma.purchaseRequisition.findMany({
+      where: status ? { status } : {},
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json({ requisitions });
+  } catch (e) {
+    console.error("Requisitions fetch error:", e.message);
+    return res.status(500).json({ message: "Failed to fetch requisitions" });
+  }
+});
+
+// PATCH /api/production/requisitions/:id — update requisition status (e.g. mark ORDERED/RECEIVED)
+app.patch("/api/production/requisitions/:id", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  const requisitionId = parseInt(req.params.id);
+  const { status } = req.body;
+
+  const VALID_STATUSES = ["PENDING", "ORDERED", "RECEIVED", "CANCELLED"];
+  if (!VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ message: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` });
+  }
+
+  try {
+    const updated = await prisma.purchaseRequisition.update({
+      where: { id: requisitionId },
+      data: {
+        status,
+        ...(status === "RECEIVED" && { resolvedAt: new Date() }),
+      },
+    });
+
+    // If marked RECEIVED, restock the actual inventory row so the cycle closes.
+    if (status === "RECEIVED") {
+      if (updated.materialType === "substrate") {
+        await prisma.inventorySubstrate.updateMany({
+          where: { materialName: updated.materialName },
+          data: { stockMeters: { increment: updated.requestedAmount } },
+        });
+      } else if (updated.materialType === "ink") {
+        await prisma.inventoryInk.updateMany({
+          where: { colorChannel: updated.materialName },
+          data: { volumeMl: { increment: updated.requestedAmount } },
+        });
+      }
+    }
+
+    await logActivity({
+      actor: req.actor,
+      action: "requisition_status_changed",
+      module: "inventory",
+      description: `Requisition #${requisitionId} (${updated.materialName}) marked as ${status}`,
+      metadata: { requisitionId, status },
+    });
+
+    return res.json({ message: "Requisition updated", requisition: updated });
+  } catch (e) {
+    console.error("Requisition update error:", e.message);
+    if (e.code === "P2025") return res.status(404).json({ message: "Requisition not found" });
+    return res.status(500).json({ message: "Failed to update requisition" });
+  }
+});
+
 app.get("/api/admin/reports/sales", async (req, res) => {
   try {
     const from = req.query.from ? new Date(req.query.from) : null;
@@ -1741,6 +2050,7 @@ app.put("/api/inquiries/:id/save-and-convert", async (req, res) => {
             currency: "PHP",
             status: "pending",
             payment_status: "awaiting_payment",
+            isBulkOrder: true,
             shipping_address: summary || "Custom inquiry order",
             billing_address: `Inquiry #${updated.id} — ${updated.name} <${updated.email}>`,
             items: {

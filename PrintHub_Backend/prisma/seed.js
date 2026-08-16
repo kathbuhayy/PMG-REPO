@@ -43,6 +43,43 @@ async function main() {
   console.log("✅ Users seeded");
 }
 
+// ─── Inventory seed data ─────────────────────────────────────────────────────
+
+const SUBSTRATE_SEEDS = [
+  { materialName: "cotton_fabric", stockMeters: 500 },
+  { materialName: "cardstock_paper", stockMeters: 1000 },
+  { materialName: "bond_paper", stockMeters: 1500 },
+  { materialName: "vinyl_sheet", stockMeters: 300 },
+  { materialName: "cotton_twill", stockMeters: 200 },
+];
+
+const INK_SEEDS = [
+  { colorChannel: "cmyk_full_color", volumeMl: 5000 },
+  { colorChannel: "black_ink", volumeMl: 2000 },
+  { colorChannel: "sublimation_ink", volumeMl: 3000 },
+];
+
+async function seedInventory() {
+  console.log("\nSeeding inventory...");
+  for (const s of SUBSTRATE_SEEDS) {
+    await prisma.inventorySubstrate.upsert({
+      where: { materialName: s.materialName },
+      update: {},
+      create: s,
+    });
+    console.log(`  ✅ Substrate: ${s.materialName}`);
+  }
+  for (const i of INK_SEEDS) {
+    await prisma.inventoryInk.upsert({
+      where: { colorChannel: i.colorChannel },
+      update: {},
+      create: i,
+    });
+    console.log(`  ✅ Ink: ${i.colorChannel}`);
+  }
+  console.log("✅ Inventory seeded");
+}
+
 // ─── Shared option sets ─────────────────────────────────────────────────────
 
 const COLOR_OPTIONS = [
@@ -122,6 +159,10 @@ const PRODUCT_SEEDS = [
       "No clipart. No gradients unless part of approved branding. " +
       "Bleed area: 0.125in on all sides. Text must be at least 7pt. " +
       "Resolution: 300dpi minimum.",
+    substrateMaterialName: "cardstock_paper",
+    substrateUsagePerUnit: 0.01,   // meters of stock per card, rough estimate
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 0.5,
   },
   {
     name: "Flyers",
@@ -167,6 +208,10 @@ const PRODUCT_SEEDS = [
       "Safe zone: 0.25in from all edges. " +
       "Text must not overlap complex backgrounds " +
       "without a legible overlay. Resolution: 300dpi minimum.",
+    substrateMaterialName: "bond_paper",
+    substrateUsagePerUnit: 0.06,
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 2.0,
   },
   {
     name: "Brochures",
@@ -218,6 +263,10 @@ const PRODUCT_SEEDS = [
       "Include at least one image placeholder per panel. " +
       "Fold lines must be accounted for in the layout. " +
       "Resolution: 300dpi minimum.",
+    substrateMaterialName: "bond_paper",
+    substrateUsagePerUnit: 0.09,
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 3.0,
   },
   {
     name: "Stickers & Labels",
@@ -272,6 +321,10 @@ const PRODUCT_SEEDS = [
       "the bleed line. No thin strokes less than 0.5pt. " +
       "For clear vinyl: design must work without a white background. " +
       "Resolution: 300dpi minimum.",
+    substrateMaterialName: "vinyl_sheet",
+    substrateUsagePerUnit: 0.01,
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 0.3,
   },
   {
     name: "Product Hang Tags",
@@ -324,6 +377,10 @@ const PRODUCT_SEEDS = [
       "Maintain 0.125in bleed and 0.125in safe zone. " +
       "Luxury feel preferred: minimal text, strong typography. " +
       "Resolution: 300dpi minimum.",
+    substrateMaterialName: "cardstock_paper",
+    substrateUsagePerUnit: 0.02,
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 0.4,
   },
   {
     name: "Posters",
@@ -370,6 +427,10 @@ const PRODUCT_SEEDS = [
       "all be present. Keep 0.25in safe zone from trim edge. " +
       "Avoid cluttered layouts — use hierarchy: headline > " +
       "subheadline > details. Resolution: 150dpi minimum at final print size.",
+    substrateMaterialName: "bond_paper",
+    substrateUsagePerUnit: 0.5,
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 15.0,
   },
   {
     name: "Tarpaulin / Banners",
@@ -423,6 +484,10 @@ const PRODUCT_SEEDS = [
       "Business name/event must be prominent. Add bleed: 0.5in on " +
       "all sides. Avoid fine details — they will not be visible at distance. " +
       "Resolution: 100dpi at final print size (72dpi minimum).",
+    substrateMaterialName: "vinyl_sheet",
+    substrateUsagePerUnit: 0.6,
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 20.0,
   },
   {
     name: "Note Cards / Thank You Cards",
@@ -472,6 +537,10 @@ const PRODUCT_SEEDS = [
       "Logo and brand accent should be subtle. Use soft, " +
       "welcoming color palette. Bleed: 0.125in. Safe zone: 0.125in. " +
       "Resolution: 300dpi minimum.",
+    substrateMaterialName: "cardstock_paper",
+    substrateUsagePerUnit: 0.02,
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 0.6,
   },
   {
     name: "T-shirt",
@@ -511,6 +580,10 @@ const PRODUCT_SEEDS = [
     ai_prompt_rules:
       "Generate a vibrant T-shirt design. For screen print, limit " +
       "colors. For DTG, full color CMYK. Bleed: 0.25in. Resolution: 300dpi.",
+    substrateMaterialName: "cotton_fabric",
+    substrateUsagePerUnit: 1.0,
+    inkColorChannel: "sublimation_ink",
+    inkUsagePerUnit: 8.0,
   },
   {
     name: "Notebook",
@@ -553,6 +626,10 @@ const PRODUCT_SEEDS = [
     ai_prompt_rules:
       "Generate a professional notebook cover design. Cover must " +
       "feature the brand logo prominently. Bleed: 0.125in. 300dpi.",
+    substrateMaterialName: "cardstock_paper",
+    substrateUsagePerUnit: 0.03,
+    inkColorChannel: "cmyk_full_color",
+    inkUsagePerUnit: 1.0,
   },
   {
     name: "Mug",
@@ -823,6 +900,10 @@ async function seedProducts() {
         quantity_options: p.quantity_options || [],
         shipping_options: p.shipping_options || [],
         print_zones: p.print_zones || [],
+        substrateMaterialName: p.substrateMaterialName || null,
+        substrateUsagePerUnit: p.substrateUsagePerUnit || null,
+        inkColorChannel: p.inkColorChannel || null,
+        inkUsagePerUnit: p.inkUsagePerUnit || null,
       },
       create: {
         name: p.name,
@@ -845,6 +926,10 @@ async function seedProducts() {
         quantity_options: p.quantity_options || [],
         shipping_options: p.shipping_options || [],
         print_zones: p.print_zones || [],
+        substrateMaterialName: p.substrateMaterialName || null,
+        substrateUsagePerUnit: p.substrateUsagePerUnit || null,
+        inkColorChannel: p.inkColorChannel || null,
+        inkUsagePerUnit: p.inkUsagePerUnit || null,
         images: [],
       },
     });
@@ -925,6 +1010,7 @@ main()
   })
   .finally(async () => {
     try {
+      await seedInventory();
       await seedProducts();
       await seedSampleOrder();
     } catch (e) {

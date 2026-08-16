@@ -642,9 +642,9 @@ function AdminDashboard() {
 
   // ✅ unchanged logout logic
   const doLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("authToken");
     localStorage.removeItem("user");
-    localStorage.removeItem("adminToken");
+    localStorage.removeItem("userId");
     localStorage.removeItem("adminUser");
     sessionStorage.clear();
 

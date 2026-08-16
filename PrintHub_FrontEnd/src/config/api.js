@@ -61,11 +61,14 @@ export const buildApiUrl = (endpoint) => {
  */
 export const apiCall = async (endpoint, options = {}) => {
   const url = buildApiUrl(endpoint);
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
   try {
     const response = await fetch(url, {
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
       ...options,

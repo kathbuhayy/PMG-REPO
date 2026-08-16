@@ -31,7 +31,7 @@ function UserLoginPage() {
     e.preventDefault();
   };
 
-  const saveLoggedInUser = (loggedInUser) => {
+  const saveLoggedInUser = (loggedInUser, authToken) => {
     const role = String(loggedInUser?.role || "").toLowerCase();
 
     if (role === "admin" || role === "staff") {
@@ -39,6 +39,7 @@ function UserLoginPage() {
         localStorage.removeItem("adminUser");
         localStorage.removeItem("user");
         localStorage.removeItem("userId");
+        localStorage.removeItem("authToken");
         setError("Admin and staff accounts are available on the website only.");
         return;
       }
@@ -46,6 +47,7 @@ function UserLoginPage() {
       localStorage.removeItem("user");
       localStorage.removeItem("userId");
       localStorage.setItem("adminUser", JSON.stringify(loggedInUser));
+      if (authToken) localStorage.setItem("authToken", authToken);
       navigate("/admin-dashboard");
       return;
     }
@@ -53,6 +55,7 @@ function UserLoginPage() {
     localStorage.removeItem("adminUser");
     localStorage.setItem("user", JSON.stringify(loggedInUser));
     localStorage.setItem("userId", loggedInUser.id);
+    if (authToken) localStorage.setItem("authToken", authToken);
     const targetPath = location.state?.from === "/" ? "/user-home" : (location.state?.from || "/user-home");
     navigate(targetPath, { replace: true });
   };
@@ -92,7 +95,7 @@ function UserLoginPage() {
       }
 
       setLoginAttempts(0);
-      saveLoggedInUser(data.user);
+      saveLoggedInUser(data.user, data.token);
     } catch (err) {
       console.error("[PostLogin] {ApiCall}: " + err.message);
       setError("Network error, please try again later");

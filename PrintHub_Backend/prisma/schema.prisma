@@ -8,6 +8,23 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum StaffRole {
+  DESIGN_APPROVER              // Checks canvas DPI & borders
+  PRINT_TECHNICIAN             // Controls print machinery & triggers ink reduction
+  QUALITY_ASSURANCE_INSPECTOR  // Checks for printing smudges and errors
+  LOGISTICS_PACKER             // Packages shirts & triggers PDF shipping slips
+  INVENTORY_CONTROLLER         // Monitors raw material forecasting charts
+  PROCUREMENT_OFFICER          // Approves automated supplier purchase sheets
+}
+
+enum ProductionStatus {
+  PENDING_FILE_CHECK
+  PRINTING_QUEUE
+  QUALITY_ASSURANCE
+  PACKAGING_READY
+  COMPLETED
+}
+
 model User {
   id          Int      @id @default(autoincrement())
   first_name  String?  @map("first_name")
@@ -29,6 +46,26 @@ model User {
   orders       Order[]
   inquiries    Inquiry[]
   cartItems    CartItem[]
+  staffRoles   UserStaffRole[]
+
+  // Jobs this user has been assigned to as staff (via OrderAssignment)
+  assignedJobs      OrderAssignment[] @relation("StaffAssignee")
+  // Assignments this user made as the assigning admin
+  assignmentsMade   OrderAssignment[] @relation("AssignedByAdmin")
+}
+
+model UserStaffRole {
+  id           Int       @id @default(autoincrement())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int       @map("user_id")
+  role         StaffRole
+  assignedBy   Int?      @map("assigned_by")     // admin's User.id who made the assignment
+  assignedAt   DateTime  @default(now()) @map("assigned_at")
+  unassignedAt DateTime? @map("unassigned_at")   // set when admin reassigns/removes, keeps history
+
+  @@unique([userId, role])
+  @@index([userId])
+  @@index([role])
 }
 
 model ArchivedUser {
@@ -80,6 +117,10 @@ model Product {
   images       String[]  @default([])
   quantity_mode String?   // 'dropdown' | 'text' — admin-configurable quantity input mode
   quantity_count Int?     // threshold for auto-selecting contact/quote when using text mode
+  substrateMaterialName String? @map("substrate_material_name") // must match InventorySubstrate.materialName
+  substrateUsagePerUnit Float?  @map("substrate_usage_per_unit") // meters consumed per unit
+  inkColorChannel       String? @map("ink_color_channel")        // must match InventoryInk.colorChannel
+  inkUsagePerUnit       Float?  @map("ink_usage_per_unit")        // ml consumed per unit
   active       Boolean   @default(true)
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
@@ -87,6 +128,53 @@ model Product {
 
   orderItems   OrderItem[]
   cartItems    CartItem[]
+}
+
+model InventorySubstrate {
+  id              Int      @id @default(autoincrement())
+  materialName    String   @unique @map("material_name")
+  stockMeters     Float    @map("stock_meters")
+  safetyThreshold Float    @default(15.0) @map("safety_threshold")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([materialName])
+}
+
+model InventoryInk {
+  id              Int      @id @default(autoincrement())
+  colorChannel    String   @unique @map("color_channel")
+  volumeMl        Float    @map("volume_ml")
+  safetyThreshold Float    @default(15.0) @map("safety_threshold")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([colorChannel])
+}
+
+enum RequisitionStatus {
+  PENDING
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseRequisition {
+  id               Int               @id @default(autoincrement())
+  materialType     String            @map("material_type") // "substrate" | "ink"
+  materialName     String            @map("material_name")  // matches InventorySubstrate.materialName or InventoryInk.colorChannel
+  currentStock     Float             @map("current_stock")
+  safetyThreshold  Float             @map("safety_threshold")
+  requestedAmount  Float             @map("requested_amount") // suggested restock quantity
+  status           RequisitionStatus @default(PENDING)
+  triggeredByOrderId Int?            @map("triggered_by_order_id") // which order's decrement caused this
+  documentText     String            @db.Text // the formatted restock log sheet text
+  generatedBy      Int?              @map("generated_by") // staff/admin id, null if system-generated
+  createdAt        DateTime          @default(now()) @map("created_at")
+  resolvedAt        DateTime?        @map("resolved_at")
+
+  @@index([status])
+  @@index([materialName])
 }
 
 model Order {
@@ -100,6 +188,8 @@ model Order {
   billing_address String?
   proofApproved        Boolean     @default(false)
   payment_status       String      @default("unpaid")
+  isBulkOrder          Boolean     @default(false) @map("is_bulk_order")
+  amountPaid           Decimal     @default(0) @db.Decimal(14,2) @map("amount_paid")
   payment_method       String?
   payment_reference    String?
   paymongo_session_id  String?
@@ -110,7 +200,42 @@ model Order {
   updatedAt            DateTime    @updatedAt @map("updated_at")
   deleted_at           DateTime?   @map("deleted_at")
 
+  // --- Manufacturing workflow fields ---
+  productionStatus     ProductionStatus @default(PENDING_FILE_CHECK) @map("production_status")
+  mockupImageUrl       String?     @map("mockup_image_url") // Fabric.js base64 data stream
+  baseColorHex         String?     @map("base_color_hex")
+  printWidthInches     Float?      @map("print_width_inches")
+  printHeightInches    Float?      @map("print_height_inches")
+
   items           OrderItem[]
+  assignments     OrderAssignment[]
+
+  @@index([productionStatus])
+}
+
+// Join model: which staff member is doing which job (StaffRole) on which order.
+// Supports multiple concurrent assignments per order (e.g. one PRINT_TECHNICIAN
+// + one QUALITY_ASSURANCE_INSPECTOR on the same order) and admin reassignment
+// via unassignedAt instead of hard deletes, preserving history.
+model OrderAssignment {
+  id           Int       @id @default(autoincrement())
+  order        Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId      Int       @map("order_id")
+
+  staff        User      @relation("StaffAssignee", fields: [staffId], references: [id])
+  staffId      Int       @map("staff_id")
+
+  role         StaffRole                 // job function for this assignment
+  status       ProductionStatus? @map("status") // optional: stage this assignment covers
+
+  assignedBy   User?     @relation("AssignedByAdmin", fields: [assignedById], references: [id])
+  assignedById Int?      @map("assigned_by")
+  assignedAt   DateTime  @default(now()) @map("assigned_at")
+  unassignedAt DateTime? @map("unassigned_at") // set on reassignment/removal, keeps history
+
+  @@index([orderId])
+  @@index([staffId])
+  @@index([role])
 }
 
 model OrderItem {
