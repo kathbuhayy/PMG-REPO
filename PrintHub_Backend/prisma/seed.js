@@ -738,6 +738,10 @@ const PRODUCT_SEEDS = [
     ai_prompt_rules:
       "Generate full sublimated jersey. Edge-to-edge colors. " +
       "Keep text/number within safe margin of 0.5in from seams. 300dpi.",
+    substrateMaterialName: "cotton_fabric",
+    substrateUsagePerUnit: 1.5,
+    inkColorChannel: "sublimation_ink",
+    inkUsagePerUnit: 15.0,
   },
   {
     name: "Jersey (Upper Only)",
@@ -776,11 +780,17 @@ const PRODUCT_SEEDS = [
       "100 pcs|₱42,750.00",
     ],
     shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
-    print_zones: ["front", "back", "left_sleeve", "right_sleeve"],
+        print_zones: ["front", "back", "left_sleeve", "right_sleeve"],
     ai_prompt_rules:
       "Generate full sublimated jersey. Edge-to-edge colors. " +
       "Keep text/number within safe margin of 0.5in from seams. 300dpi.",
+    substrateMaterialName: "cotton_fabric",
+    substrateUsagePerUnit: 1.0,
+    inkColorChannel: "sublimation_ink",
+    inkUsagePerUnit: 10.0,
   },
+
+  // ─── Plain (undecorated) variants ──────────────────────────────────────────
 
   // ─── Plain (undecorated) variants ──────────────────────────────────────────
 

@@ -7,7 +7,8 @@ import {
   FaPlus,
   FaTimes,
   FaInfoCircle,
-  FaTrashRestore
+  FaTrashRestore,
+  FaUserCog
 } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
@@ -27,7 +28,7 @@ function formatDateOnly(value) {
   return d.toISOString().slice(0, 10);
 }
 
-function AdminManageAccounts() {
+function AdminManageAccounts({ scope = "all" }) {
   const [users, setUsers] = useState([]);
 
   const [search, setSearch] = useState("");
@@ -68,6 +69,71 @@ function AdminManageAccounts() {
     status: "active",
     password: "",
   });
+
+  // ✅ Staff sub-role management (Production job roles: PRINT_TECHNICIAN, etc.)
+  const STAFF_ROLE_OPTIONS = [
+    "DESIGN_APPROVER",
+    "PAYMENT_VERIFIER",
+    "PRINT_TECHNICIAN",
+    "QUALITY_ASSURANCE_INSPECTOR",
+    "LOGISTICS_PACKER",
+    "INVENTORY_CONTROLLER",
+    "PROCUREMENT_OFFICER",
+  ];
+  
+  const [rolesModalUser, setRolesModalUser] = useState(null);
+  const [userStaffRoles, setUserStaffRoles] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [roleBusy, setRoleBusy] = useState(null);
+
+  const openRolesModal = async (u) => {
+    setRolesModalUser(u);
+    setRolesLoading(true);
+    try {
+      const res = await adminFetch(buildApiUrl(`/api/admin/users/${u.id}/staff-roles`));
+      const data = await res.json();
+      if (res.ok) setUserStaffRoles(data.roles || []);
+    } catch (err) {
+      console.error("Failed to fetch staff roles:", err);
+    } finally {
+      setRolesLoading(false);
+    }
+  };
+
+  const closeRolesModal = () => {
+    setRolesModalUser(null);
+    setUserStaffRoles([]);
+  };
+
+  const toggleStaffRole = async (role, isGranted) => {
+    if (!rolesModalUser) return;
+    setRoleBusy(role);
+    try {
+      if (isGranted) {
+        const res = await adminFetch(
+          buildApiUrl(`/api/admin/users/${rolesModalUser.id}/staff-roles/${role}`),
+          { method: "DELETE" }
+        );
+        if (!res.ok) throw new Error("Failed to revoke role");
+        setUserStaffRoles((prev) => prev.filter((r) => r !== role));
+      } else {
+        const res = await adminFetch(
+          buildApiUrl(`/api/admin/users/${rolesModalUser.id}/staff-roles`),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role }),
+          }
+        );
+        if (!res.ok) throw new Error("Failed to grant role");
+        setUserStaffRoles((prev) => [...prev, role]);
+      }
+    } catch (err) {
+      showToast(err.message || "Failed to update role", "error");
+    } finally {
+      setRoleBusy(null);
+    }
+  };
 
   // get currently logged-in user (admin)
   const currentUser = useMemo(() => {
@@ -225,17 +291,32 @@ const permanentlyDeleteUser = async (u) => {
   }, [fetchUsers]);
 
   const stats = useMemo(() => {
-    const total = users.length;
-    const active = users.filter((u) => u.status === "active").length;
-    const admins = users.filter((u) => u.role === "admin").length;
-    const suspended = users.filter((u) => u.status === "suspended").length;
-    return { total, active, admins, suspended };
-  }, [users]);
+    const scoped =
+      scope === "customers"
+        ? users.filter((u) => u.role === "customer")
+        : scope === "staff"
+          ? users.filter((u) => u.role === "staff" || u.role === "admin")
+          : users;
+    const total = scoped.length;
+    const active = scoped.filter((u) => u.status === "active").length;
+    const admins = scoped.filter((u) => u.role === "admin").length;
+    const suspended = scoped.filter((u) => u.status === "suspended").length;
+    const inactive = scoped.filter((u) => u.status === "inactive").length;
+    return { total, active, admins, suspended, inactive };
+  }, [users, scope]);
+
+  // Restrict the working set to the page's scope before any other filtering.
+  // "customers" tab never shows staff/admin; "staff" tab never shows customers.
+  const scopedUsers = useMemo(() => {
+    if (scope === "customers") return users.filter((u) => u.role === "customer");
+    if (scope === "staff") return users.filter((u) => u.role === "staff" || u.role === "admin");
+    return users;
+  }, [users, scope]);
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return users.filter((u) => {
+    return scopedUsers.filter((u) => {
       const matchesSearch =
         !q ||
         u.name.toLowerCase().includes(q) ||
@@ -246,7 +327,7 @@ const permanentlyDeleteUser = async (u) => {
 
       return matchesSearch && matchesRole && matchesStatus;
     });
-  }, [users, search, roleFilter, statusFilter]);
+  }, [scopedUsers, search, roleFilter, statusFilter]);
 
   // open modal
   const handleAddUser = () => {
@@ -477,10 +558,19 @@ const permanentlyDeleteUser = async (u) => {
           <div className="manageacc-stat-value green">{stats.active}</div>
         </div>
 
-        <div className="manageacc-stat-card">
-          <div className="manageacc-stat-label">Administrators</div>
-          <div className="manageacc-stat-value purple">{stats.admins}</div>
-        </div>
+        {scope !== "customers" && (
+          <div className="manageacc-stat-card">
+            <div className="manageacc-stat-label">Administrators</div>
+            <div className="manageacc-stat-value purple">{stats.admins}</div>
+          </div>
+        )}
+
+        {scope === "customers" && (
+          <div className="manageacc-stat-card">
+            <div className="manageacc-stat-label">Inactive</div>
+            <div className="manageacc-stat-value grey">{stats.inactive}</div>
+          </div>
+        )}
 
         <div className="manageacc-stat-card">
           <div className="manageacc-stat-label">Suspended</div>
@@ -504,15 +594,27 @@ const permanentlyDeleteUser = async (u) => {
         </div>
 
         <div className="manageacc-filters">
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-          >
-            <option value="all">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="staff">Staff</option>
-            <option value="customer">Customer</option>
-          </select>
+          {scope === "all" && (
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="all">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="staff">Staff</option>
+              <option value="customer">Customer</option>
+            </select>
+          )}
+        {scope === "staff" && (
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="all">All (Admin + Staff)</option>
+              <option value="admin">Admin</option>
+              <option value="staff">Staff</option>
+            </select>
+          )}
 
           <select
             value={statusFilter}
@@ -584,6 +686,17 @@ const permanentlyDeleteUser = async (u) => {
                       <FaEdit size={12} />
                       Edit
                     </button>
+                    {(u.role === "staff" || u.role === "admin") && (
+                      <button
+                        type="button"
+                        className="manageacc-btn-edit"
+                        onClick={() => openRolesModal(u)}
+                        title="Manage job roles"
+                      >
+                        <FaUserCog size={12} />
+                        Roles
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={`manageacc-btn-delete ${
@@ -976,6 +1089,67 @@ const permanentlyDeleteUser = async (u) => {
                   onClick={() => requestPasswordConfirm(() => permanentlyDeleteUser(confirmPermDeleteUser))}
                 >
                   Permanent Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rolesModalUser && (
+        <div className="manageacc-modal-overlay" onMouseDown={closeRolesModal}>
+          <div className="manageacc-modal small" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="manageacc-modal-header">
+              <h3>Manage Job Roles — {rolesModalUser.name}</h3>
+              <button className="manageacc-modal-close" onClick={closeRolesModal} type="button">
+                <FaTimes />
+              </button>
+            </div>
+
+            <div className="manageacc-modal-body">
+              <p className="manageacc-delete-text" style={{ marginBottom: "16px" }}>
+                Job roles control which stages of the production queue this
+                person can see and act on. A user can hold multiple roles.
+              </p>
+
+              {rolesLoading ? (
+                <p>Loading...</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {STAFF_ROLE_OPTIONS.map((role) => {
+                    const isGranted = userStaffRoles.includes(role);
+                    return (
+                      <label
+                        key={role}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 12px",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "8px",
+                          cursor: roleBusy === role ? "default" : "pointer",
+                          opacity: roleBusy === role ? 0.6 : 1,
+                        }}
+                      >
+                        <span style={{ fontSize: "13px", fontWeight: 600 }}>
+                          {role.replace(/_/g, " ")}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={isGranted}
+                          disabled={roleBusy === role}
+                          onChange={() => toggleStaffRole(role, isGranted)}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="manageacc-modal-actions">
+                <button type="button" className="manageacc-btn primary" onClick={closeRolesModal}>
+                  Done
                 </button>
               </div>
             </div>

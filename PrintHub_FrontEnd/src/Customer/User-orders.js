@@ -494,6 +494,11 @@ function UserOrders() {
     if (order.payment_status !== "paid" && !order.proofApproved) {
       return "Waiting for approval";
     }
+    if (order.payment_status === "partially_paid") {
+      const paid = Number(order.amountPaid || 0);
+      const remaining = Math.max(Number(order.total || 0) - paid, 0);
+      return `Partially paid — ${formatCurrency(remaining)} remaining`;
+    }
     if (order.payment_status !== "paid") return "Payment pending";
     if (order.status === "delivered") return "Delivered";
     return order.status?.charAt(0).toUpperCase() + order.status?.slice(1);
@@ -502,6 +507,7 @@ function UserOrders() {
   const getStatusClass = (order) => {
     if (order.status === "return_requested") return "return";
     if (order.status === "cancelled") return "cancelled";
+    if (order.payment_status === "partially_paid") return "pending";
     if (order.payment_status !== "paid") return "pending";
     if (order.status === "delivered") return "delivered";
     return "paid";
@@ -649,7 +655,11 @@ function UserOrders() {
                   disabled={payingId === order.id}
                   onClick={() => handlePayNow(order)}
                 >
-                  {payingId === order.id ? "Redirecting..." : "Pay Now"}
+                  {payingId === order.id
+                    ? "Redirecting..."
+                    : order.payment_status === "partially_paid"
+                      ? `Pay Remaining Balance`
+                      : "Pay Now"}
                 </button>
               ) : (
                 <button type="button" className="uo-pay-btn" disabled>
@@ -666,6 +676,22 @@ function UserOrders() {
               onClick={() => handleViewReceipt(order.id)}
             >
               E-Receipt
+            </button>
+          )}
+
+          {(order.payment_status === "paid" ||
+            order.payment_status === "partially_paid") && (
+            <button
+              type="button"
+              className="uo-receipt-btn"
+              onClick={() =>
+                window.open(
+                  buildApiUrl(`/api/orders/${order.id}/invoice`),
+                  "_blank"
+                )
+              }
+            >
+              Download Invoice
             </button>
           )}
 

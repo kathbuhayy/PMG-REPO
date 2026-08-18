@@ -158,6 +158,20 @@ function AdminProducts({
   const [productsCategory, setProductsCategory] = useState("all");
   const [localRefreshKey, setLocalRefreshKey] = useState(0); // ✅ Local refresh trigger
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [inventoryOptions, setInventoryOptions] = useState({ substrates: [], inks: [] });
+
+  useEffect(() => {
+    adminFetch(buildApiUrl("/api/admin/inventory"))
+      .then((res) => res.json())
+      .then((data) => {
+        const materials = data.materials || [];
+        setInventoryOptions({
+          substrates: materials.filter((m) => m.type === "substrate"),
+          inks: materials.filter((m) => m.type === "ink"),
+        });
+      })
+      .catch((err) => console.error("Failed to fetch inventory options:", err));
+  }, []);
 
   // ✅ NEW: Edit product states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -172,6 +186,10 @@ function AdminProducts({
     material: "",
     description: "",
     ai_prompt_rules: "",
+    substrateMaterialName: "",
+    substrateUsagePerUnit: "",
+    inkColorChannel: "",
+    inkUsagePerUnit: "",
     status: "active",
     images: [],
     quantity_mode: "dropdown",
@@ -715,6 +733,10 @@ function AdminProducts({
       material: product.material || "",
       description: product.description || "",
       ai_prompt_rules: fullProduct.ai_prompt_rules || "",
+      substrateMaterialName: fullProduct.substrateMaterialName || "",
+      substrateUsagePerUnit: fullProduct.substrateUsagePerUnit || "",
+      inkColorChannel: fullProduct.inkColorChannel || "",
+      inkUsagePerUnit: fullProduct.inkUsagePerUnit || "",
       status: product.status,
       images: fullProduct.images || [],
       color_options: fullProduct.color_options || [],
@@ -805,6 +827,10 @@ function AdminProducts({
             material: editForm.material,
             description: editForm.description,
             ai_prompt_rules: editForm.ai_prompt_rules,
+            substrateMaterialName: editForm.substrateMaterialName,
+            substrateUsagePerUnit: editForm.substrateUsagePerUnit,
+            inkColorChannel: editForm.inkColorChannel,
+            inkUsagePerUnit: editForm.inkUsagePerUnit,
             active: editForm.status === "active",
             images: editForm.images,
             color_options: editForm.color_options,
@@ -1739,33 +1765,6 @@ function AdminProducts({
                             placeholder="e.g., Matte Paper"
                           />
                         </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          gap: "16px",
-                          marginBottom: "16px",
-                        }}
-                      >
-                        <div
-                          className="dashform-group"
-                          style={{ marginBottom: 0 }}
-                        >
-                          <label>Material</label>
-                          <input
-                            type="text"
-                            value={editForm.material}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                material: e.target.value,
-                              })
-                            }
-                            placeholder="e.g., Matte Paper"
-                          />
-                        </div>
                         <div
                           className="dashform-group"
                           style={{ marginBottom: 0 }}
@@ -1796,8 +1795,101 @@ function AdminProducts({
                               description: e.target.value,
                             })
                           }
-                          placeholder="Product description..."
+                                                    placeholder="Product description..."
                           rows="3"
+                        />
+                      </div>
+
+                                            {/* Inventory Linkage */}
+                      <div className="dashform-group">
+                        <label>
+                          Substrate Material{" "}
+                          <span style={{ color: "#cbd5e1", fontWeight: "400", fontSize: "12px" }}>
+                            (which tracked material this product consumes)
+                          </span>
+                        </label>
+                        <select
+                          value={editForm.substrateMaterialName || ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              substrateMaterialName: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="">— None —</option>
+                          {inventoryOptions.substrates.map((s) => (
+                            <option key={s.name} value={s.name}>
+                              {s.name} ({s.stock} {s.unit} in stock)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="dashform-group">
+                        <label>
+                          Substrate Usage Per Unit{" "}
+                          <span style={{ color: "#cbd5e1", fontWeight: "400", fontSize: "12px" }}>
+                            (meters consumed per piece produced)
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editForm.substrateUsagePerUnit || ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              substrateUsagePerUnit: e.target.value,
+                            })
+                          }
+                          placeholder="e.g. 0.02"
+                        />
+                      </div>
+
+                      <div className="dashform-group">
+                        <label>
+                          Ink Color Channel{" "}
+                          <span style={{ color: "#cbd5e1", fontWeight: "400", fontSize: "12px" }}>
+                            (which tracked ink this product consumes)
+                          </span>
+                        </label>
+                        <select
+                          value={editForm.inkColorChannel || ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              inkColorChannel: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="">— None —</option>
+                          {inventoryOptions.inks.map((i) => (
+                            <option key={i.name} value={i.name}>
+                              {i.name} ({i.stock} {i.unit} in stock)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="dashform-group">
+                        <label>
+                          Ink Usage Per Unit{" "}
+                          <span style={{ color: "#cbd5e1", fontWeight: "400", fontSize: "12px" }}>
+                            (ml consumed per piece produced)
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editForm.inkUsagePerUnit || ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              inkUsagePerUnit: e.target.value,
+                            })
+                          }
+                          placeholder="e.g. 0.4"
                         />
                       </div>
 

@@ -12,6 +12,7 @@ const CLEARED_CORE_ROLES = new Set(["staff", "admin"]);
 // endpoints instead, not the order queue.
 const STAFF_ROLE_TO_PRODUCTION_STATUSES = {
   DESIGN_APPROVER: ["PENDING_FILE_CHECK"],
+  PAYMENT_VERIFIER: ["AWAITING_PAYMENT"],
   PRINT_TECHNICIAN: ["PRINTING_QUEUE"],
   QUALITY_ASSURANCE_INSPECTOR: ["QUALITY_ASSURANCE"],
   LOGISTICS_PACKER: ["PACKAGING_READY"],
@@ -30,65 +31,6 @@ async function getRelevantProductionStatuses(userId) {
   }
 
   return statuses.size > 0 ? Array.from(statuses) : [];
-}
-/**
- * Verifies the target user exists, holds core STAFF/ADMIN clearance,
- * and actively holds the specific StaffRole (job function) being assigned.
- * Returns { ok: true, user } or { ok: false, reason }.
- */
-async function verifyStaffClearance(staffId, requiredRole) {
-  const targetUser = await prisma.user.findUnique({
-    where: { id: Number(staffId) },
-    select: { id: true, role: true, first_name: true, last_name: true },
-  });
-
-  if (!targetUser) {
-    return { ok: false, reason: "not_found" };
-  }
-
-  const coreRole = roleFromDb(targetUser.role);
-  if (!CLEARED_CORE_ROLES.has(coreRole)) {
-    return { ok: false, reason: "no_core_clearance" };
-  }
-
-  const activeSubRole = await prisma.userStaffRole.findFirst({
-    where: {
-      userId: targetUser.id,
-      role: requiredRole,
-      unassignedAt: null,
-    },
-  });
-
-  if (!activeSubRole) {
-    return { ok: false, reason: "no_sub_role" };
-  }
-
-  return { ok: true, user: targetUser };
-}
-
-/**
- * Soft-closes any existing active assignment of the same role on an order,
- * then creates the new OrderAssignment. Preserves history via unassignedAt.
- */
-async function assignStaffToOrder({ orderId, staffId, role, status, assignedById }) {
-  await prisma.orderAssignment.updateMany({
-    where: {
-      orderId: Number(orderId),
-      role,
-      unassignedAt: null,
-    },
-    data: { unassignedAt: new Date() },
-  });
-
-  return prisma.orderAssignment.create({
-    data: {
-      orderId: Number(orderId),
-      staffId: Number(staffId),
-      role,
-      status: status ?? null,
-      assignedById: assignedById ?? null,
-    },
-  });
 }
 
 /**
@@ -252,8 +194,6 @@ async function createRequisitionsFromAlerts(tx, alerts, orderId, generatedBy) {
 }
 
 module.exports = {
-  verifyStaffClearance,
-  assignStaffToOrder,
   decrementMaterialsForOrder,
   createRequisitionsFromAlerts,
   getRelevantProductionStatuses,

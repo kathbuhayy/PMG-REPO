@@ -1,25 +1,3 @@
-// Admin-dashboard.js (FULL UPDATED FILE)
-// Redesigned to match the PMG Printing House dashboard mock: new dark sidebar
-// with grouped navigation (MAIN / PRODUCTION / INVENTORY / CUSTOMERS & STAFF /
-// FINANCE / REPORTS / COMMUNICATION / SETTINGS), a richer Dashboard tab
-// (stat cards, production overview donut, urgent actions, today's schedule,
-// low stock table, recent orders, sales overview chart).
-//
-// WHAT'S REAL vs MOCK
-// - Today's Revenue, Pending Orders, Low Stock Items, Orders/Customers/Avg Order
-//   footer stats, and the Low Stock table all use your existing API data.
-// - "In Production" and "Recent Orders" are best-effort from /api/admin/orders
-//   (status === "processing", sorted by created_at) — adjust the field names
-//   in fetchDashboardStats() if your order objects use different keys.
-// - Everything under MOCK_DASHBOARD (Deliveries/Pickup, Production Overview
-//   donut breakdown, Urgent Actions, Today's Production Schedule, Sales
-//   Overview trend, sidebar badge counts for Quotations/Design Approvals) is
-//   placeholder data structured so it's easy to swap for real endpoints later.
-// - Sidebar items with no backend/page yet (Quotations, Design Approvals,
-//   Production Queue, Print Jobs, Quality Control, Inventory, Users & Staff,
-//   Payments, Reports & Analytics, System Settings) render a <ComingSoonPanel />
-//   instead of breaking the route.
-
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createPortal } from "react-dom";
@@ -31,6 +9,13 @@ import AdminOrders from "./AdminOrders";
 import AdminInquiries from "./AdminInquiries";
 import AdminProducts from "./AdminProducts";
 import AdminActivityLog from "./AdminActivityLog";
+import NotificationBell from "./NotificationBell";
+import ProductionQueue from "./ProductionQueue";
+import AdminRequisitions from "./AdminRequisitions";
+import StaffDashboard from "./StaffDashboard";
+import AdminReports from "./AdminReports";
+import AdminPayments from "./AdminPayments";
+import AdminInventory from "./AdminInventory";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
 import {
@@ -63,7 +48,6 @@ import {
   FaClipboardCheck,
   FaListOl,
   FaPrint,
-  FaCheckDouble,
   FaWarehouse,
   FaUserCog,
   FaMoneyCheckAlt,
@@ -84,56 +68,10 @@ import {
 const MOCK_DASHBOARD = {
   deliveriesPickup: 5,
   revenueChangePercent: 12.5,
-  sidebarBadges: {
-    quotations: 8,
-    designApprovals: 4,
-  },
-  notificationCount: 7,
-  productionOverview: [
-    { id: "pending", label: "Pending", value: 12, color: "#3b82f6" },
-    { id: "in_production", label: "In Production", value: 8, color: "#2563eb" },
-    { id: "quality_check", label: "Quality Check", value: 4, color: "#f59e0b" },
-    { id: "ready", label: "Ready for Release", value: 9, color: "#eab308" },
-    { id: "completed", label: "Completed Today", value: 21, color: "#10b981" },
-  ],
-  urgentActions: [
-    {
-      id: "deadline",
-      tone: "red",
-      icon: <FaExclamationTriangle />,
-      title: "2 orders are approaching their deadline",
-      subtitle: "Check production queue",
-      actionLabel: "View Jobs",
-      actionTab: "productionQueue",
-    },
-    {
-      id: "lowstock",
-      tone: "amber",
-      icon: <FaBoxOpen />,
-      title: "3 products are running low on stock",
-      subtitle: "Update inventory or create purchase order",
-      actionLabel: "View Inventory",
-      actionTab: "inventory",
-    },
-    {
-      id: "designs",
-      tone: "blue",
-      icon: <FaClipboardCheck />,
-      title: "4 designs waiting for approval",
-      subtitle: "Customer designs need your review",
-      actionLabel: "Review Designs",
-      actionTab: "designApprovals",
-    },
-    {
-      id: "payments",
-      tone: "green",
-      icon: <FaMoneyCheckAlt />,
-      title: "2 payment verifications pending",
-      subtitle: "Payment proof needs confirmation",
-      actionLabel: "View Payments",
-      actionTab: "payments",
-    },
-  ],
+  // NOTE: todaysSchedule and salesOverviewTrend below remain placeholder —
+  // no backend endpoint exists yet for a global per-day staff schedule or
+  // date-bucketed revenue history. Everything else that used to live here
+  // (sidebar badges, production donut, urgent actions) now pulls real data.
   todaysSchedule: [
     {
       id: "PJ-1045",
@@ -314,6 +252,81 @@ function AdminDashboard() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // ✅ Real production queue counts (drives donut + deadline urgent action)
+  const [productionOverview, setProductionOverview] = useState([]);
+  const [deadlineSoonCount, setDeadlineSoonCount] = useState(0);
+  const [productionLoading, setProductionLoading] = useState(true);
+
+  const PRODUCTION_STATUS_META = {
+    PENDING_FILE_CHECK: { label: "Awaiting Approval", color: "#f59e0b" },
+    AWAITING_PAYMENT: { label: "Awaiting Payment", color: "#77ff90" },
+    PRINTING_QUEUE: { label: "Printing", color: "#2563eb" },
+    QUALITY_ASSURANCE: { label: "Quality Check", color: "#f06c1a" },
+    PACKAGING_READY: { label: "Packaging", color: "#f5ee6a" },
+    COMPLETED: { label: "Completed", color: "#10b981" },
+  };
+
+  const fetchProductionOverview = useCallback(async () => {
+    try {
+      setProductionLoading(true);
+      const res = await adminFetch(buildApiUrl("/api/admin/production-queue"));
+      const data = await res.json();
+      if (!res.ok) throw new Error("Failed to fetch production overview");
+
+      const queue = data.queue || [];
+      const counts = queue.reduce((acc, order) => {
+        acc[order.productionStatus] = (acc[order.productionStatus] || 0) + 1;
+        return acc;
+      }, {});
+
+      const overview = Object.entries(PRODUCTION_STATUS_META).map(
+        ([id, meta]) => ({ id, label: meta.label, color: meta.color, value: counts[id] || 0 })
+      );
+      setProductionOverview(overview);
+
+      const threeDaysFromNow = Date.now() + 3 * 24 * 60 * 60 * 1000;
+      const soonCount = queue.filter(
+        (o) =>
+          o.due_date &&
+          new Date(o.due_date).getTime() <= threeDaysFromNow &&
+          o.productionStatus !== "COMPLETED"
+      ).length;
+      setDeadlineSoonCount(soonCount);
+    } catch (err) {
+      console.error("Error fetching production overview:", err);
+    } finally {
+      setProductionLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProductionOverview();
+    const interval = setInterval(fetchProductionOverview, 30000);
+    return () => clearInterval(interval);
+  }, [fetchProductionOverview]);
+
+  // ✅ Real quotations count (non-converted inquiries)
+  const [quotationsCount, setQuotationsCount] = useState(0);
+
+  const fetchQuotationsCount = useCallback(async () => {
+    try {
+      const res = await adminFetch(buildApiUrl("/api/inquiries"));
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) setQuotationsCount(data.length);
+    } catch (err) {
+      console.error("Error fetching quotations count:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchQuotationsCount();
+    const interval = setInterval(fetchQuotationsCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchQuotationsCount]);
+
+  // ✅ Real design-approvals count, derived from orders already fetched below
+  const [designApprovalCount, setDesignApprovalCount] = useState(0);
+
   // Fetch low-stock products for dashboard
   const fetchLowStock = useCallback(async () => {
     try {
@@ -408,6 +421,16 @@ function AdminDashboard() {
       ).length;
       setInProductionCount(inProduction);
 
+      // Orders genuinely awaiting design approval — same rule AdminOrders.js
+      // uses to decide whether to show its "Approve" button.
+      const needsApproval = ordersList.filter(
+        (o) =>
+          !o.proofApproved &&
+          o.payment_status !== "paid" &&
+          !["cancelled", "completed"].includes(o.status),
+      ).length;
+      setDesignApprovalCount(needsApproval);
+
       // Best-effort recent orders list for the dashboard table — adjust the
       // field names below to match your actual order object shape.
       const sortedRecent = [...ordersList]
@@ -476,7 +499,17 @@ function AdminDashboard() {
 
   const [sidebarUser, setSidebarUser] = useState(storedUser);
 
+  const [staffRoles, setStaffRoles] = useState([]);
+
   const role = sidebarUser?.role || "user";
+
+  useEffect(() => {
+    if (role !== "staff") return;
+    adminFetch(buildApiUrl("/api/me/staff-roles"))
+      .then((res) => res.json())
+      .then((data) => setStaffRoles(data.roles || []))
+      .catch((err) => console.error("Failed to fetch my staff roles:", err));
+  }, [role]);
 
   useEffect(() => {
     const userId = storedUser?.id;
@@ -551,34 +584,28 @@ function AdminDashboard() {
             id: "quotations",
             label: "Quotations",
             icon: <FaFileInvoiceDollar />,
-            badge: MOCK_DASHBOARD.sidebarBadges.quotations,
-          },
-          {
-            id: "designApprovals",
-            label: "Design Approvals",
-            icon: <FaClipboardCheck />,
-            badge: MOCK_DASHBOARD.sidebarBadges.designApprovals,
+            badge: quotationsCount || null,
           },
         ],
       },
       {
         label: "PRODUCTION",
         items: [
+          {
+            id: "designApprovals",
+            label: "Design Approvals",
+            icon: <FaClipboardCheck />,
+            badge: designApprovalCount || null,
+          },
           { id: "productionQueue", label: "Production Queue", icon: <FaListOl /> },
-          { id: "printJobs", label: "Print Jobs", icon: <FaPrint /> },
           { id: "calendar", label: "Production Calendar", icon: <FaCalendarAlt /> },
-          { id: "qualityControl", label: "Quality Control", icon: <FaCheckDouble /> },
         ],
       },
       {
         label: "INVENTORY",
         items: [
-          {
-            id: "inventory",
-            label: "Inventory",
-            icon: <FaWarehouse />,
-            badge: lowStock.pagination.total || null,
-          },
+          { id: "inventory", label: "Inventory", icon: <FaWarehouse /> },
+          { id: "requisitions", label: "Requisitions", icon: <FaFileInvoiceDollar /> },
           { id: "products", label: "Products", icon: <FaBoxOpen /> },
         ],
       },
@@ -586,7 +613,7 @@ function AdminDashboard() {
         label: "CUSTOMERS & STAFF",
         items: [
           { id: "customers", label: "Customers", icon: <FaUsers /> },
-          { id: "usersStaff", label: "Users & Staff", icon: <FaUserCog /> },
+          { id: "usersStaff", label: "Admin & Staff", icon: <FaUserCog /> },
         ],
       },
       {
@@ -610,21 +637,34 @@ function AdminDashboard() {
         items: [
           { id: "activity", label: "Activity Log", icon: <FaHistory /> },
           { id: "profile", label: "Profile", icon: <FaUser /> },
-          { id: "systemSettings", label: "System Settings", icon: <FaCog /> },
         ],
       },
     ];
 
     // Staff: remove Manage Accounts (same restriction as before)
+    // Staff gets a trimmed-down sidebar — just their dashboard, tasks,
+    // production queue, and profile. Everything else here is admin-territory.
     if (role === "staff") {
+      const STAFF_ALLOWED_IDS = ["dashboard", "productionQueue", "profile"];
+      // Each job role unlocks the specific admin page it actually needs —
+      // same principle as Production Queue being auto-scoped, just applied
+      // to standalone pages instead of a shared filtered view.
+      if (staffRoles.includes("PAYMENT_VERIFIER")) {
+        STAFF_ALLOWED_IDS.push("quotations");
+      }
+      if (staffRoles.includes("INVENTORY_CONTROLLER")) {
+        STAFF_ALLOWED_IDS.push("inventory");
+      }
+      if (staffRoles.includes("PROCUREMENT_OFFICER")) {
+        STAFF_ALLOWED_IDS.push("requisitions");
+      }
       return groups
-        .map((g) => ({ ...g, items: g.items.filter((i) => i.id !== "customers") }))
+        .map((g) => ({ ...g, items: g.items.filter((i) => STAFF_ALLOWED_IDS.includes(i.id)) }))
         .filter((g) => g.items.length > 0);
     }
 
     return groups;
-  }, [role, dashStats.totalOrders, lowStock.pagination.total]);
-
+  }, [role, dashStats.totalOrders, lowStock.pagination.total, quotationsCount, designApprovalCount, staffRoles]);
   const pageTitleMap = useMemo(() => {
     const map = {};
     menuGroups.forEach((g) => g.items.forEach((i) => (map[i.id] = i.label)));
@@ -973,13 +1013,12 @@ function AdminDashboard() {
 
   // ── Dashboard derived visuals ─────────────────────────────────────────
   const donutGradient = useMemo(
-    () => buildConicGradient(MOCK_DASHBOARD.productionOverview),
-    [],
+    () => buildConicGradient(productionOverview.length ? productionOverview : [{ value: 1, color: "#e2e8f0" }]),
+    [productionOverview],
   );
   const donutTotal = useMemo(
-    () =>
-      MOCK_DASHBOARD.productionOverview.reduce((s, x) => s + x.value, 0),
-    [],
+    () => productionOverview.reduce((s, x) => s + x.value, 0),
+    [productionOverview],
   );
   const salesChart = useMemo(
     () => buildSparklinePath(MOCK_DASHBOARD.salesOverviewTrend, 300, 100),
@@ -2179,18 +2218,9 @@ function AdminDashboard() {
             <button type="button" className="header-icon-btn" aria-label="Search">
               <FaSearch />
             </button>
-            <button
-              type="button"
-              className="header-icon-btn"
-              aria-label="Notifications"
-            >
-              <FaBell />
-              {MOCK_DASHBOARD.notificationCount > 0 && (
-                <span className="header-icon-badge">
-                  {MOCK_DASHBOARD.notificationCount}
-                </span>
-              )}
-            </button>
+
+            <NotificationBell />
+
             <button type="button" className="header-daterange">
               <FaCalendarAlt />
               <span>Aug 1 – Aug 15, 2026</span>
@@ -2210,7 +2240,11 @@ function AdminDashboard() {
 
         <div className="content-wrapper">
           {/* ✅ DASHBOARD */}
-          {activeItem === "dashboard" && (
+          {activeItem === "dashboard" && role === "staff" && (
+            <StaffDashboard userName={sidebarUser?.firstName} />
+          )}
+
+          {activeItem === "dashboard" && role !== "staff" && (
             <>
               {!lowStockLoading &&
                 !dismissedLowStockAlert &&
@@ -2292,7 +2326,10 @@ function AdminDashboard() {
                       </div>
                     </div>
                     <ul className="donut-legend">
-                      {MOCK_DASHBOARD.productionOverview.map((seg) => (
+                      {productionLoading && productionOverview.length === 0 ? (
+                        <li style={{ color: "#94a3b8", fontSize: "13px" }}>Loading...</li>
+                      ) : (
+                        productionOverview.map((seg) => (
                         <li key={seg.id}>
                           <span
                             className="legend-dot"
@@ -2301,10 +2338,11 @@ function AdminDashboard() {
                           <span className="legend-label">{seg.label}</span>
                           <span className="legend-value">
                             {seg.value} (
-                            {Math.round((seg.value / donutTotal) * 100)}%)
+                            {donutTotal > 0 ? Math.round((seg.value / donutTotal) * 100) : 0}%)
                           </span>
                         </li>
-                      ))}
+                        ))
+                      )}
                     </ul>
                   </div>
                   <button
@@ -2321,7 +2359,28 @@ function AdminDashboard() {
                     <h3>Urgent Actions</h3>
                   </div>
                   <div className="urgent-list">
-                    {MOCK_DASHBOARD.urgentActions.map((action) => (
+                    {[
+                      deadlineSoonCount > 0 && {
+                        id: "deadline",
+                        tone: "red",
+                        icon: <FaExclamationTriangle />,
+                        title: `${deadlineSoonCount} order${deadlineSoonCount === 1 ? "" : "s"} approaching their deadline`,
+                        subtitle: "Check production queue",
+                        actionLabel: "View Jobs",
+                        actionTab: "productionQueue",
+                      },
+                      designApprovalCount > 0 && {
+                        id: "designs",
+                        tone: "blue",
+                        icon: <FaClipboardCheck />,
+                        title: `${designApprovalCount} design${designApprovalCount === 1 ? "" : "s"} waiting for approval`,
+                        subtitle: "Customer designs need your review",
+                        actionLabel: "Review Designs",
+                        actionTab: "orders",
+                      },
+                    ]
+                      .filter(Boolean)
+                      .map((action) => (
                       <div className={`urgent-item tone-${action.tone}`} key={action.id}>
                         <span className="urgent-icon">{action.icon}</span>
                         <div className="urgent-text">
@@ -2337,6 +2396,11 @@ function AdminDashboard() {
                         </button>
                       </div>
                     ))}
+                    {deadlineSoonCount === 0 && designApprovalCount === 0 && (
+                      <p style={{ color: "#94a3b8", fontSize: "13px", padding: "8px 0" }}>
+                        No urgent actions right now.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -2575,7 +2639,11 @@ function AdminDashboard() {
 
           {activeItem === "profile" && <AdminProfile />}
           {activeItem === "customers" && role !== "staff" && (
-            <AdminManageAccounts />
+            <AdminManageAccounts scope="customers" />
+          )}
+
+          {activeItem === "usersStaff" && role !== "staff" && (
+            <AdminManageAccounts scope="staff" />
           )}
 
           {/* Orders — real component */}
@@ -2594,36 +2662,13 @@ function AdminDashboard() {
           )}
 
           {/* New sections without a page yet — placeholders */}
-          {activeItem === "quotations" && (
-            <ComingSoonPanel title="Quotations" icon={<FaFileInvoiceDollar />} />
-          )}
-          {activeItem === "designApprovals" && (
-            <ComingSoonPanel title="Design Approvals" icon={<FaClipboardCheck />} />
-          )}
-          {activeItem === "productionQueue" && (
-            <ComingSoonPanel title="Production Queue" icon={<FaListOl />} />
-          )}
-          {activeItem === "printJobs" && (
-            <ComingSoonPanel title="Print Jobs" icon={<FaPrint />} />
-          )}
-          {activeItem === "qualityControl" && (
-            <ComingSoonPanel title="Quality Control" icon={<FaCheckDouble />} />
-          )}
-          {activeItem === "inventory" && (
-            <ComingSoonPanel title="Inventory" icon={<FaWarehouse />} />
-          )}
-          {activeItem === "usersStaff" && (
-            <ComingSoonPanel title="Users & Staff" icon={<FaUserCog />} />
-          )}
-          {activeItem === "payments" && (
-            <ComingSoonPanel title="Payments" icon={<FaMoneyCheckAlt />} />
-          )}
-          {activeItem === "reports" && (
-            <ComingSoonPanel title="Reports & Analytics" icon={<FaChartBar />} />
-          )}
-          {activeItem === "systemSettings" && (
-            <ComingSoonPanel title="System Settings" icon={<FaCog />} />
-          )}
+          {activeItem === "quotations" && <AdminInquiries/>}
+          {activeItem === "designApprovals" && <AdminOrders />}
+          {activeItem === "productionQueue" && <ProductionQueue />}
+          {activeItem === "inventory" && <AdminInventory />}
+          {activeItem === "requisitions" && <AdminRequisitions />}
+          {activeItem === "payments" && <AdminPayments />}
+          {activeItem === "reports" && <AdminReports />}
         </div>
       </main>
     </div>

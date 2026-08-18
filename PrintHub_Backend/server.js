@@ -58,8 +58,6 @@ const {
 } = require("./services/order");
 
 const { 
-  verifyStaffClearance, 
-  assignStaffToOrder,
   decrementMaterialsForOrder,
   createRequisitionsFromAlerts,
   getRelevantProductionStatuses,
@@ -1455,7 +1453,7 @@ app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff",
   try {
     const where = {
       deleted_at: null,
-      status: { in: PRODUCTION_STATUSES },
+      status: { notIn: ["cancelled", "return_requested"] },
     };
 
     let scopedToStatuses = null;
@@ -1500,56 +1498,96 @@ app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff",
   }
 });
 
-// POST /api/production/assign — admin assigns/reassigns a staff member to an order job
-app.post("/api/production/assign", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
-  const { orderId, staffId, role, status } = req.body;
-  const assignedById = req.actor?.id ?? null; // set by identifyActor middleware
-
-  if (!orderId || !staffId || !role) {
-    return res.status(400).json({ message: "orderId, staffId, and role are required" });
-  }
-
+// GET /api/me/staff-roles — the logged-in user's own active job roles
+app.get("/api/me/staff-roles", requireAuth(prisma), async (req, res) => {
   try {
-    const clearance = await verifyStaffClearance(staffId, role);
-    if (!clearance.ok) {
-      return res.status(403).json({
-        error: "Access Denied: Target user account does not possess active workforce staff clearance.",
-      });
-    }
+    const roles = await prisma.userStaffRole.findMany({
+      where: { userId: req.actor.id, unassignedAt: null },
+      select: { role: true },
+    });
+    res.json({ roles: roles.map((r) => r.role) });
+  } catch (e) {
+    console.error("Fetch my staff roles error:", e.message);
+    res.status(500).json({ message: "Failed to fetch staff roles" });
+  }
+});
 
-    const order = await prisma.order.findUnique({ where: { id: parseInt(orderId) } });
-    if (!order) return res.status(404).json({ message: "Order not found" });
 
-    const assignment = await assignStaffToOrder({
-      orderId,
-      staffId,
-      role,
-      status,
-      assignedById,
+// GET /api/admin/users/:id/staff-roles — list a user's active sub-roles
+app.get("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const roles = await prisma.userStaffRole.findMany({
+      where: { userId, unassignedAt: null },
+      select: { role: true },
+    });
+    res.json({ roles: roles.map((r) => r.role) });
+  } catch (e) {
+    console.error("Fetch staff roles error:", e.message);
+    res.status(500).json({ message: "Failed to fetch staff roles" });
+  }
+});
+
+// POST /api/admin/users/:id/staff-roles — grant a sub-role
+app.post("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { role } = req.body;
+    if (!role) return res.status(400).json({ message: "role is required" });
+
+    // Re-activate if it was previously revoked, otherwise create fresh
+    const existing = await prisma.userStaffRole.findFirst({ where: { userId, role } });
+    const result = existing
+      ? await prisma.userStaffRole.update({
+          where: { id: existing.id },
+          data: { unassignedAt: null, assignedBy: req.actor.id, assignedAt: new Date() },
+        })
+      : await prisma.userStaffRole.create({
+          data: { userId, role, assignedBy: req.actor.id },
+        });
+
+    await logActivity({
+      actor: req.actor,
+      action: "staff_role_granted",
+      module: "users",
+      description: `Granted ${role} to user #${userId}`,
+      metadata: { userId, role },
     });
 
-    await createNotification({
-      userId: clearance.user.id,
-      title: `New assignment — Order #${orderId}`,
-      body: `You've been assigned as ${role} on order #${orderId}.`,
-      type: "assignment",
-      link: `/staff/my-tasks`,
+    res.status(201).json({ message: "Role granted", staffRole: result });
+  } catch (e) {
+    console.error("Grant staff role error:", e.message);
+    res.status(500).json({ message: "Failed to grant role" });
+  }
+});
+
+// DELETE /api/admin/users/:id/staff-roles/:role — revoke a sub-role
+app.delete("/api/admin/users/:id/staff-roles/:role", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const { role } = req.params;
+
+    await prisma.userStaffRole.updateMany({
+      where: { userId, role, unassignedAt: null },
+      data: { unassignedAt: new Date() },
     });
 
     await logActivity({
       actor: req.actor,
-      action: "assigned",
-      module: "orders",
-      description: `Assigned ${clearance.user.first_name} ${clearance.user.last_name} as ${role} on order #${orderId}`,
-      metadata: { orderId, staffId, role },
+      action: "staff_role_revoked",
+      module: "users",
+      description: `Revoked ${role} from user #${userId}`,
+      metadata: { userId, role },
     });
 
-    return res.status(201).json({ message: "Staff assigned", assignment });
+    res.json({ message: "Role revoked" });
   } catch (e) {
-    console.error("Production assign error:", e.message);
-    return res.status(500).json({ message: "Failed to assign staff" });
+    console.error("Revoke staff role error:", e.message);
+    res.status(500).json({ message: "Failed to revoke role" });
   }
 });
+
+
 
 // PUT /api/production/orders/:id/status — advance an order's production status
 app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
@@ -1558,6 +1596,7 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
 
   const VALID_STATUSES = [
     "PENDING_FILE_CHECK",
+    "AWAITING_PAYMENT",
     "PRINTING_QUEUE",
     "QUALITY_ASSURANCE",
     "PACKAGING_READY",
@@ -1728,45 +1767,6 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
       return res.status(404).json({ message: "Order not found" });
     }
     return res.status(500).json({ message: "Failed to update production status" });
-  }
-});
-
-// GET /api/production/my-tasks — the logged-in staff member's active job assignments
-app.get("/api/production/my-tasks", requireAuth(prisma), async (req, res) => {
-  const staffId = req.actor?.id;
-
-  if (!staffId) {
-    return res.status(401).json({ message: "Authentication required" });
-  }
-
-  try {
-    const tasks = await prisma.orderAssignment.findMany({
-      where: {
-        staffId: Number(staffId),
-        unassignedAt: null,
-      },
-      include: {
-        order: {
-          select: {
-            id: true,
-            status: true,
-            productionStatus: true,
-            mockupImageUrl: true,
-            baseColorHex: true,
-            printWidthInches: true,
-            printHeightInches: true,
-            due_date: true,
-            createdAt: true,
-          },
-        },
-      },
-      orderBy: { assignedAt: "desc" },
-    });
-
-    return res.json({ tasks });
-  } catch (e) {
-    console.error("My-tasks fetch error:", e.message);
-    return res.status(500).json({ message: "Failed to fetch assigned tasks" });
   }
 });
 
@@ -2010,6 +2010,198 @@ app.get("/api/admin/reports/sales", async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Failed to build sales report" });
+  }
+});
+
+
+// GET /api/admin/payments — list all orders with payment detail, for the admin Payments page
+app.get("/api/admin/payments", async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const where = {
+      deleted_at: null,
+      ...(status ? { payment_status: status } : {}),
+    };
+
+    const orders = await prisma.order.findMany({
+      where,
+      include: { user: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const payments = orders.map((order) => {
+      const total = parseFloat(order.total);
+      const amountPaid = parseFloat(order.amountPaid || 0);
+      return {
+        orderId: order.id,
+        customer: getCustomerName(order),
+        total,
+        amountPaid,
+        remaining: Math.max(total - amountPaid, 0),
+        paymentStatus: order.payment_status,
+        paymentMethod: order.payment_method,
+        paymentReference: order.payment_reference,
+        isBulkOrder: order.isBulkOrder,
+        createdAt: order.createdAt,
+      };
+    });
+
+    const summary = {
+      totalCollected: payments.reduce((s, p) => s + p.amountPaid, 0),
+      awaitingPayment: payments.filter((p) => p.paymentStatus === "awaiting_payment").length,
+      partiallyPaid: payments.filter((p) => p.paymentStatus === "partially_paid").length,
+      fullyPaid: payments.filter((p) => p.paymentStatus === "paid").length,
+    };
+
+    res.json({ payments, summary });
+  } catch (e) {
+    console.error("Admin payments fetch error:", e.message);
+    res.status(500).json({ message: "Failed to fetch payments" });
+  }
+});
+
+// GET /api/admin/inventory — current stock levels for all substrate/ink materials
+app.get("/api/admin/inventory", async (req, res) => {
+  try {
+    const [substrates, inks] = await Promise.all([
+      prisma.inventorySubstrate.findMany({ orderBy: { materialName: "asc" } }),
+      prisma.inventoryInk.findMany({ orderBy: { colorChannel: "asc" } }),
+    ]);
+
+    const materials = [
+      ...substrates.map((s) => ({
+        id: `substrate-${s.id}`,
+        type: "substrate",
+        name: s.materialName,
+        unit: "meters",
+        stock: s.stockMeters,
+        safetyThreshold: s.safetyThreshold,
+        belowThreshold: s.stockMeters <= s.safetyThreshold,
+      })),
+      ...inks.map((i) => ({
+        id: `ink-${i.id}`,
+        type: "ink",
+        name: i.colorChannel,
+        unit: "ml",
+        stock: i.volumeMl,
+        safetyThreshold: i.safetyThreshold,
+        belowThreshold: i.volumeMl <= i.safetyThreshold,
+      })),
+    ];
+
+    res.json({
+      materials,
+      summary: {
+        total: materials.length,
+        belowThreshold: materials.filter((m) => m.belowThreshold).length,
+      },
+    });
+  } catch (e) {
+    console.error("Admin inventory fetch error:", e.message);
+    res.status(500).json({ message: "Failed to fetch inventory" });
+  }
+});
+
+// POST /api/admin/inventory — add a new tracked material
+app.post("/api/admin/inventory", async (req, res) => {
+  try {
+    const { type, name, stock, safetyThreshold } = req.body;
+    if (!type || !name || stock === undefined) {
+      return res.status(400).json({ message: "type, name, and stock are required" });
+    }
+
+    let created;
+    if (type === "substrate") {
+      created = await prisma.inventorySubstrate.create({
+        data: {
+          materialName: name,
+          stockMeters: parseFloat(stock),
+          ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
+        },
+      });
+    } else if (type === "ink") {
+      created = await prisma.inventoryInk.create({
+        data: {
+          colorChannel: name,
+          volumeMl: parseFloat(stock),
+          ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
+        },
+      });
+    } else {
+      return res.status(400).json({ message: "type must be 'substrate' or 'ink'" });
+    }
+
+    await logActivity({
+      actor: req.actor,
+      action: "created",
+      module: "inventory",
+      description: `Added new ${type} material "${name}"`,
+      metadata: { type, name },
+    });
+
+    res.status(201).json({ message: "Material added", material: created });
+  } catch (e) {
+    console.error("Add inventory material error:", e.message);
+    if (e.code === "P2002") {
+      return res.status(400).json({ message: "A material with this name already exists" });
+    }
+    res.status(500).json({ message: "Failed to add material" });
+  }
+});
+
+// PUT /api/admin/inventory/:type/:id — correct stock or safety threshold
+// PUT /api/admin/inventory/:type/:id — restock (add-only) or adjust safety threshold.
+// Stock can only ever be increased here — decrements happen exclusively
+// through decrementMaterialsForOrder during production, never manually,
+// so staff can't accidentally (or intentionally) zero out real stock.
+app.put("/api/admin/inventory/:type/:id", async (req, res) => {
+  try {
+    const { type, id } = req.params;
+    const { addStock, safetyThreshold } = req.body;
+
+    if (addStock !== undefined && parseFloat(addStock) < 0) {
+      return res.status(400).json({ message: "Stock can only be added, not removed." });
+    }
+
+    let updated;
+    if (type === "substrate") {
+      updated = await prisma.inventorySubstrate.update({
+        where: { id: parseInt(id) },
+        data: {
+          ...(addStock !== undefined && addStock !== "" && {
+            stockMeters: { increment: parseFloat(addStock) },
+          }),
+          ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
+        },
+      });
+    } else if (type === "ink") {
+      updated = await prisma.inventoryInk.update({
+        where: { id: parseInt(id) },
+        data: {
+          ...(addStock !== undefined && addStock !== "" && {
+            volumeMl: { increment: parseFloat(addStock) },
+          }),
+          ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
+        },
+      });
+    } else {
+      return res.status(400).json({ message: "type must be 'substrate' or 'ink'" });
+    }
+
+    await logActivity({
+      actor: req.actor,
+      action: "updated",
+      module: "inventory",
+      description: `Restocked ${type} material #${id} by ${addStock || 0}`,
+      metadata: { type, id, addStock, safetyThreshold },
+    });
+
+    res.json({ message: "Material updated", material: updated });
+  } catch (e) {
+    console.error("Update inventory material error:", e.message);
+    if (e.code === "P2025") return res.status(404).json({ message: "Material not found" });
+    res.status(500).json({ message: "Failed to update material" });
   }
 });
 
@@ -2529,6 +2721,10 @@ app.post("/api/products", async (req, res) => {
       print_zones,
       category,
       images,
+      substrateMaterialName,
+      substrateUsagePerUnit,
+      inkColorChannel,
+      inkUsagePerUnit,
     } = req.body;
 
     if (!name || !price) {
@@ -2569,6 +2765,10 @@ app.post("/api/products", async (req, res) => {
         category: category || "other",
         images: images || [],
         active: true,
+        substrateMaterialName: substrateMaterialName || null,
+        substrateUsagePerUnit: substrateUsagePerUnit ? parseFloat(substrateUsagePerUnit) : null,
+        inkColorChannel: inkColorChannel || null,
+        inkUsagePerUnit: inkUsagePerUnit ? parseFloat(inkUsagePerUnit) : null,
       },
     });
 
@@ -2623,6 +2823,10 @@ app.put("/api/products/:id", async (req, res) => {
       sku,
       quantity_mode,
       quantity_count,
+      substrateMaterialName,
+      substrateUsagePerUnit,
+      inkColorChannel,
+      inkUsagePerUnit,
     } = req.body;
 
     const product = await prisma.product.update({
@@ -2670,6 +2874,14 @@ app.put("/api/products/:id", async (req, res) => {
         ...(print_zones !== undefined && { print_zones }),
         ...(category !== undefined && { category }),
         ...(active !== undefined && { active }),
+        ...(substrateMaterialName !== undefined && { substrateMaterialName: substrateMaterialName || null }),
+        ...(substrateUsagePerUnit !== undefined && {
+          substrateUsagePerUnit: substrateUsagePerUnit ? parseFloat(substrateUsagePerUnit) : null,
+        }),
+        ...(inkColorChannel !== undefined && { inkColorChannel: inkColorChannel || null }),
+        ...(inkUsagePerUnit !== undefined && {
+          inkUsagePerUnit: inkUsagePerUnit ? parseFloat(inkUsagePerUnit) : null,
+        }),
       },
     });
 
@@ -3061,7 +3273,10 @@ app.post("/api/orders/:id/approve-design", async (req, res) => {
   try {
     const order = await prisma.order.update({
       where: { id: parseInt(req.params.id) },
-      data: { proofApproved: true },
+      data: {
+        proofApproved: true,
+        productionStatus: "AWAITING_PAYMENT",
+      },
       include: {
         user: true,
         items: { include: { product: true } },
