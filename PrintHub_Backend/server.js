@@ -1811,10 +1811,15 @@ app.patch("/api/production/requisitions/:id", requireAuth(prisma), requireRole("
           where: { materialName: updated.materialName },
           data: { stockMeters: { increment: updated.requestedAmount } },
         });
-      } else if (updated.materialType === "ink") {
+            } else if (updated.materialType === "ink") {
         await prisma.inventoryInk.updateMany({
           where: { colorChannel: updated.materialName },
           data: { volumeMl: { increment: updated.requestedAmount } },
+        });
+      } else if (updated.materialType === "unit") {
+        await prisma.inventoryUnit.updateMany({
+          where: { itemName: updated.materialName },
+          data: { stockUnits: { increment: Math.round(updated.requestedAmount) } },
         });
       }
     }
@@ -2064,9 +2069,10 @@ app.get("/api/admin/payments", async (req, res) => {
 // GET /api/admin/inventory — current stock levels for all substrate/ink materials
 app.get("/api/admin/inventory", async (req, res) => {
   try {
-    const [substrates, inks] = await Promise.all([
+        const [substrates, inks, units] = await Promise.all([
       prisma.inventorySubstrate.findMany({ orderBy: { materialName: "asc" } }),
       prisma.inventoryInk.findMany({ orderBy: { colorChannel: "asc" } }),
+      prisma.inventoryUnit.findMany({ orderBy: { itemName: "asc" } }),
     ]);
 
     const materials = [
@@ -2087,6 +2093,15 @@ app.get("/api/admin/inventory", async (req, res) => {
         stock: i.volumeMl,
         safetyThreshold: i.safetyThreshold,
         belowThreshold: i.volumeMl <= i.safetyThreshold,
+      })),
+      ...units.map((u) => ({
+        id: `unit-${u.id}`,
+        type: "unit",
+        name: u.itemName,
+        unit: "pcs",
+        stock: u.stockUnits,
+        safetyThreshold: u.safetyThreshold,
+        belowThreshold: u.stockUnits <= u.safetyThreshold,
       })),
     ];
 
@@ -2120,7 +2135,7 @@ app.post("/api/admin/inventory", async (req, res) => {
           ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
         },
       });
-    } else if (type === "ink") {
+        } else if (type === "ink") {
       created = await prisma.inventoryInk.create({
         data: {
           colorChannel: name,
@@ -2128,8 +2143,16 @@ app.post("/api/admin/inventory", async (req, res) => {
           ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
         },
       });
+    } else if (type === "unit") {
+      created = await prisma.inventoryUnit.create({
+        data: {
+          itemName: name,
+          stockUnits: parseInt(stock),
+          ...(safetyThreshold !== undefined && { safetyThreshold: parseInt(safetyThreshold) }),
+        },
+      });
     } else {
-      return res.status(400).json({ message: "type must be 'substrate' or 'ink'" });
+      return res.status(400).json({ message: "type must be 'substrate', 'ink', or 'unit'" });
     }
 
     await logActivity({
@@ -2175,7 +2198,7 @@ app.put("/api/admin/inventory/:type/:id", async (req, res) => {
           ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
         },
       });
-    } else if (type === "ink") {
+        } else if (type === "ink") {
       updated = await prisma.inventoryInk.update({
         where: { id: parseInt(id) },
         data: {
@@ -2185,8 +2208,18 @@ app.put("/api/admin/inventory/:type/:id", async (req, res) => {
           ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
         },
       });
+    } else if (type === "unit") {
+      updated = await prisma.inventoryUnit.update({
+        where: { id: parseInt(id) },
+        data: {
+          ...(addStock !== undefined && addStock !== "" && {
+            stockUnits: { increment: parseInt(addStock) },
+          }),
+          ...(safetyThreshold !== undefined && { safetyThreshold: parseInt(safetyThreshold) }),
+        },
+      });
     } else {
-      return res.status(400).json({ message: "type must be 'substrate' or 'ink'" });
+      return res.status(400).json({ message: "type must be 'substrate', 'ink', or 'unit'" });
     }
 
     await logActivity({
@@ -2725,6 +2758,7 @@ app.post("/api/products", async (req, res) => {
       substrateUsagePerUnit,
       inkColorChannel,
       inkUsagePerUnit,
+      mockupViews,
     } = req.body;
 
     if (!name || !price) {
@@ -2769,6 +2803,7 @@ app.post("/api/products", async (req, res) => {
         substrateUsagePerUnit: substrateUsagePerUnit ? parseFloat(substrateUsagePerUnit) : null,
         inkColorChannel: inkColorChannel || null,
         inkUsagePerUnit: inkUsagePerUnit ? parseFloat(inkUsagePerUnit) : null,
+        mockupViews: mockupViews || null,
       },
     });
 
@@ -2827,6 +2862,7 @@ app.put("/api/products/:id", async (req, res) => {
       substrateUsagePerUnit,
       inkColorChannel,
       inkUsagePerUnit,
+      mockupViews,
     } = req.body;
 
     const product = await prisma.product.update({
@@ -2882,6 +2918,7 @@ app.put("/api/products/:id", async (req, res) => {
         ...(inkUsagePerUnit !== undefined && {
           inkUsagePerUnit: inkUsagePerUnit ? parseFloat(inkUsagePerUnit) : null,
         }),
+        ...(mockupViews !== undefined && { mockupViews }),
       },
     });
 

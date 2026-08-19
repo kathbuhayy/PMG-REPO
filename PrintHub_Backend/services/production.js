@@ -128,6 +128,30 @@ async function decrementMaterialsForOrder(tx, orderId) {
           : false,
       });
     }
+
+    if (product.unitMaterialName && product.unitUsagePerUnit) {
+      const amount = product.unitUsagePerUnit * item.quantity;
+      const updated = await tx.inventoryUnit.updateMany({
+        where: { itemName: product.unitMaterialName },
+        data: { stockUnits: { decrement: amount } },
+      });
+
+      const current = await tx.inventoryUnit.findUnique({
+        where: { itemName: product.unitMaterialName },
+      });
+
+      results.push({
+        type: "unit",
+        materialName: product.unitMaterialName,
+        amount,
+        matched: updated.count,
+        remainingStock: current?.stockUnits ?? null,
+        safetyThreshold: current?.safetyThreshold ?? null,
+        belowThreshold: current
+          ? current.stockUnits <= current.safetyThreshold
+          : false,
+      });
+    }
   }
 
   return results;
@@ -138,8 +162,8 @@ async function decrementMaterialsForOrder(tx, orderId) {
  * from a single low-stock alert entry produced by decrementMaterialsForOrder.
  */
 function formatRequisitionDocument(alert, orderId) {
-  const label = alert.type === "substrate" ? alert.materialName : alert.colorChannel;
-  const unit = alert.type === "substrate" ? "meters" : "ml";
+  const label = alert.materialName || alert.colorChannel;
+  const unit = alert.type === "substrate" ? "meters" : alert.type === "ink" ? "ml" : "units";
   // Suggested restock: bring stock back up to 3x the safety threshold.
   // This multiplier is a starting assumption — adjust based on real lead
   // times and consumption rates once you have historical data.
@@ -170,8 +194,8 @@ function formatRequisitionDocument(alert, orderId) {
  */
 async function createRequisitionsFromAlerts(tx, alerts, orderId, generatedBy) {
   const created = [];
-  for (const alert of alerts) {
-    const label = alert.type === "substrate" ? alert.materialName : alert.colorChannel;
+    for (const alert of alerts) {
+    const label = alert.materialName || alert.colorChannel;
     const { doc, requestedAmount } = formatRequisitionDocument(alert, orderId);
 
     const requisition = await tx.purchaseRequisition.create({

@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { buildApiUrl } from "../config/api";
 import { saveGuestDesign } from "../utils/guestDesigns";
+import { assessImageResolution } from "../utils/dpiCheck";
 
 const GUEST_GEN_KEY = "ai_guest_generations";
 const GUEST_LIMIT = 3;
@@ -58,6 +59,7 @@ export function useCustomizerUpload(
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
+  const [resolutionResults, setResolutionResults] = useState({});
 
   // Convert file to Base64 asynchronously if it fits within safe localStorage limits
   const convertFileToBase64 = (file, callback) => {
@@ -101,6 +103,16 @@ export function useCustomizerUpload(
         prev.map((g) => (g.id === id ? { ...g, url: base64Url } : g)),
       );
     });
+
+    // Sub-Module 5.1/5.2 — check resolution in the background, non-blocking.
+    // Result is looked up by gallery item id via resolutionResults.
+    assessImageResolution(file)
+      .then((result) => {
+        setResolutionResults((prev) => ({ ...prev, [id]: result }));
+      })
+      .catch(() => {
+        // Silently skip — a failed resolution check shouldn't block upload.
+      });
 
     return item;
   }, []);
@@ -294,5 +306,6 @@ export function useCustomizerUpload(
     handleFileChange,
     handleGenerate,
     uploadUsedImages,
+    resolutionResults,
   };
 }

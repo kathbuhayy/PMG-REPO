@@ -23,6 +23,9 @@ import { useCustomizerUpload } from "../../hooks/useCustomizerUpload";
 import AIGeneratePanel from "../AIBuilder/AIGeneratePanel";
 import TshirtZoneCanvas from "./TshirtZoneCanvas";
 import TshirtPreview3D from "./TshirtPreview3D";
+import TshirtFlatEditor from "./TshirtFlatEditor";
+import TshirtFlatPreview from "./TshirtFlatPreview";
+import ResolutionWarning from "../PrePress/ResolutionWarning";
 import ZoneUploadSlots from "./ZoneUploadSlots";
 import { ZONE_META } from "./TshirtZoneCanvas";
 import { parseFlatSize } from "../../utils/parseFlatSize";
@@ -229,6 +232,7 @@ export default function TshirtCustomizerPanel({
     genError,
     setGenError,
     uploadUsedImages,
+    resolutionResults,
   } = useCustomizerUpload(
     productLabel,
     // Strip dead blob: URLs from restored gallery — blobs are
@@ -622,6 +626,7 @@ export default function TshirtCustomizerPanel({
   };
 
   const [headerTarget, setHeaderTarget] = useState(null);
+  const [viewMode, setViewMode] = useState("edit"); // "edit" | "preview3d"
 
   useEffect(() => {
     setHeaderTarget(document.getElementById("customizer-header-actions"));
@@ -661,17 +666,69 @@ export default function TshirtCustomizerPanel({
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div className="tsc-root">
-      {headerTarget ? (
-        ReactDOM.createPortal(useDesignBtn, headerTarget)
+            {headerTarget ? (
+        ReactDOM.createPortal(
+          <>
+                        <div className="tsc-view-toggle">
+              <button
+                type="button"
+                className={viewMode === "edit" ? "active" : ""}
+                onClick={() => setViewMode("edit")}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className={viewMode === "preview" ? "active" : ""}
+                onClick={() => setViewMode("preview")}
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                className={viewMode === "preview3d" ? "active" : ""}
+                onClick={() => setViewMode("preview3d")}
+              >
+                3D Preview
+              </button>
+            </div>
+            {useDesignBtn}
+          </>,
+          headerTarget
+        )
       ) : (
         <div
           className="tsc-header-fallback"
           style={{
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
+            alignItems: "center",
             marginBottom: 12,
           }}
         >
+                      <div className="tsc-view-toggle">
+              <button
+                type="button"
+                className={viewMode === "edit" ? "active" : ""}
+                onClick={() => setViewMode("edit")}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className={viewMode === "preview" ? "active" : ""}
+                onClick={() => setViewMode("preview")}
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                className={viewMode === "preview3d" ? "active" : ""}
+                onClick={() => setViewMode("preview3d")}
+              >
+                3D Preview
+              </button>
+            </div>
           {useDesignBtn}
         </div>
       )}
@@ -918,6 +975,7 @@ export default function TshirtCustomizerPanel({
                   </div>
                 ))}
               </div>
+              <ResolutionWarning result={resolutionResults[selectedGalleryId]} />
             </div>
           )}
 
@@ -1320,10 +1378,34 @@ export default function TshirtCustomizerPanel({
           />
         </div>
 
-        {/* ── 3. Right 3D Preview Panel (1:1 aspect ratio) ─────── */}
+                {/* ── 3. Right Preview Panel (1:1 aspect ratio) ─────── */}
         <div className="tsc-right-preview">
           <div className="tsc-preview-panel">
-            <PreviewComponent
+                        {viewMode === "edit" ? (
+              <TshirtFlatEditor
+                zones={zones}
+                zoneDesigns={zoneDesigns}
+                zoneTexts={zoneTexts}
+                activeTextId={activeTextId}
+                activeZone={activeZone}
+                onZoneSelect={handleZoneSelect}
+                onZoneDesignChange={handleZoneDesignChange}
+                onUploadClick={handleZoneUploadClick}
+                onTextSelect={handleTextSelect}
+                onTextChange={handleTextChange}
+                onTextRemove={handleTextRemove}
+              />
+            ) : viewMode === "preview" ? (
+              <TshirtFlatPreview
+                product={product}
+                zones={zones}
+                zoneDesigns={zoneDesigns}
+                zoneTexts={zoneTexts}
+                activeZone={activeZone}
+                onZoneSelect={handleZoneSelect}
+              />
+            ) : (
+              <PreviewComponent
               modelPath={modelPath}
               shirtColor={shirtColor}
               zoneDesigns={zoneDesigns}
@@ -1342,6 +1424,7 @@ export default function TshirtCustomizerPanel({
               onLayerSelect={setSelectedLayer}
               {...mergedPreviewProps}
             />
+            )}
           </div>
         </div>
       </div>

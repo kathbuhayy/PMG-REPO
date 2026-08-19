@@ -169,13 +169,14 @@ function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
   );
 }
 
-function ZoneBox({
+export function ZoneBox({
   meta,
   design,
   texts = [],
   activeTextId,
   isActive,
   isInteractive = false,
+  minimal = false,
   onSelect,
   onExpand,
   onDesignChange,
@@ -321,19 +322,21 @@ function ZoneBox({
 
   return (
     <div className={`tsc-zone-wrapper${isActive ? " active" : ""}`}>
-      <div
-        className={`tsc-zone-header-tag${isActive ? " active" : ""}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect?.();
-        }}
-        title={`Click to select ${meta.label} for gallery injection`}
-      >
-        <span className="tsc-zone-position-label">{meta.label} DESIGN</span>
-      </div>
+            {!minimal && (
+        <div
+          className={`tsc-zone-header-tag${isActive ? " active" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect?.();
+          }}
+          title={`Click to select ${meta.label} for gallery injection`}
+        >
+          <span className="tsc-zone-position-label">{meta.label} DESIGN</span>
+        </div>
+      )}
 
       <div
-        className={`tsc-zone-card${isActive ? " active" : ""}${design ? " has-image" : ""}`}
+        className={`tsc-zone-card${isActive ? " active" : ""}${design ? " has-image" : ""}${minimal ? " minimal" : ""}`}
         onClick={() => onSelect?.()}
       >
         <div
@@ -341,7 +344,7 @@ function ZoneBox({
           ref={containerRef}
           style={{ aspectRatio: "1 / 1" }}
         >
-          {isInteractive && (
+          {(isInteractive || minimal) && (
             <>
               <div className="tsc-corner-tl" />
               <div className="tsc-corner-tr" />
@@ -352,22 +355,24 @@ function ZoneBox({
             </>
           )}
 
-          <button
-            type="button"
-            className="tsc-zone-addtext-btn"
-            title="Add text"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect?.();
-              onAddText?.(meta.id);
-            }}
-          >
-            + T
-          </button>
+          {!minimal && (
+            <button
+              type="button"
+              className="tsc-zone-addtext-btn"
+              title="Add text"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect?.();
+                onAddText?.(meta.id);
+              }}
+            >
+              + T
+            </button>
+          )}
 
           {design ? (
             <>
-              {!isInteractive && (
+              {!isInteractive && !minimal && (
                 <>
                   <button
                     type="button"
@@ -425,7 +430,7 @@ function ZoneBox({
                 />
               </div>
 
-              {isInteractive && (
+              {isInteractive && !minimal && (
                 <button
                   type="button"
                   className="tsc-zone-clear-btn"
@@ -439,6 +444,16 @@ function ZoneBox({
                 </button>
               )}
             </>
+                    ) : minimal ? (
+            <div
+              className="tsc-zone-placeholder minimal"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect?.();
+                onUploadClick?.(meta.id);
+              }}
+              title="Click to upload image"
+            />
           ) : (
             <div
               className="tsc-zone-placeholder"

@@ -14,6 +14,7 @@ import {
 } from "react-icons/fa";
 import { adminFetch } from "../utils/adminFetch";
 import ConfirmModal from "../components/ConfirmModal";
+import AdminMockupViews from "../components/MockupCalibration/AdminMockupViews";
 import "./Admin-dashboard.css";
 import { buildApiUrl } from "../config/api";
 import {
@@ -158,7 +159,7 @@ function AdminProducts({
   const [productsCategory, setProductsCategory] = useState("all");
   const [localRefreshKey, setLocalRefreshKey] = useState(0); // ✅ Local refresh trigger
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [inventoryOptions, setInventoryOptions] = useState({ substrates: [], inks: [] });
+  const [inventoryOptions, setInventoryOptions] = useState({ substrates: [], inks: [], units: [] });
 
   useEffect(() => {
     adminFetch(buildApiUrl("/api/admin/inventory"))
@@ -168,6 +169,7 @@ function AdminProducts({
         setInventoryOptions({
           substrates: materials.filter((m) => m.type === "substrate"),
           inks: materials.filter((m) => m.type === "ink"),
+          units: materials.filter((m) => m.type === "unit"),
         });
       })
       .catch((err) => console.error("Failed to fetch inventory options:", err));
@@ -186,6 +188,7 @@ function AdminProducts({
     material: "",
     description: "",
     ai_prompt_rules: "",
+    mockupViews: [],
     substrateMaterialName: "",
     substrateUsagePerUnit: "",
     inkColorChannel: "",
@@ -734,6 +737,7 @@ function AdminProducts({
       description: product.description || "",
       ai_prompt_rules: fullProduct.ai_prompt_rules || "",
       substrateMaterialName: fullProduct.substrateMaterialName || "",
+      mockupViews: fullProduct.mockupViews || [],
       substrateUsagePerUnit: fullProduct.substrateUsagePerUnit || "",
       inkColorChannel: fullProduct.inkColorChannel || "",
       inkUsagePerUnit: fullProduct.inkUsagePerUnit || "",
@@ -828,6 +832,7 @@ function AdminProducts({
             description: editForm.description,
             ai_prompt_rules: editForm.ai_prompt_rules,
             substrateMaterialName: editForm.substrateMaterialName,
+            mockupViews: editForm.mockupViews,
             substrateUsagePerUnit: editForm.substrateUsagePerUnit,
             inkColorChannel: editForm.inkColorChannel,
             inkUsagePerUnit: editForm.inkUsagePerUnit,
@@ -1541,6 +1546,25 @@ function AdminProducts({
                     <FaCheckCircle style={{ color: "#10b981" }} />
                   </span>
                 </button>
+                <button
+                  type="button"
+                  className={`modal-tab-btn ${editProductTab === "mockups" ? "active" : ""
+                    }`}
+                  style={{
+                    opacity: isEditDetailsValid && isEditImagesValid ? 1 : 0.6,
+                    cursor:
+                      isEditDetailsValid && isEditImagesValid
+                        ? "pointer"
+                        : "not-allowed",
+                  }}
+                  onClick={() => {
+                    if (isEditDetailsValid && isEditImagesValid) {
+                      setEditProductTab("mockups");
+                    }
+                  }}
+                >
+                  Mockups
+                </button>
               </div>
 
               <form
@@ -1893,26 +1917,50 @@ function AdminProducts({
                         />
                       </div>
 
-                      {/* AI Prompt Rules */}
-                      {/* <div className="dashform-group">
-                <label>
-                  AI Prompt Rules{" "}
-                  <span style={{ color: "#cbd5e1", fontWeight: "400", fontSize: "12px" }}>
-                    (instructions the AI must follow strictly)
-                  </span>
-                </label>
-                <textarea
-                  value={editForm.ai_prompt_rules}
-                  onChange={(e) =>
-                    setEditForm({
-                      ...editForm,
-                      ai_prompt_rules: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., Always use 300dpi. Bleed must be 0.125in. No clipart..."
-                  rows="4"
-                />
-              </div> */}
+                      <div className="dashform-group">
+                        <label>
+                          Unit Blank{" "}
+                          <span style={{ color: "#cbd5e1", fontWeight: "400", fontSize: "12px" }}>
+                            (for piece-counted items like mugs/caps, instead of substrate)
+                          </span>
+                        </label>
+                        <select
+                          value={editForm.unitMaterialName || ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              unitMaterialName: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="">— None —</option>
+                          {inventoryOptions.units.map((u) => (
+                            <option key={u.name} value={u.name}>
+                              {u.name} ({u.stock} {u.unit} in stock)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="dashform-group">
+                        <label>
+                          Blanks Per Unit{" "}
+                          <span style={{ color: "#cbd5e1", fontWeight: "400", fontSize: "12px" }}>
+                            (usually 1)
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          value={editForm.unitUsagePerUnit || ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              unitUsagePerUnit: e.target.value,
+                            })
+                          }
+                          placeholder="1"
+                        />
+                      </div>
                     </>
                   )}
 
@@ -2279,6 +2327,15 @@ function AdminProducts({
                       />
                     </>
                   )}
+
+                  {editProductTab === "mockups" && (
+                    <AdminMockupViews
+                      views={editForm.mockupViews || []}
+                      onChange={(views) =>
+                        setEditForm({ ...editForm, mockupViews: views })
+                      }
+                    />
+                  )}
                 </div>
 
                 <div
@@ -2308,13 +2365,15 @@ function AdminProducts({
                           setEditProductTab("details");
                         } else if (editProductTab === "specifications") {
                           setEditProductTab("images");
+                        } else if (editProductTab === "mockups") {
+                          setEditProductTab("specifications");
                         }
                       }}
                     >
                       Back
                     </button>
                   )}
-                  {editProductTab !== "specifications" ? (
+                  {editProductTab !== "specifications" && editProductTab !== "mockups" ? (
                     <button
                       type="button"
                       className="ad-logout-btn"
@@ -2348,6 +2407,8 @@ function AdminProducts({
                           if (isEditImagesValid) {
                             setEditProductTab("specifications");
                           }
+                        } else if (editProductTab === "specifications") {
+                          setEditProductTab("mockups");
                         }
                       }}
                     >

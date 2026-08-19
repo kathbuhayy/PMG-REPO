@@ -2062,3 +2062,201 @@
     font-size: 12px;
   }
 }
+/* ── Flat 2D Editor (Printify-style) ─────────────────────────────── */
+.tsc-flat-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.tsc-flat-stage {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 400 / 440;
+  margin: 0 auto;
+}
+
+.tsc-flat-outline {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tsc-flat-zonebox-overlay {
+  position: absolute;
+  left: 27%;
+  top: 30%;
+  width: 46%;
+  height: 40%;
+}
+
+.tsc-flat-zonebox-overlay .tsc-zone-inner {
+  background-color: transparent;
+  border: 1.5px dashed #94a3b8;
+  aspect-ratio: unset;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.tsc-flat-zonebox-overlay .tsc-zone-position-label {
+  display: none;
+}
+
+.tsc-flat-side-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.tsc-flat-side-tab {
+  padding: 8px 16px;
+  border-radius: 9999px;
+  border: 1px solid #d1d5db;
+  background: transparent;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.tsc-flat-side-tab:hover {
+  border-color: #94a3b8;
+}
+
+.tsc-flat-side-tab.active {
+  background: #1f2937;
+  border-color: #1f2937;
+  color: #fff;
+}
+
+.tsc-view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: #f1f5f9;
+  border-radius: 8px;
+}
+
+.tsc-view-toggle button {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tsc-view-toggle button.active {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.tsc-flat-zonebox-overlay.zone-front,
+.tsc-flat-zonebox-overlay.zone-back {
+  left: 27%;
+  top: 30%;
+  width: 46%;
+  height: 40%;
+}
+
+.tsc-flat-zonebox-overlay.zone-left_sleeve,
+.tsc-flat-zonebox-overlay.zone-right_sleeve {
+  left: 32%;
+  top: 37%;
+  width: 36%;
+  height: 38%;
+}
+
+.tsc-zone-card.minimal {
+  box-shadow: none;
+  border: none;
+  background: transparent;
+}
+
+.tsc-zone-placeholder.minimal {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+}
+.tsc-flat-mockup-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.tsc-flat-mockup-missing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 13px;
+  background: #f8fafc;
+}
+
+.tsc-flat-mockup-overlay {
+  position: absolute;
+  container-type: size;
+}
+
+.tsc-flat-mockup-overlay.zone-front,
+.tsc-flat-mockup-overlay.zone-back {
+  left: 27%;
+  top: 30%;
+  width: 46%;
+  height: 40%;
+}
+
+.tsc-flat-mockup-overlay.zone-left_sleeve,
+.tsc-flat-mockup-overlay.zone-right_sleeve {
+  left: 32%;
+  top: 37%;
+  width: 36%;
+  height: 38%;
+}
+
+.tsc-flat-mockup-design {
+  position: absolute;
+  pointer-events: none;
+}
+
+.tsc-flat-mockup-design img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.tsc-flat-mockup-text {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  white-space: pre-wrap;
+  line-height: 1.1;
+}
+
+.tsc-flat-mockup-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.75);
+  color: #fff;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}

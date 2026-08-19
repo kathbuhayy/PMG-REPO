@@ -135,6 +135,8 @@ model Product {
   substrateUsagePerUnit Float?  @map("substrate_usage_per_unit") // meters consumed per unit, calibrated at reference print size below
   inkColorChannel       String? @map("ink_color_channel")        // must match InventoryInk.colorChannel
   inkUsagePerUnit       Float?  @map("ink_usage_per_unit")        // ml consumed per unit, calibrated at reference print size below
+  unitMaterialName      String? @map("unit_material_name")   // must match InventoryUnit.itemName
+  unitUsagePerUnit       Int?    @map("unit_usage_per_unit")   // blanks consumed per piece produced, usually 1
   referenceWidthInches  Float?  @map("reference_width_inches")   // print width the usage rates above were calibrated for
   referenceHeightInches Float?  @map("reference_height_inches")  // print height the usage rates above were calibrated for
   active       Boolean   @default(true)
@@ -144,6 +146,8 @@ model Product {
 
   orderItems   OrderItem[]
   cartItems    CartItem[]
+  
+  mockupViews Json? @map("mockup_views")
 }
 
 model InventorySubstrate {
@@ -166,6 +170,17 @@ model InventoryInk {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@index([colorChannel])
+}
+
+model InventoryUnit {
+  id              Int      @id @default(autoincrement())
+  itemName        String   @unique @map("item_name") // e.g. "plain_ceramic_mug", "plain_cap"
+  stockUnits      Int      @map("stock_units")
+  safetyThreshold Int      @default(15) @map("safety_threshold")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([itemName])
 }
 
 enum RequisitionStatus {

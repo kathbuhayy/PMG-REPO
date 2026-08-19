@@ -192,6 +192,7 @@ function AdminInventory() {
               >
                 <option value="substrate">Substrate</option>
                 <option value="ink">Ink</option>
+                <option value="unit">Unit (per-piece blanks)</option>
               </select>
             </div>
             <div className="dashform-group" style={{ margin: 0 }}>
