@@ -194,6 +194,7 @@ function ProductionQueue() {
                 <tr>
                   <th>Order</th>
                   <th>Customer</th>
+                  <th>Branch</th>
                   <th>Total</th>
                   <th>Payment</th>
                   <th>Stage</th>
@@ -212,6 +213,7 @@ function ProductionQueue() {
                     <tr key={order.id}>
                       <td>#{order.id}</td>
                       <td>{order.customer}</td>
+                      <td>{order.branch}</td>
                       <td>
                         ₱{Number(order.total).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
@@ -330,6 +332,9 @@ function ProductionQueue() {
                   </div>
                   <p style={{ margin: "6px 0", fontSize: "13px", color: "#475569" }}>
                     {order.customer}
+                  </p>
+                  <p style={{ margin: "0 0 6px 0", fontSize: "12px", color: "#94a3b8" }}>
+                    📍 {order.branch}
                   </p>
                   <p style={{ margin: "0 0 10px 0", fontSize: "13px", fontWeight: 600 }}>
                     ₱{Number(order.total).toLocaleString(undefined, { maximumFractionDigits: 0 })}

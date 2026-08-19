@@ -1010,7 +1010,7 @@ function extractPcsFromCustomizations(customizations) {
 // Orders API
 // -------------------------
 app.post("/api/orders", async (req, res) => {
-  const { userId, items, shipping_address, billing_address, shippingCost, payment_status } =
+  const { userId, items, shipping_address, billing_address, shippingCost, payment_status, branchId } =
     req.body;
 
   console.log("📦 Order received:", {
@@ -1129,6 +1129,7 @@ app.post("/api/orders", async (req, res) => {
           payment_status: payment_status || "awaiting_payment",
           shipping_address,
           billing_address,
+          branchId: branchId ? parseInt(branchId) : null,
           items: { create: createItems },
         },
         include: { items: true },
@@ -1440,6 +1441,7 @@ app.get("/api/admin/orders", async (req, res) => {
           },
         },
         user: true,
+        branch: true,
       },
     });
     res.json(orders);
@@ -1470,6 +1472,7 @@ app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff",
       where,
       include: {
         user: true,
+        branch: true,
         items: { include: { product: true } },
       },
       orderBy: [{ due_date: "asc" }, { createdAt: "asc" }],
@@ -1486,6 +1489,7 @@ app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff",
         statusLabel: ORDER_STATUS_LABELS[order.status] || order.status,
         productionStatus: order.productionStatus,
         payment_status: order.payment_status,
+        branch: order.branch?.name || "—",
         total: order.total,
         createdAt: order.createdAt,
         due_date: order.due_date,
@@ -1882,6 +1886,20 @@ app.get("/api/notifications", requireAuth(prisma), async (req, res) => {
   } catch (e) {
     console.error("Notifications fetch error:", e.message);
     res.status(500).json({ message: "Failed to fetch notifications" });
+  }
+});
+
+// GET /api/branches — public list, used by checkout dropdown
+app.get("/api/branches", async (req, res) => {
+  try {
+    const branches = await prisma.branch.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+    });
+    res.json(branches);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to fetch branches" });
   }
 });
 

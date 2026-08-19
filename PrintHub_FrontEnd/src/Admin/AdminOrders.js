@@ -301,6 +301,7 @@ function AdminOrders() {
   const [error, setError] = useState(null);
   const [ordersQuery, setOrdersQuery] = useState("");
   const [ordersStatus, setOrdersStatus] = useState("all");
+  const [ordersBranch, setOrdersBranch] = useState("all");
   const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [detailOrder, setDetailOrder] = useState(null);
   const [aiPreviewModal, setAiPreviewModal] = useState(null); // { imageUrl, productName }
@@ -332,6 +333,7 @@ function AdminOrders() {
             order.status === "cancelled"
               ? "cancelled"
               : order.payment_status || "unpaid",
+          branch: order.branch?.name || "—",
           date: new Date(order.createdAt).toISOString().slice(0, 10),
           dbId: order.id,
           items: order.items || [],
@@ -375,15 +377,19 @@ function AdminOrders() {
           !q ||
           o.id.toLowerCase().includes(q) ||
           o.customer.toLowerCase().includes(q) ||
-          String(o.total).includes(q);
+          String(o.total).includes(q) ||
+          o.branch.toLowerCase().includes(q);
 
         const matchStatus =
           ordersStatus === "all" ? true : o.status === ordersStatus;
 
-        return matchQuery && matchStatus;
+        const matchBranch =
+          ordersBranch === "all" ? true : o.branch === ordersBranch;
+
+        return matchQuery && matchStatus && matchBranch;
       })
       .sort((a, b) => b.dbId - a.dbId); // Sort descending - newest orders first
-  }, [orders, ordersQuery, ordersStatus]);
+  }, [orders, ordersQuery, ordersStatus, ordersBranch]);
 
   const STATUS_GROUPS = [
     "pending",
@@ -720,6 +726,21 @@ function AdminOrders() {
             <option value="cancelled">Cancelled</option>
           </select>
 
+          <select
+            value={ordersBranch}
+            onChange={(e) => setOrdersBranch(e.target.value)}
+          >
+            <option value="all">All Branches</option>
+            {[...new Set(orders.map((o) => o.branch))]
+              .filter((b) => b !== "—")
+              .sort()
+              .map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+          </select>
+
           <button
             className="dashpage-filterbtn"
             type="button"
@@ -738,6 +759,7 @@ function AdminOrders() {
             <tr>
               <th>Order</th>
               <th>Customer</th>
+              <th>Branch</th>
               <th>Total</th>
               <th>Status</th>
               <th>Date</th>
@@ -782,6 +804,7 @@ function AdminOrders() {
                     </div>
                   </td>
                   <td data-label="Customer">{o.customer}</td>
+                  <td data-label="Branch">{o.branch}</td>
                   <td data-label="Total">₱ {o.total.toLocaleString()}</td>
                   <td data-label="Status">
                     <span className={`dashpage-pill status-${o.status}`}>

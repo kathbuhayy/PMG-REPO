@@ -212,6 +212,8 @@ model Order {
   id              Int         @id @default(autoincrement())
   user            User?       @relation(fields: [userId], references: [id])
   userId          Int?
+  branchId  Int?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
   total           Decimal     @db.Decimal(14,2)
   currency        String      @default("PHP")
   status          String      @default("pending")
@@ -242,6 +244,16 @@ model Order {
   items           OrderItem[]
 
   @@index([productionStatus])
+}
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  orders    Order[]
 }
 
 // Join model: which staff member is doing which job (StaffRole) on which order.

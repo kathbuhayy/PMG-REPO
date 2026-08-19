@@ -59,6 +59,7 @@ function CheckoutModal({
     city: "",
     barangay: "",
     street: "",
+    branchId: "",
     billing_region: "",
     billing_province: "",
     billing_city: "",
@@ -71,6 +72,15 @@ function CheckoutModal({
 
   const shippingAddr = usePsgcAddress();
   const billingAddr = usePsgcAddress();
+
+  const [branches, setBranches] = useState([]);
+
+  useEffect(() => {
+    fetch(buildApiUrl("/api/branches"))
+      .then((res) => res.json())
+      .then((data) => setBranches(data || []))
+      .catch((err) => console.error("Failed to fetch branches:", err));
+  }, []);
 
   useEffect(() => {
     if (!userId) return;
@@ -391,6 +401,7 @@ function CheckoutModal({
         shippingCost,
         shipping_address: shippingStr,
         billing_address: billingStr,
+        branchId: formData.branchId || null,
       };
 
       const response = await fetch(buildApiUrl("/api/orders"), {
@@ -758,6 +769,26 @@ function CheckoutModal({
 
               <div className="review-section">
                 <h3>Shipping Address</h3>
+                <div className="checkout-branch-group">
+                  <label className="checkout-branch-label">Select Branch</label>
+                  <div className="checkout-branch-select-wrap">
+                    <select
+                      className="checkout-branch-select"
+                      value={formData.branchId}
+                      onChange={(e) =>
+                        setFormData({ ...formData, branchId: e.target.value })
+                      }
+                      required
+                    >
+                      <option value="">— Select a branch —</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <p className="review-address">
                   {getCombinedAddress(formData, "shipping")}
                 </p>
