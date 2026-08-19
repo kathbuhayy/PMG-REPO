@@ -4892,10 +4892,15 @@ function setupChatWebSocket(wss) {
 
       if (!ws.userId) return;
 
-      // --- CUSTOMER SENDS MESSAGE ---
+        // --- CUSTOMER SENDS MESSAGE ---
       if (data.type === "customer_message" && ws.userRole === "customer") {
         const body = String(data.body || "").trim();
         if (!body) return;
+
+        const priorMessageCount = await prisma.message.count({
+          where: { conversationId: ws.conversationId },
+        });
+        const isFirstMessage = priorMessageCount === 0;
 
         const conversation = await prisma.conversation.update({
           where: { id: ws.conversationId },
@@ -4922,6 +4927,16 @@ function setupChatWebSocket(wss) {
         if (conversation.assignedStaffId) {
           const staffWs = staffSockets.get(conversation.assignedStaffId);
           if (staffWs && staffWs.readyState === staffWs.OPEN) staffWs.send(payload);
+
+          // Notify the assigned staff member even if they're not actively
+          // viewing the Support Inbox page right now.
+          await createNotification({
+            userId: conversation.assignedStaffId,
+            title: `New message from ${ws.userName}`,
+            body: body.length > 80 ? body.slice(0, 80) + "…" : body,
+            type: "support_chat",
+            link: "/admin/supportInbox",
+          });
         } else {
           for (const staffWs of staffSockets.values()) {
             if (staffWs.readyState === staffWs.OPEN) {
@@ -4935,7 +4950,6 @@ function setupChatWebSocket(wss) {
               );
             }
           }
-
           // Persist a bell notification too, so support staff who aren't
           // actively looking at the inbox right now still see it.
           const supportStaffRoles = await prisma.userStaffRole.findMany({
@@ -4958,6 +4972,18 @@ function setupChatWebSocket(wss) {
               type: "support_chat",
               link: "/admin/supportInbox",
             });
+          }
+
+          // Only email on the FIRST message of a brand-new conversation —
+          // not every message — so active chats don't spam staff inboxes.
+          if (isFirstMessage) {
+            const recipients = await prisma.user.findMany({
+              where: { id: { in: Array.from(recipientIds) } },
+              select: { id: true, email: true, first_name: true },
+            });
+            for (const staffUser of recipients) {
+              await notifyNewSupportChat(staffUser, ws.userName, body);
+            }
           }
         }
         return;

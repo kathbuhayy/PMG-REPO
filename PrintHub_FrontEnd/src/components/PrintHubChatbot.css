@@ -350,3 +350,13 @@
 .phc-back-btn:hover {
   background: rgba(255, 255, 255, 0.32);
 }
+.phc-unread-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid #fff;
+}

@@ -15,9 +15,10 @@ import AdminRequisitions from "./AdminRequisitions";
 import StaffDashboard from "./StaffDashboard";
 import AdminReports from "./AdminReports";
 import AdminPayments from "./AdminPayments";
-import AdminSupportInbox from "./AdminSupportIndox";
+import AdminSupportInbox from "./AdminSupportInbox";
 import StageQueuePage from "./StageQueuePage";
 import AdminInventory from "./AdminInventory";
+import useSupportChat from "../hooks/useSupportChat";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
 import {
@@ -506,6 +507,10 @@ function AdminDashboard() {
       .then((data) => setStaffRoles(data.roles || []))
       .catch((err) => console.error("Failed to fetch my staff roles:", err));
   }, [role]);
+
+  const canAccessSupportChat =
+    role === "admin" || staffRoles.includes("CUSTOMER_SUPPORT");
+  const chat = useSupportChat({ enabled: canAccessSupportChat });
 
   useEffect(() => {
     const userId = storedUser?.id;
@@ -1094,6 +1099,24 @@ function AdminDashboard() {
 
   return (
     <div className="admin-dashboard">
+            {chat.toast && (
+        <div
+          className="ios-banner"
+          onClick={() => {
+            navigate("/admin/supportInbox");
+            chat.dismissToast();
+          }}
+        >
+          <div className="ios-banner-icon">
+            <FaHeadset size={16} />
+          </div>
+          <div className="ios-banner-text">
+            <strong>{chat.toast.customerName ? chat.toast.customerName : "New reply"}</strong>
+            <p>{chat.toast.body}</p>
+          </div>
+        </div>
+      )}
+
       {toast.message && (
         <div className={`app-toast-container ${toast.type}`}>
           <FaInfoCircle />
@@ -2684,7 +2707,7 @@ function AdminDashboard() {
 
           {/* New sections without a page yet — placeholders */}
           {activeItem === "quotations" && <AdminInquiries/>}
-          {activeItem === "supportInbox" && <AdminSupportInbox />}
+          {activeItem === "supportInbox" && <AdminSupportInbox chat={chat} />}
           {activeItem === "designApprovals" && <AdminOrders />}
           {activeItem === "productionQueue" && <ProductionQueue />}
           {activeItem === "inventory" && <AdminInventory />}

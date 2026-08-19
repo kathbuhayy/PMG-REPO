@@ -460,6 +460,41 @@ async function notifyPaymentFailed(order) {
   });
 }
 
+// Sends an email to a support staff member (or admin) alerting them that
+// a customer has started a new support chat conversation. Only fires on
+// the FIRST message of a conversation — not every message — so an active
+// back-and-forth doesn't spam their inbox.
+async function notifyNewSupportChat(staffUser, customerName, messageBody) {
+  const contentHtml =
+    `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;">` +
+    `Hi ${staffUser.first_name || "there"},` +
+    `</p>` +
+    `<p style="margin:0 0 20px 0;font-size:15px;line-height:1.5;">` +
+    `<strong>${customerName}</strong> just started a new support chat ` +
+    `and is waiting for a reply.` +
+    `</p>` +
+    `<div style="background:#f8fafc;border:1px solid #e2e8f0;` +
+    `border-radius:8px;padding:16px;margin-bottom:20px;">` +
+    `<p style="margin:0;font-size:14px;color:#475569;font-style:italic;">` +
+    `"${messageBody}"` +
+    `</p>` +
+    `</div>` +
+    `<p style="margin:0;font-size:14px;color:#475569;">` +
+    `Reply from the Support Inbox in your PrintSync dashboard.` +
+    `</p>`;
+
+  return sendSystemEmail({
+    to: staffUser.email,
+    subject: `New support chat from ${customerName}`,
+    text: `${customerName} started a new support chat: "${messageBody}". Reply from the Support Inbox in your dashboard.`,
+    html: renderBaseEmailTemplate({
+      title: "New Support Chat",
+      category: "Customer Support",
+      contentHtml,
+    }),
+  });
+}
+
 // Sends an email confirmation after a return complaint is submitted.
 async function notifyReturnComplaintReceived(order, inquiry) {
   const customerName = getCustomerName(order);
@@ -859,4 +894,5 @@ module.exports = {
   notifyAdminsNewOrderForReview,
   notifyDesignApproval,
   notifyFinalPaymentDue,
+    notifyNewSupportChat,
 };

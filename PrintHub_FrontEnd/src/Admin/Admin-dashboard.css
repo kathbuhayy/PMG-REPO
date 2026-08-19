@@ -2353,3 +2353,62 @@
   right: 6px;
   margin-left: 0;
 }
+.ios-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-120%);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(30, 30, 34, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  max-width: 380px;
+  width: calc(100% - 32px);
+  animation: ios-banner-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes ios-banner-in {
+  from {
+    transform: translateX(-50%) translateY(-120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+.ios-banner-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ios-banner-text strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ios-banner-text p {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: #d1d5db;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}

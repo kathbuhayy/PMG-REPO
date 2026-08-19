@@ -64,7 +64,13 @@ export default function PrintHubChatbot() {
   const [staffInput, setStaffInput] = useState("");
   const [staffConnected, setStaffConnected] = useState(false);
   const [staffConnecting, setStaffConnecting] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
   const wsRef = useRef(null);
+  const isOpenRef = useRef(isOpen);
+  const modeRef = useRef(mode);
+
+  isOpenRef.current = isOpen;
+  modeRef.current = mode;
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -158,6 +164,11 @@ export default function PrintHubChatbot() {
 
       if (data.type === "message") {
         setStaffMessages((prev) => [...prev, data.message]);
+        const isFromStaff = data.message.senderRole === "staff";
+        const isCurrentlyViewing = isOpenRef.current && modeRef.current === "staff";
+        if (isFromStaff && !isCurrentlyViewing) {
+          setHasUnread(true);
+        }
       }
     };
 
@@ -180,8 +191,9 @@ export default function PrintHubChatbot() {
 
   const chooseMode = (nextMode) => {
     setMode(nextMode);
-    if (nextMode === "staff" && !wsRef.current) {
-      connectStaffChat();
+    if (nextMode === "staff") {
+      setHasUnread(false);
+      if (!wsRef.current) connectStaffChat();
     }
   };
 
@@ -201,7 +213,10 @@ export default function PrintHubChatbot() {
       {/* Floating Action Button */}
       <button
         className={`phc-fab ${isOpen ? "phc-fab--open" : ""}`}
-        onClick={() => setIsOpen((v) => !v)}
+        onClick={() => {
+          setIsOpen((v) => !v);
+          if (mode === "staff") setHasUnread(false);
+        }}
         aria-label="Toggle PrintHub chat"
       >
         {isOpen ? (
@@ -214,6 +229,7 @@ export default function PrintHubChatbot() {
           </svg>
         )}
         {!isOpen && <span className="phc-ping" />}
+        {hasUnread && <span className="phc-unread-dot" />}
       </button>
 
       {/* Chat Window */}
