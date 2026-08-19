@@ -3,6 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const prisma = require("./db/prisma");
 const bodyParser = require("body-parser");
+const http = require("http");
+const { WebSocketServer } = require("ws");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
 const multer = require("multer");
@@ -45,6 +47,7 @@ const {
   roleToDb,
   roleFromDb,
   signAuthToken,
+  verifyAuthToken,
 } = require("./services/auth");
 
 const {
@@ -1591,8 +1594,6 @@ app.delete("/api/admin/users/:id/staff-roles/:role", requireAuth(prisma), requir
   }
 });
 
-
-
 // PUT /api/production/orders/:id/status — advance an order's production status
 app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
   const orderId = parseInt(req.params.id);
@@ -1771,6 +1772,72 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
       return res.status(404).json({ message: "Order not found" });
     }
     return res.status(500).json({ message: "Failed to update production status" });
+  }
+});
+
+// GET /api/chat/conversations — staff/admin inbox list (CUSTOMER_SUPPORT role required for staff)
+app.get("/api/chat/conversations", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  try {
+    if (req.actor.role === "staff") {
+      const hasRole = await prisma.userStaffRole.findFirst({
+        where: { userId: req.actor.id, role: "CUSTOMER_SUPPORT", unassignedAt: null },
+      });
+      if (!hasRole) return res.status(403).json({ message: "Not authorized for support chat" });
+    }
+
+    const conversations = await prisma.conversation.findMany({
+      where: { status: "OPEN" },
+      include: {
+        user: { select: { id: true, first_name: true, last_name: true, email: true } },
+        assignedStaff: { select: { id: true, first_name: true, last_name: true } },
+        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+      orderBy: { lastMessageAt: "desc" },
+    });
+
+    res.json({ conversations });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to fetch conversations" });
+  }
+});
+
+// GET /api/chat/conversations/:id/messages — full history (owner customer, or staff/admin)
+app.get("/api/chat/conversations/:id/messages", requireAuth(prisma), async (req, res) => {
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: parseInt(req.params.id) },
+    });
+    if (!conversation) return res.status(404).json({ message: "Conversation not found" });
+
+    const isOwner = conversation.userId === req.actor.id;
+    const isStaffOrAdmin = req.actor.role === "staff" || req.actor.role === "admin";
+    if (!isOwner && !isStaffOrAdmin) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const messages = await prisma.message.findMany({
+      where: { conversationId: conversation.id },
+      orderBy: { createdAt: "asc" },
+    });
+    res.json({ conversation, messages });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to fetch messages" });
+  }
+});
+
+// PATCH /api/chat/conversations/:id/close
+app.patch("/api/chat/conversations/:id/close", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  try {
+    const conversation = await prisma.conversation.update({
+      where: { id: parseInt(req.params.id) },
+      data: { status: "CLOSED" },
+    });
+    res.json({ conversation });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to close conversation" });
   }
 });
 
@@ -4737,6 +4804,231 @@ app.post(
 );
 
 // Start server. Run migrations only when explicitly requested.
+function setupChatWebSocket(wss) {
+  const staffSockets = new Map(); // userId -> ws
+  const customerSockets = new Map(); // userId -> ws
+
+  wss.on("connection", (ws) => {
+    ws.isAlive = true;
+    ws.userId = null;
+    ws.userRole = null;
+    ws.conversationId = null;
+
+    ws.on("pong", () => {
+      ws.isAlive = true;
+    });
+
+    ws.on("message", async (raw) => {
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        return;
+      }
+
+      // --- AUTH ---
+      if (data.type === "auth") {
+        try {
+          const decoded = verifyAuthToken(data.token);
+          const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+          if (!user) {
+            ws.send(JSON.stringify({ type: "auth_error", message: "Invalid session" }));
+            return;
+          }
+          const coreRole = roleFromDb(user.role);
+          ws.userId = user.id;
+          ws.userName =
+            `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email;
+
+          if (coreRole === "staff" || coreRole === "admin") {
+            let allowed = coreRole === "admin";
+            if (!allowed) {
+              const hasRole = await prisma.userStaffRole.findFirst({
+                where: { userId: user.id, role: "CUSTOMER_SUPPORT", unassignedAt: null },
+              });
+              allowed = !!hasRole;
+            }
+            if (!allowed) {
+              ws.send(
+                JSON.stringify({ type: "auth_error", message: "Not authorized for support chat" })
+              );
+              return;
+            }
+            ws.userRole = "staff";
+            staffSockets.set(user.id, ws);
+            ws.send(JSON.stringify({ type: "auth_ok", role: "staff" }));
+          } else {
+            ws.userRole = "customer";
+            customerSockets.set(user.id, ws);
+
+            let conversation = await prisma.conversation.findFirst({
+              where: { userId: user.id, status: "OPEN" },
+              orderBy: { createdAt: "desc" },
+            });
+            if (!conversation) {
+              conversation = await prisma.conversation.create({ data: { userId: user.id } });
+            }
+            ws.conversationId = conversation.id;
+
+            const history = await prisma.message.findMany({
+              where: { conversationId: conversation.id },
+              orderBy: { createdAt: "asc" },
+            });
+
+            ws.send(
+              JSON.stringify({
+                type: "auth_ok",
+                role: "customer",
+                conversationId: conversation.id,
+                history,
+              })
+            );
+          }
+        } catch (err) {
+          ws.send(JSON.stringify({ type: "auth_error", message: "Invalid token" }));
+        }
+        return;
+      }
+
+      if (!ws.userId) return;
+
+      // --- CUSTOMER SENDS MESSAGE ---
+      if (data.type === "customer_message" && ws.userRole === "customer") {
+        const body = String(data.body || "").trim();
+        if (!body) return;
+
+        const conversation = await prisma.conversation.update({
+          where: { id: ws.conversationId },
+          data: { lastMessageAt: new Date(), status: "OPEN" },
+        });
+
+        const message = await prisma.message.create({
+          data: {
+            conversationId: ws.conversationId,
+            senderId: ws.userId,
+            senderRole: "customer",
+            body,
+          },
+        });
+
+        const payload = JSON.stringify({
+          type: "message",
+          conversationId: ws.conversationId,
+          message,
+        });
+
+        ws.send(payload);
+
+        if (conversation.assignedStaffId) {
+          const staffWs = staffSockets.get(conversation.assignedStaffId);
+          if (staffWs && staffWs.readyState === staffWs.OPEN) staffWs.send(payload);
+        } else {
+          for (const staffWs of staffSockets.values()) {
+            if (staffWs.readyState === staffWs.OPEN) {
+              staffWs.send(
+                JSON.stringify({
+                  type: "new_customer_message",
+                  conversationId: ws.conversationId,
+                  customerName: ws.userName,
+                  message,
+                })
+              );
+            }
+          }
+
+          // Persist a bell notification too, so support staff who aren't
+          // actively looking at the inbox right now still see it.
+          const supportStaffRoles = await prisma.userStaffRole.findMany({
+            where: { role: "CUSTOMER_SUPPORT", unassignedAt: null },
+            select: { userId: true },
+          });
+          const admins = await prisma.user.findMany({
+            where: { role: 0 },
+            select: { id: true },
+          });
+          const recipientIds = new Set([
+            ...supportStaffRoles.map((r) => r.userId),
+            ...admins.map((a) => a.id),
+          ]);
+          for (const userId of recipientIds) {
+            await createNotification({
+              userId,
+              title: `New message from ${ws.userName}`,
+              body: message.body.length > 80 ? message.body.slice(0, 80) + "…" : message.body,
+              type: "support_chat",
+              link: "/admin/supportInbox",
+            });
+          }
+        }
+        return;
+      }
+
+      // --- STAFF SENDS MESSAGE ---
+      if (data.type === "staff_message" && ws.userRole === "staff") {
+        const body = String(data.body || "").trim();
+        const conversationId = parseInt(data.conversationId);
+        if (!body || !conversationId) return;
+
+        const message = await prisma.message.create({
+          data: {
+            conversationId,
+            senderId: ws.userId,
+            senderRole: "staff",
+            body,
+          },
+        });
+
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { lastMessageAt: new Date() },
+        });
+
+        const payload = JSON.stringify({ type: "message", conversationId, message });
+        ws.send(payload);
+
+        const conversation = await prisma.conversation.findUnique({
+          where: { id: conversationId },
+        });
+        const customerWs = customerSockets.get(conversation.userId);
+        if (customerWs && customerWs.readyState === customerWs.OPEN) customerWs.send(payload);
+        return;
+      }
+
+      // --- STAFF CLAIMS CONVERSATION ---
+      if (data.type === "claim_conversation" && ws.userRole === "staff") {
+        const conversationId = parseInt(data.conversationId);
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { assignedStaffId: ws.userId },
+        });
+        for (const staffWs of staffSockets.values()) {
+          if (staffWs.readyState === staffWs.OPEN) {
+            staffWs.send(
+              JSON.stringify({ type: "conversation_claimed", conversationId, staffName: ws.userName })
+            );
+          }
+        }
+        return;
+      }
+    });
+
+    ws.on("close", () => {
+      if (ws.userRole === "staff" && ws.userId) staffSockets.delete(ws.userId);
+      if (ws.userRole === "customer" && ws.userId) customerSockets.delete(ws.userId);
+    });
+  });
+
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) return ws.terminate();
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+
+  wss.on("close", () => clearInterval(interval));
+}
+
 (async () => {
   // Log PayMongo configuration status to help with live conversion
   function checkPaymongoConfig() {
@@ -4778,7 +5070,12 @@ app.post(
     console.log("Skipping Prisma migrations on startup.");
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const httpServer = http.createServer(app);
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws/chat" });
+  setupChatWebSocket(wss);
+
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`✅ Server running on port ${PORT}`);
+    console.log(`✅ Chat WebSocket listening on /ws/chat`);
   });
 })();

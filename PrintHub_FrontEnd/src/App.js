@@ -434,7 +434,9 @@ function ChatbotRouteGate() {
     "/user-forgot-otp",
   ];
 
-  if (isEmbed || hiddenRoutes.includes(location.pathname)) {
+  const isAdminRoute = location.pathname.startsWith("/admin");
+
+  if (isEmbed || isAdminRoute || hiddenRoutes.includes(location.pathname)) {
     return null;
   }
 

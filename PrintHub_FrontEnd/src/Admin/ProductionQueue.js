@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
 import {
@@ -9,8 +9,7 @@ import {
   FaFileAlt,
   FaExclamationTriangle,
   FaArrowRight,
-  FaSearch,
-  FaMoneyCheckAlt,
+  FaMoneyCheckAlt
 } from "react-icons/fa";
 
 const STATUS_COLUMNS = [
@@ -21,8 +20,6 @@ const STATUS_COLUMNS = [
   { id: "PACKAGING_READY", label: "Packaging", icon: <FaBoxOpen /> },
   { id: "COMPLETED", label: "Completed", icon: <FaFlagCheckered /> },
 ];
-
-const STATUS_LABELS = Object.fromEntries(STATUS_COLUMNS.map((c) => [c.id, c.label]));
 
 const NEXT_STATUS = {
   PENDING_FILE_CHECK: "AWAITING_PAYMENT",
@@ -35,12 +32,10 @@ const NEXT_STATUS = {
 
 function ProductionQueue() {
   const [queue, setQueue] = useState([]);
-  const [scoped, setScoped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [toast, setToast] = useState("");
-  const [search, setSearch] = useState("");
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -50,7 +45,6 @@ function ProductionQueue() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to load queue");
       setQueue(data.queue || []);
-      setScoped(!!data.scoped);
     } catch (err) {
       setError(err.message || "Failed to load production queue");
     } finally {
@@ -120,16 +114,6 @@ function ProductionQueue() {
     }
   };
 
-  const filteredQueue = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return queue;
-    return queue.filter(
-      (o) =>
-        String(o.id).includes(q) ||
-        (o.customer || "").toLowerCase().includes(q)
-    );
-  }, [queue, search]);
-
   if (loading) {
     return <div className="coming-soon"><p>Loading production queue...</p></div>;
   }
@@ -140,139 +124,6 @@ function ProductionQueue() {
         <div className="coming-soon-icon"><FaExclamationTriangle /></div>
         <h3>Couldn't load production queue</h3>
         <p>{error}</p>
-      </div>
-    );
-  }
-
-  // ── Staff view: table layout, matching AdminOrders' pattern ──────────
-  if (scoped) {
-    return (
-      <div>
-        {toast && (
-          <div className="app-toast-container success">
-            <span>{toast}</span>
-          </div>
-        )}
-
-        <div className="data-table-card" style={{ marginTop: 0 }}>
-          <div className="data-table-head">
-            <h3>My Production Queue</h3>
-            <span className="menu-badge">{filteredQueue.length}</span>
-          </div>
-
-          <div style={{ padding: "0 20px 16px" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                border: "1px solid #d1d5db",
-                borderRadius: "8px",
-                padding: "8px 12px",
-                maxWidth: "320px",
-              }}
-            >
-              <FaSearch size={12} color="#94a3b8" />
-              <input
-                type="text"
-                placeholder="Search by order # or customer..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{
-                  border: "none",
-                  outline: "none",
-                  fontSize: "13px",
-                  width: "100%",
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Customer</th>
-                  <th>Branch</th>
-                  <th>Total</th>
-                  <th>Payment</th>
-                  <th>Stage</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredQueue.length === 0 ? (
-                  <tr>
-                    <td className="empty-row" colSpan={6}>
-                      No orders need your attention right now.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredQueue.map((order) => (
-                    <tr key={order.id}>
-                      <td>#{order.id}</td>
-                      <td>{order.customer}</td>
-                      <td>{order.branch}</td>
-                      <td>
-                        ₱{Number(order.total).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </td>
-                      <td>
-                        <span className={`dashpage-pill status-${order.payment_status}`}>
-                          {order.payment_status}
-                        </span>
-                      </td>
-                      <td>{STATUS_LABELS[order.productionStatus] || order.productionStatus}</td>
-                      <td>
-                        {NEXT_STATUS[order.productionStatus] ? (
-                          (() => {
-                            // AWAITING_PAYMENT is the one stage genuinely
-                            // blocked by money — disable rather than let
-                            // the click fail against the backend guard.
-                            const paymentNotCleared =
-                              order.productionStatus === "AWAITING_PAYMENT" &&
-                              !["paid", "partially_paid"].includes(order.payment_status);
-                            const isDisabled = busyOrderId === order.id || paymentNotCleared;
-
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => advanceStatus(order)}
-                                disabled={isDisabled}
-                                title={paymentNotCleared ? "Waiting for customer payment" : undefined}
-                                className="row-btn"
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "4px",
-                                  background: isDisabled ? "#cbd5e1" : "#10b981",
-                                  color: "#fff",
-                                  border: "none",
-                                  padding: "6px 12px",
-                                  borderRadius: "6px",
-                                  fontSize: "12px",
-                                  cursor: isDisabled ? "not-allowed" : "pointer",
-                                }}
-                              >
-                                {busyOrderId === order.id
-                                  ? "..."
-                                  : order.productionStatus === "PENDING_FILE_CHECK"
-                                    ? <>Approve Design <FaArrowRight size={10} /></>
-                                    : <>Advance <FaArrowRight size={10} /></>}
-                              </button>
-                            );
-                          })()
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     );
   }

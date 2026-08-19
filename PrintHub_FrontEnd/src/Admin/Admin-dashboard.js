@@ -15,6 +15,8 @@ import AdminRequisitions from "./AdminRequisitions";
 import StaffDashboard from "./StaffDashboard";
 import AdminReports from "./AdminReports";
 import AdminPayments from "./AdminPayments";
+import AdminSupportInbox from "./AdminSupportIndox";
+import StageQueuePage from "./StageQueuePage";
 import AdminInventory from "./AdminInventory";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
@@ -26,6 +28,7 @@ import {
 } from "../config/categoryDefaults";
 
 import {
+  FaHeadset,
   FaCalendarAlt,
   FaMoneyBillWave,
   FaTimes,
@@ -51,6 +54,7 @@ import {
   FaWarehouse,
   FaUserCog,
   FaMoneyCheckAlt,
+  FaCheckDouble,
   FaChartBar,
   FaCog,
   FaSearch,
@@ -61,17 +65,9 @@ import {
   FaTools,
 } from "react-icons/fa";
 
-// ─────────────────────────────────────────────────────────────────────────
-// MOCK DATA — clearly isolated so it's easy to find/replace with real API
-// calls later. Nothing here should be treated as production data.
-// ─────────────────────────────────────────────────────────────────────────
 const MOCK_DASHBOARD = {
   deliveriesPickup: 5,
   revenueChangePercent: 12.5,
-  // NOTE: todaysSchedule and salesOverviewTrend below remain placeholder —
-  // no backend endpoint exists yet for a global per-day staff schedule or
-  // date-bucketed revenue history. Everything else that used to live here
-  // (sidebar badges, production donut, urgent actions) now pulls real data.
   todaysSchedule: [
     {
       id: "PJ-1045",
@@ -599,6 +595,11 @@ function AdminDashboard() {
           },
           { id: "productionQueue", label: "Production Queue", icon: <FaListOl /> },
           { id: "calendar", label: "Production Calendar", icon: <FaCalendarAlt /> },
+          { id: "designApprovals", label: "Design Approvals", icon: <FaClipboardCheck /> },
+          { id: "paymentVerification", label: "Payment Verification", icon: <FaMoneyCheckAlt /> },
+          { id: "printJobs", label: "Print Jobs", icon: <FaPrint /> },
+          { id: "qualityCheck", label: "Quality Check", icon: <FaCheckDouble /> },
+          { id: "packaging", label: "Packaging", icon: <FaBoxOpen /> },
         ],
       },
       {
@@ -630,7 +631,10 @@ function AdminDashboard() {
       },
       {
         label: "COMMUNICATION",
-        items: [{ id: "inquiries", label: "Inquiries", icon: <FaEnvelope /> }],
+        items: [
+          { id: "inquiries", label: "Inquiries", icon: <FaEnvelope /> },
+          { id: "supportInbox", label: "Support Inbox", icon: <FaHeadset /> },
+        ],
       },
       {
         label: "SETTINGS",
@@ -645,18 +649,30 @@ function AdminDashboard() {
     // Staff gets a trimmed-down sidebar — just their dashboard, tasks,
     // production queue, and profile. Everything else here is admin-territory.
     if (role === "staff") {
-      const STAFF_ALLOWED_IDS = ["dashboard", "productionQueue", "profile"];
-      // Each job role unlocks the specific admin page it actually needs —
-      // same principle as Production Queue being auto-scoped, just applied
-      // to standalone pages instead of a shared filtered view.
+      const STAFF_ALLOWED_IDS = ["dashboard", "profile"];
+      if (staffRoles.includes("DESIGN_APPROVER")) {
+        STAFF_ALLOWED_IDS.push("designApprovals");
+      }
       if (staffRoles.includes("PAYMENT_VERIFIER")) {
-        STAFF_ALLOWED_IDS.push("quotations");
+        STAFF_ALLOWED_IDS.push("paymentVerification", "quotations");
+      }
+      if (staffRoles.includes("PRINT_TECHNICIAN")) {
+        STAFF_ALLOWED_IDS.push("printJobs");
+      }
+      if (staffRoles.includes("QUALITY_ASSURANCE_INSPECTOR")) {
+        STAFF_ALLOWED_IDS.push("qualityCheck");
+      }
+      if (staffRoles.includes("LOGISTICS_PACKER")) {
+        STAFF_ALLOWED_IDS.push("packaging");
       }
       if (staffRoles.includes("INVENTORY_CONTROLLER")) {
         STAFF_ALLOWED_IDS.push("inventory");
       }
       if (staffRoles.includes("PROCUREMENT_OFFICER")) {
         STAFF_ALLOWED_IDS.push("requisitions");
+      }
+      if (staffRoles.includes("CUSTOMER_SUPPORT")) {
+        STAFF_ALLOWED_IDS.push("supportInbox");
       }
       return groups
         .map((g) => ({ ...g, items: g.items.filter((i) => STAFF_ALLOWED_IDS.includes(i.id)) }))
@@ -2636,6 +2652,11 @@ function AdminDashboard() {
               </div>
             </>
           )}
+          {activeItem === "designApprovals" && <StageQueuePage stage="PENDING_FILE_CHECK" title="Design Approvals" />}
+          {activeItem === "paymentVerification" && <StageQueuePage stage="AWAITING_PAYMENT" title="Payment Verification" />}
+          {activeItem === "printJobs" && <StageQueuePage stage="PRINTING_QUEUE" title="Print Jobs" />}
+          {activeItem === "qualityCheck" && <StageQueuePage stage="QUALITY_ASSURANCE" title="Quality Check" />}
+          {activeItem === "packaging" && <StageQueuePage stage="PACKAGING_READY" title="Packaging" />}
 
           {activeItem === "profile" && <AdminProfile />}
           {activeItem === "customers" && role !== "staff" && (
@@ -2663,6 +2684,7 @@ function AdminDashboard() {
 
           {/* New sections without a page yet — placeholders */}
           {activeItem === "quotations" && <AdminInquiries/>}
+          {activeItem === "supportInbox" && <AdminSupportInbox />}
           {activeItem === "designApprovals" && <AdminOrders />}
           {activeItem === "productionQueue" && <ProductionQueue />}
           {activeItem === "inventory" && <AdminInventory />}

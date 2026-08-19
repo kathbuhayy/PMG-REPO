@@ -79,6 +79,7 @@ function AdminManageAccounts({ scope = "all" }) {
     "LOGISTICS_PACKER",
     "INVENTORY_CONTROLLER",
     "PROCUREMENT_OFFICER",
+    "CUSTOMER_SUPPORT",
   ];
   
   const [rolesModalUser, setRolesModalUser] = useState(null);

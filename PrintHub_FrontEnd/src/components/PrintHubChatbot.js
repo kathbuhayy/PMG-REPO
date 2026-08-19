@@ -43,22 +43,51 @@ function parseMarkdown(text) {
     .replace(/\n{2,}/g, "<br/>");
 }
 
+function buildWsUrl() {
+  const apiBase = buildApiUrl("").replace(/\/$/, "");
+  return apiBase.replace(/^http/, "ws") + "/ws/chat";
+}
+
 export default function PrintHubChatbot() {
   const [isOpen, setIsOpen] = useState(false);
+  // "choice" = AI/Staff picker, "ai" = existing AI chat, "staff" = live support
+  const [mode, setMode] = useState("choice");
+
+  // --- AI chat state (unchanged from before) ---
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggested, setShowSuggested] = useState(true);
+
+  // --- Staff chat state ---
+  const [staffMessages, setStaffMessages] = useState([]);
+  const [staffInput, setStaffInput] = useState("");
+  const [staffConnected, setStaffConnected] = useState(false);
+  const [staffConnecting, setStaffConnecting] = useState(false);
+  const wsRef = useRef(null);
+
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+  const isLoggedIn = !!(
+    localStorage.getItem("authToken") &&
+    (localStorage.getItem("user") || localStorage.getItem("userId"))
+  );
 
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
-  }, [isOpen]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading, staffMessages, mode]);
+
+  useEffect(() => {
+    if (isOpen && (mode === "ai" || mode === "staff")) inputRef.current?.focus();
+  }, [isOpen, mode]);
+
+  // Clean up the socket when the widget unmounts entirely.
+  useEffect(() => {
+    return () => {
+      wsRef.current?.close();
+    };
+  }, []);
 
   const sendMessage = async (text) => {
     const userText = (text || input).trim();
@@ -101,11 +130,70 @@ export default function PrintHubChatbot() {
     }
   };
 
-  const handleKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  const connectStaffChat = () => {
+    if (!isLoggedIn) return;
+    setStaffConnecting(true);
+
+    const ws = new WebSocket(buildWsUrl());
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      const token = localStorage.getItem("authToken");
+      ws.send(JSON.stringify({ type: "auth", token }));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "auth_ok" && data.role === "customer") {
+        setStaffConnected(true);
+        setStaffConnecting(false);
+        setStaffMessages(data.history || []);
+      }
+
+      if (data.type === "auth_error") {
+        setStaffConnecting(false);
+        setStaffConnected(false);
+      }
+
+      if (data.type === "message") {
+        setStaffMessages((prev) => [...prev, data.message]);
+      }
+    };
+
+    ws.onclose = () => {
+      setStaffConnected(false);
+      setStaffConnecting(false);
+    };
+    ws.onerror = () => {
+      setStaffConnected(false);
+      setStaffConnecting(false);
+    };
+  };
+
+  const sendStaffMessage = () => {
+    const body = staffInput.trim();
+    if (!body || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: "customer_message", body }));
+    setStaffInput("");
+  };
+
+  const chooseMode = (nextMode) => {
+    setMode(nextMode);
+    if (nextMode === "staff" && !wsRef.current) {
+      connectStaffChat();
     }
+  };
+
+  const backToChoice = () => {
+    setMode("choice");
+  };
+
+  const handleKey = (e) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    if (mode === "ai") sendMessage();
+    if (mode === "staff") sendStaffMessage();
   };
 
   return (
@@ -134,17 +222,19 @@ export default function PrintHubChatbot() {
         {/* Header */}
         <div className="phc-header">
           <div className="phc-header-info">
-            <div className="phc-avatar">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            {mode !== "choice" && (
+              <button
+                className="phc-back-btn"
+                onClick={backToChoice}
+                aria-label="Back to chat options"
               >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+            )}
+            <div className="phc-avatar">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="11" width="18" height="10" rx="2" />
                 <circle cx="12" cy="5" r="2" />
                 <path d="M12 7v4" />
@@ -153,22 +243,22 @@ export default function PrintHubChatbot() {
               </svg>
             </div>
             <div>
-              <div className="phc-name">PrintHub Assistant</div>
+              <div className="phc-name">
+                {mode === "staff" ? "Live Support" : "PrintHub Assistant"}
+              </div>
               <div className="phc-powered">
-                Powered by Gemini AI – Ask me anything about printing!
+                {mode === "staff"
+                  ? staffConnected
+                    ? "Connected to PrintHub staff"
+                    : staffConnecting
+                      ? "Connecting..."
+                      : "Not connected"
+                  : "Powered by Gemini AI – Ask me anything about printing!"}
               </div>
             </div>
           </div>
           <button className="phc-close-btn" onClick={() => setIsOpen(false)}>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -177,122 +267,167 @@ export default function PrintHubChatbot() {
 
         {/* Body */}
         <div className="phc-body">
-          {/* Welcome message */}
-          <div className="phc-welcome">
-            <p>
-              Hi! I'm your <strong>PrintHub AI assistant</strong> powered by{" "}
-              <strong>Google Gemini AI</strong>. I can help with:
-            </p>
-            <ul>
-              <li>Pricing and quotes (business cards, flyers, etc.)</li>
-              <li>Delivery times and shipping options</li>
-              <li>Turnaround time for orders</li>
-              <li>Design services and file requirements</li>
-              <li>File formats (PDF, PNG, JPG, AI, PSD)</li>
-              <li>Payment methods (GCash, PayMaya, Bank Transfer)</li>
-              <li>Returns and refunds policy</li>
-              <li>Bulk order discounts</li>
-              <li>Order status and tracking</li>
-            </ul>
-            {showSuggested && (
-              <p className="phc-try-label">
-                <em>Try asking me:</em>
+          {mode === "choice" && (
+            <div className="phc-choice">
+              <p className="phc-choice-lead">
+                Hi! How would you like to get help today?
               </p>
-            )}
-          </div>
-
-          {/* Suggested chips */}
-          {showSuggested && (
-            <div className="phc-chips">
-              {SUGGESTED.map((s) => (
-                <button
-                  key={s}
-                  className="phc-chip"
-                  onClick={() => sendMessage(s)}
-                >
-                  {s}
-                </button>
-              ))}
+              <button className="phc-choice-card" onClick={() => chooseMode("ai")}>
+                <span className="phc-choice-title">💬 Chat with AI</span>
+                <span className="phc-choice-desc">
+                  Instant answers about pricing, delivery, and file requirements.
+                </span>
+              </button>
+              <button className="phc-choice-card" onClick={() => chooseMode("staff")}>
+                <span className="phc-choice-title">🧑‍💼 Talk to Staff</span>
+                <span className="phc-choice-desc">
+                  {isLoggedIn
+                    ? "Connect live with a PrintHub team member."
+                    : "Log in required to chat with our team."}
+                </span>
+              </button>
             </div>
           )}
 
-          {/* Messages */}
-          {messages.map((m, i) => (
-            <div key={i} className={`phc-row phc-row--${m.role}`}>
-              {m.role === "assistant" && (
-                <span className="phc-bot-icon">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="11" width="18" height="10" rx="2" />
-                    <circle cx="12" cy="5" r="2" />
-                    <path d="M12 7v4" />
-                  </svg>
-                </span>
-              )}
-              <div
-                className={`phc-bubble phc-bubble--${m.role}`}
-                dangerouslySetInnerHTML={{ __html: parseMarkdown(m.content) }}
-              />
-            </div>
-          ))}
-
-          {/* Typing dots */}
-          {isLoading && (
-            <div className="phc-row phc-row--assistant">
-              <span className="phc-bot-icon">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="11" width="18" height="10" rx="2" />
-                  <circle cx="12" cy="5" r="2" />
-                  <path d="M12 7v4" />
-                </svg>
-              </span>
-              <div className="phc-bubble phc-bubble--assistant phc-typing">
-                <span />
-                <span />
-                <span />
+          {mode === "ai" && (
+            <>
+              <div className="phc-welcome">
+                <p>
+                  Hi! I'm your <strong>PrintHub AI assistant</strong> powered by{" "}
+                  <strong>Google Gemini AI</strong>. I can help with:
+                </p>
+                <ul>
+                  <li>Pricing and quotes (business cards, flyers, etc.)</li>
+                  <li>Delivery times and shipping options</li>
+                  <li>Turnaround time for orders</li>
+                  <li>Design services and file requirements</li>
+                  <li>File formats (PDF, PNG, JPG, AI, PSD)</li>
+                  <li>Payment methods (GCash, PayMaya, Bank Transfer)</li>
+                  <li>Returns and refunds policy</li>
+                  <li>Bulk order discounts</li>
+                  <li>Order status and tracking</li>
+                </ul>
+                {showSuggested && (
+                  <p className="phc-try-label">
+                    <em>Try asking me:</em>
+                  </p>
+                )}
               </div>
-            </div>
+
+              {showSuggested && (
+                <div className="phc-chips">
+                  {SUGGESTED.map((s) => (
+                    <button key={s} className="phc-chip" onClick={() => sendMessage(s)}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {messages.map((m, i) => (
+                <div key={i} className={`phc-row phc-row--${m.role}`}>
+                  {m.role === "assistant" && (
+                    <span className="phc-bot-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="10" rx="2" />
+                        <circle cx="12" cy="5" r="2" />
+                        <path d="M12 7v4" />
+                      </svg>
+                    </span>
+                  )}
+                  <div
+                    className={`phc-bubble phc-bubble--${m.role}`}
+                    dangerouslySetInnerHTML={{ __html: parseMarkdown(m.content) }}
+                  />
+                </div>
+              ))}
+
+              {isLoading && (
+                <div className="phc-row phc-row--assistant">
+                  <span className="phc-bot-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="10" rx="2" />
+                      <circle cx="12" cy="5" r="2" />
+                      <path d="M12 7v4" />
+                    </svg>
+                  </span>
+                  <div className="phc-bubble phc-bubble--assistant phc-typing">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {mode === "staff" && (
+            <>
+              {!isLoggedIn ? (
+                <div className="phc-welcome">
+                  <p>
+                    You'll need to be logged in to chat with our staff. Please log in,
+                    then come back and select <strong>Talk to Staff</strong> again.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {staffMessages.length === 0 && staffConnected && (
+                    <div className="phc-welcome">
+                      <p>You're connected. Send a message and a staff member will reply here.</p>
+                    </div>
+                  )}
+                  {staffMessages.map((m) => (
+                    <div
+                      key={m.id}
+                      className={`phc-row phc-row--${m.senderRole === "staff" ? "assistant" : "user"}`}
+                    >
+                      <div
+                        className={`phc-bubble phc-bubble--${m.senderRole === "staff" ? "assistant" : "user"}`}
+                      >
+                        {m.body}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="phc-footer">
-          <input
-            ref={inputRef}
-            className="phc-input"
-            placeholder="Ask me about printing services, pricing, delivery, etc..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKey}
-            disabled={isLoading}
-          />
-          <button
-            className="phc-send"
-            onClick={() => sendMessage()}
-            disabled={isLoading || !input.trim()}
-          >
-            Send
-          </button>
-        </div>
+        {/* Input — only shown for AI and staff modes, not the choice screen */}
+        {mode !== "choice" && (mode === "ai" || isLoggedIn) && (
+          <div className="phc-footer">
+            <input
+              ref={inputRef}
+              className="phc-input"
+              placeholder={
+                mode === "ai"
+                  ? "Ask me about printing services, pricing, delivery, etc..."
+                  : "Type your message..."
+              }
+              value={mode === "ai" ? input : staffInput}
+              onChange={(e) =>
+                mode === "ai" ? setInput(e.target.value) : setStaffInput(e.target.value)
+              }
+              onKeyDown={handleKey}
+              disabled={mode === "ai" ? isLoading : !staffConnected}
+            />
+            <button
+              className="phc-send"
+              onClick={() => (mode === "ai" ? sendMessage() : sendStaffMessage())}
+              disabled={
+                mode === "ai"
+                  ? isLoading || !input.trim()
+                  : !staffConnected || !staffInput.trim()
+              }
+            >
+              Send
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
