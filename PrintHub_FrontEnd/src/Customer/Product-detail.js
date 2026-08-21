@@ -465,26 +465,73 @@ const attemptAddToCart = () => {
   // AI Builder
   const [activeDesign, setActiveDesign] = useState(null); // designMeta | null
 
-  const [customizerWip, setCustomizerWip] = useState(() => {
-    if (!id) return null;
-    try {
-      const saved = sessionStorage.getItem(`customizer_wip_${id}`);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+   // Draft autosave: WIP persists to localStorage (survives closing the tab,
+  // unlike sessionStorage) with a timestamp so stale drafts expire instead
+  // of accumulating forever. Recovery is explicit - we hold a found draft
+  // in `pendingDraft` and ask via modal rather than silently restoring it,
+  // so a customer who wants a fresh start isn't stuck with old content.
+  const WIP_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-  // Sync state if product ID changes
+  const wipDraftKey = useCallback((productId) => `customizer_wip_${productId}`, []);
+
+  const readWipDraft = useCallback(
+    (productId) => {
+      if (!productId) return null;
+      try {
+        const raw = localStorage.getItem(wipDraftKey(productId));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed?.savedAt || !parsed?.wip) return null;
+        if (Date.now() - parsed.savedAt > WIP_DRAFT_MAX_AGE_MS) {
+          localStorage.removeItem(wipDraftKey(productId));
+          return null;
+        }
+        return parsed.wip;
+      } catch {
+        return null;
+      }
+    },
+    [wipDraftKey],
+  );
+
+  // True if a draft actually has design content worth prompting about -
+  // covers both the newer zoneLayers shape and the legacy
+  // zoneDesigns/zoneTexts shape (FlatCustomizerPanel hasn't migrated yet).
+  const wipHasContent = useCallback((wip) => {
+    if (!wip) return false;
+    const layerCount = Object.values(wip.zoneLayers || {}).reduce(
+      (n, arr) => n + (arr?.length || 0),
+      0,
+    );
+    const legacyImageCount = Object.values(wip.zoneDesigns || {}).filter(
+      (d) => d?.imageUrl,
+    ).length;
+    const legacyTextCount = Object.values(wip.zoneTexts || {}).reduce(
+      (n, arr) => n + (arr?.length || 0),
+      0,
+    );
+    return layerCount > 0 || legacyImageCount > 0 || legacyTextCount > 0;
+  }, []);
+
+  const [customizerWip, setCustomizerWip] = useState(null);
+  const [pendingDraft, setPendingDraft] = useState(null);
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
+
+  // Sync state if product ID changes - look for a recoverable draft, but
+  // don't apply it until the customer explicitly chooses to continue.
   useEffect(() => {
     if (!id) return;
-    try {
-      const saved = sessionStorage.getItem(`customizer_wip_${id}`);
-      setCustomizerWip(saved ? JSON.parse(saved) : null);
-    } catch {
+    const draft = readWipDraft(id);
+    if (draft && wipHasContent(draft)) {
+      setPendingDraft(draft);
+      setShowDraftPrompt(true);
+      setCustomizerWip(null);
+    } else {
+      setPendingDraft(null);
+      setShowDraftPrompt(false);
       setCustomizerWip(null);
     }
-  }, [id]);
+  }, [id, readWipDraft, wipHasContent]);
 
   // Handle sync updates of customizer WIP
   const handleWipChange = useCallback(
@@ -493,18 +540,18 @@ const attemptAddToCart = () => {
       setCustomizerWip(wip);
       try {
         if (wip) {
-          sessionStorage.setItem(
-            `customizer_wip_${product.id}`,
-            JSON.stringify(wip),
+          localStorage.setItem(
+            wipDraftKey(product.id),
+            JSON.stringify({ wip, savedAt: Date.now() }),
           );
         } else {
-          sessionStorage.removeItem(`customizer_wip_${product.id}`);
+          localStorage.removeItem(wipDraftKey(product.id));
         }
       } catch (e) {
-        console.warn("Could not save WIP to session storage", e);
+        console.warn("Could not save WIP draft", e);
       }
     },
-    [product?.id],
+    [product?.id, wipDraftKey],
   );
 
   // Helper to clear the customizer WIP state for the current product
@@ -512,11 +559,11 @@ const attemptAddToCart = () => {
     if (!product?.id) return;
     setCustomizerWip(null);
     try {
-      sessionStorage.removeItem(`customizer_wip_${product.id}`);
+      localStorage.removeItem(wipDraftKey(product.id));
     } catch (e) {
-      console.warn("Could not clear WIP from session storage", e);
+      console.warn("Could not clear WIP draft", e);
     }
-  }, [product?.id]);
+  }, [product?.id, wipDraftKey]);
   const CustomizerPanel = useMemo(() => {
     return getCustomizerPanel(product?.dbCategory);
   }, [product?.dbCategory]);
@@ -2061,6 +2108,31 @@ const attemptAddToCart = () => {
           </section>
         )}
       </div>
+
+            <AppModal
+        open={showDraftPrompt}
+        title="Continue your previous customization?"
+        message="You have an unfinished design for this product from an earlier visit. Would you like to pick up where you left off?"
+        confirmText="Continue Editing"
+        cancelText="Start New Design"
+        tone="info"
+        onConfirm={() => {
+          setCustomizerWip(pendingDraft);
+          setShowDraftPrompt(false);
+        }}
+        onCancel={() => {
+          if (product?.id) {
+            try {
+              localStorage.removeItem(wipDraftKey(product.id));
+            } catch (e) {
+              console.warn("Could not clear WIP draft", e);
+            }
+          }
+          setPendingDraft(null);
+          setCustomizerWip(null);
+          setShowDraftPrompt(false);
+        }}
+      />
 
       <AppModal
         open={Boolean(noticeModal)}

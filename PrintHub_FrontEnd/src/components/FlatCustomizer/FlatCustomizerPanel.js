@@ -118,6 +118,13 @@ export default function FlatCustomizerPanel({
     return parsed ? parsed.width / parsed.height : null;
   }, [selectedSize]);
 
+    // Real print size in inches, for converting the product's admin-set
+  // bleed/safe-margin values into on-canvas guide percentages.
+  const printSizeInches = useMemo(() => {
+    if (!selectedSize) return null;
+    return parseFlatSize(selectedSize);
+  }, [selectedSize]);
+
   const {
     gallery,
     setGallery,
@@ -814,6 +821,9 @@ export default function FlatCustomizerPanel({
             onTextRemove={handleTextRemove}
             onUploadClick={handleZoneUploadClick}
             aspectRatio={aspectRatio}
+            printSizeInches={printSizeInches}
+            bleedInches={product?.bleedInches}
+            safeMarginInches={product?.safeMarginInches}
           />
         </div>
 

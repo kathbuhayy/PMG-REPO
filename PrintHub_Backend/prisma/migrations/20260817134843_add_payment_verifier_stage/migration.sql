@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "ProductionStatus" ADD VALUE 'AWAITING_PAYMENT';
+
+-- AlterEnum
+ALTER TYPE "StaffRole" ADD VALUE 'PAYMENT_VERIFIER';

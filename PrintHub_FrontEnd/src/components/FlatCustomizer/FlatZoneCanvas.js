@@ -1,3 +1,4 @@
+// src/components/FlatCustomizer/FlatZoneCanvas.js  (replace entire file)
 /**
  * FlatZoneCanvas
  * Renders print zones for flat products (Business Card, Banner, Sticker, Hang Tag, Brochure).
@@ -181,6 +182,9 @@ function ZoneBox({
   onTextChange,
   onTextRemove,
   aspectRatio,
+  printSizeInches,
+  bleedInches,
+  safeMarginInches,
 }) {
   const containerRef = useRef(null);
   const dragRef = useRef(null);
@@ -328,6 +332,24 @@ function ZoneBox({
     });
   };
 
+  // Bleed/safe-area guides, in percent of the zone box (which represents
+  // the trim/print boundary). Requires the product's real print size in
+  // inches to convert - falls back to not rendering if unavailable, since
+  // a guide computed against the wrong physical size is worse than none.
+  const hasGuides = printSizeInches?.width > 0 && printSizeInches?.height > 0;
+  const safeInsetX = hasGuides && safeMarginInches
+    ? (safeMarginInches / printSizeInches.width) * 100
+    : null;
+  const safeInsetY = hasGuides && safeMarginInches
+    ? (safeMarginInches / printSizeInches.height) * 100
+    : null;
+  const bleedOutsetX = hasGuides && bleedInches
+    ? (bleedInches / printSizeInches.width) * 100
+    : null;
+  const bleedOutsetY = hasGuides && bleedInches
+    ? (bleedInches / printSizeInches.height) * 100
+    : null;
+
   return (
     <div
       className={`tsc-zone${isActive ? " active" : ""}${
@@ -340,8 +362,43 @@ function ZoneBox({
       <div
         className="tsc-zone-inner"
         ref={containerRef}
-        style={aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined}
+        style={{
+          ...(aspectRatio ? { aspectRatio: String(aspectRatio) } : undefined),
+          overflow: "visible",
+        }}
       >
+        {bleedOutsetX !== null && (
+          <div
+            className="tsc-bleed-guide"
+            style={{
+              position: "absolute",
+              top: `${-bleedOutsetY}%`,
+              left: `${-bleedOutsetX}%`,
+              right: `${-bleedOutsetX}%`,
+              bottom: `${-bleedOutsetY}%`,
+              border: "1.5px dashed #dc2626",
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+            title={`Bleed: ${bleedInches}in beyond trim edge`}
+          />
+        )}
+        {safeInsetX !== null && (
+          <div
+            className="tsc-safe-guide"
+            style={{
+              position: "absolute",
+              top: `${safeInsetY}%`,
+              left: `${safeInsetX}%`,
+              right: `${safeInsetX}%`,
+              bottom: `${safeInsetY}%`,
+              border: "1.5px dashed #2563eb",
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+            title={`Safe area: keep important content ${safeMarginInches}in from the edge`}
+          />
+        )}
         {design ? (
           <>
             {/* Floating edit pencil and remove buttons in grid view */}
@@ -565,6 +622,9 @@ export default function FlatZoneCanvas({
   onTextRemove,
   onUploadClick,
   aspectRatio,
+  printSizeInches,
+  bleedInches,
+  safeMarginInches,
 }) {
   const [modalZone, setModalZone] = useState(null);
   const allMeta = ZONES_BY_TYPE[productType] || [];
@@ -608,6 +668,9 @@ export default function FlatZoneCanvas({
             onTextRemove={(textId) => onTextRemove?.(meta.id, textId)}
             onUploadClick={onUploadClick}
             aspectRatio={aspectRatio}
+            printSizeInches={printSizeInches}
+            bleedInches={bleedInches}
+            safeMarginInches={safeMarginInches}
           />
         ))}
       </div>
@@ -652,6 +715,9 @@ export default function FlatZoneCanvas({
                   onTextRemove={(textId) => onTextRemove?.(modalZone.id, textId)}
                   onUploadClick={onUploadClick}
                   aspectRatio={aspectRatio}
+                  printSizeInches={printSizeInches}
+                  bleedInches={bleedInches}
+                  safeMarginInches={safeMarginInches}
                 />
               </div>
 
@@ -680,4 +746,3 @@ export default function FlatZoneCanvas({
     </div>
   );
 }
-

@@ -2062,3 +2062,229 @@
     font-size: 12px;
   }
 }
+/* ── LayersPanel ─────────────────────────────────────────────────── */
+.lp-panel {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.lp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+.lp-apply-all-btn {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #4f46e5;
+  background: none;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.lp-apply-all-btn:hover {
+  background: #eef2ff;
+}
+.lp-empty {
+  font-size: 12px;
+  color: #9ca3af;
+  padding: 12px 0;
+  text-align: center;
+}
+.lp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.lp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.lp-row:hover {
+  background: #f9fafb;
+}
+.lp-row-selected {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+.lp-thumb {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lp-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lp-thumb-text {
+  font-weight: 700;
+  font-size: 13px;
+}
+.lp-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.lp-row-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lp-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-top: 2px;
+}
+.lp-badge-ready {
+  background: #dcfce7;
+  color: #15803d;
+}
+.lp-badge-low {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.lp-badge-unknown {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.lp-row-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.lp-move-btn,
+.lp-remove-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: #f3f4f6;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #4b5563;
+}
+.lp-move-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.lp-remove-btn:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ── Edit / Preview mode toggle ──────────────────────────────────── */
+.tsc-mode-toggle {
+  display: inline-flex;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+  background: #f9fafb;
+}
+.tsc-mode-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #6b7280;
+}
+.tsc-mode-btn.active {
+  background: #111827;
+  color: #fff;
+}
+/* ── Mockup View thumbnail grid (Preview mode) ───────────────────── */
+.mv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.mv-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.mv-thumb-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mv-thumb:hover .mv-thumb-img {
+  border-color: #93c5fd;
+}
+.mv-thumb.active .mv-thumb-img {
+  border-color: #111827;
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.1);
+}
+.mv-thumb-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mv-thumb-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #9ca3af;
+  border-radius: 50%;
+  animation: mv-spin 0.8s linear infinite;
+}
+@keyframes mv-spin {
+  to { transform: rotate(360deg); }
+}
+.mv-thumb-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+.mv-thumb.active .mv-thumb-label {
+  color: #111827;
+}
+/* ── Templates tab ────────────────────────────────────────────────── */
+.mv-thumb-text-preview {
+  font-size: 20px;
+  font-weight: 700;
+  color: #9ca3af;
+}

@@ -1,3 +1,4 @@
+// prisma/schema.prisma  (replace entire file)
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,6 +7,26 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+enum StaffRole {
+  DESIGN_APPROVER              // Checks canvas DPI & borders
+  PAYMENT_VERIFIER             // Confirms customer payment before production starts
+  PRINT_TECHNICIAN             // Controls print machinery & triggers ink reduction
+  QUALITY_ASSURANCE_INSPECTOR  // Checks for printing smudges and errors
+  LOGISTICS_PACKER             // Packages shirts & triggers PDF shipping slips
+  INVENTORY_CONTROLLER         // Monitors raw material forecasting charts
+  PROCUREMENT_OFFICER          // Approves automated supplier purchase sheets
+  CUSTOMER_SUPPORT
+}
+
+enum ProductionStatus {
+  PENDING_FILE_CHECK
+  AWAITING_PAYMENT
+  PRINTING_QUEUE
+  QUALITY_ASSURANCE
+  PACKAGING_READY
+  COMPLETED
 }
 
 model User {
@@ -29,6 +50,75 @@ model User {
   orders       Order[]
   inquiries    Inquiry[]
   cartItems    CartItem[]
+  staffRoles   UserStaffRole[]
+  notifications     Notification[]
+  conversations         Conversation[]
+  supportAssignments    Conversation[] @relation("SupportAssignedStaff")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      String   // "order_status" | "design_approved" | "payment_due" | "low_stock" | "requisition" | "assignment"
+  link      String?  // frontend route to deep-link to, e.g. "/orders/74"
+  metadata  Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+enum ConversationStatus {
+  OPEN
+  CLOSED
+}
+
+model Conversation {
+  id             Int                 @id @default(autoincrement())
+  userId         Int                 @map("user_id")
+  user           User                @relation(fields: [userId], references: [id])
+  status         ConversationStatus  @default(OPEN)
+  assignedStaffId Int?               @map("assigned_staff_id")
+  assignedStaff  User?               @relation("SupportAssignedStaff", fields: [assignedStaffId], references: [id])
+  lastMessageAt  DateTime            @default(now()) @map("last_message_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  messages       Message[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([assignedStaffId])
+}
+
+model Message {
+  id             Int          @id @default(autoincrement())
+  conversationId Int          @map("conversation_id")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       Int          @map("sender_id")
+  senderRole     String       @map("sender_role") // "customer" | "staff"
+  body           String       @db.Text
+  readAt         DateTime?    @map("read_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([conversationId])
+}
+
+model UserStaffRole {
+  id           Int       @id @default(autoincrement())
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int       @map("user_id")
+  role         StaffRole
+  assignedBy   Int?      @map("assigned_by")     // admin's User.id who made the assignment
+  assignedAt   DateTime  @default(now()) @map("assigned_at")
+  unassignedAt DateTime? @map("unassigned_at")   // set when admin reassigns/removes, keeps history
+
+  @@unique([userId, role])
+  @@index([userId])
+  @@index([role])
 }
 
 model ArchivedUser {
@@ -80,6 +170,16 @@ model Product {
   images       String[]  @default([])
   quantity_mode String?   // 'dropdown' | 'text' — admin-configurable quantity input mode
   quantity_count Int?     // threshold for auto-selecting contact/quote when using text mode
+  bleedInches      Float?  @map("bleed_inches")       // how far artwork can extend past the trim edge
+  safeMarginInches Float?  @map("safe_margin_inches")  // recommended inset from trim edge for text/important content
+  substrateMaterialName String? @map("substrate_material_name") // must match InventorySubstrate.materialName
+  substrateUsagePerUnit Float?  @map("substrate_usage_per_unit") // meters consumed per unit, calibrated at reference print size below
+  inkColorChannel       String? @map("ink_color_channel")        // must match InventoryInk.colorChannel
+  inkUsagePerUnit       Float?  @map("ink_usage_per_unit")        // ml consumed per unit, calibrated at reference print size below
+  unitMaterialName      String? @map("unit_material_name")   // must match InventoryUnit.itemName
+  unitUsagePerUnit       Int?    @map("unit_usage_per_unit")   // blanks consumed per piece produced, usually 1
+  referenceWidthInches  Float?  @map("reference_width_inches")   // print width the usage rates above were calibrated for
+  referenceHeightInches Float?  @map("reference_height_inches")  // print height the usage rates above were calibrated for
   active       Boolean   @default(true)
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
@@ -87,19 +187,88 @@ model Product {
 
   orderItems   OrderItem[]
   cartItems    CartItem[]
+  
+  mockupViews Json? @map("mockup_views")
+}
+
+model InventorySubstrate {
+  id              Int      @id @default(autoincrement())
+  materialName    String   @unique @map("material_name")
+  stockMeters     Float    @map("stock_meters")
+  safetyThreshold Float    @default(15.0) @map("safety_threshold")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([materialName])
+}
+
+model InventoryInk {
+  id              Int      @id @default(autoincrement())
+  colorChannel    String   @unique @map("color_channel")
+  volumeMl        Float    @map("volume_ml")
+  safetyThreshold Float    @default(15.0) @map("safety_threshold")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([colorChannel])
+}
+
+model InventoryUnit {
+  id              Int      @id @default(autoincrement())
+  itemName        String   @unique @map("item_name") // e.g. "plain_ceramic_mug", "plain_cap"
+  stockUnits      Int      @map("stock_units")
+  safetyThreshold Int      @default(15) @map("safety_threshold")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([itemName])
+}
+
+enum RequisitionStatus {
+  PENDING
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+model PurchaseRequisition {
+  id               Int               @id @default(autoincrement())
+  materialType     String            @map("material_type") // "substrate" | "ink"
+  materialName     String            @map("material_name")  // matches InventorySubstrate.materialName or InventoryInk.colorChannel
+  currentStock     Float             @map("current_stock")
+  safetyThreshold  Float             @map("safety_threshold")
+  requestedAmount  Float             @map("requested_amount") // suggested restock quantity
+  status           RequisitionStatus @default(PENDING)
+  triggeredByOrderId Int?            @map("triggered_by_order_id") // which order's decrement caused this
+  documentText     String            @db.Text // the formatted restock log sheet text
+  generatedBy      Int?              @map("generated_by") // staff/admin id, null if system-generated
+  createdAt        DateTime          @default(now()) @map("created_at")
+  resolvedAt        DateTime?        @map("resolved_at")
+
+  @@index([status])
+  @@index([materialName])
 }
 
 model Order {
   id              Int         @id @default(autoincrement())
   user            User?       @relation(fields: [userId], references: [id])
   userId          Int?
+  branchId  Int?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
   total           Decimal     @db.Decimal(14,2)
   currency        String      @default("PHP")
   status          String      @default("pending")
   shipping_address String?
   billing_address String?
   proofApproved        Boolean     @default(false)
+  designReviewStatus   String?     @default("submitted") @map("design_review_status")
+  designReviewNotes    String?     @map("design_review_notes")
+  designReviewedAt     DateTime?   @map("design_reviewed_at")
+  designReviewedBy     Int?        @map("design_reviewed_by")
   payment_status       String      @default("unpaid")
+  isBulkOrder          Boolean     @default(false) @map("is_bulk_order")
+  amountPaid           Decimal     @default(0) @db.Decimal(14,2) @map("amount_paid")
+  pendingPaymentAmount Decimal?    @db.Decimal(14,2) @map("pending_payment_amount")
   payment_method       String?
   payment_reference    String?
   paymongo_session_id  String?
@@ -110,8 +279,32 @@ model Order {
   updatedAt            DateTime    @updatedAt @map("updated_at")
   deleted_at           DateTime?   @map("deleted_at")
 
+  // --- Manufacturing workflow fields ---
+  productionStatus     ProductionStatus @default(PENDING_FILE_CHECK) @map("production_status")
+  mockupImageUrl       String?     @map("mockup_image_url") // Fabric.js base64 data stream
+  baseColorHex         String?     @map("base_color_hex")
+  printWidthInches     Float?      @map("print_width_inches")
+  printHeightInches    Float?      @map("print_height_inches")
+
   items           OrderItem[]
+
+  @@index([productionStatus])
 }
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  orders    Order[]
+}
+
+// Join model: which staff member is doing which job (StaffRole) on which order.
+// Supports multiple concurrent assignments per order (e.g. one PRINT_TECHNICIAN
+// + one QUALITY_ASSURANCE_INSPECTOR on the same order) and admin reassignment
+// via unassignedAt instead of hard deletes, preserving history.
 
 model OrderItem {
   id           Int      @id @default(autoincrement())
@@ -187,4 +380,25 @@ model ActivityLog {
   @@index([createdAt])
   @@index([userId])
   @@index([module])
+}
+
+// Reusable starting-point designs staff/admin can create from the
+// customizer and customers can browse/apply before editing further.
+// zoneLayers stores the same stacked-layer shape used by zoneLayerModel.js
+// on the frontend (see TshirtCustomizerPanel.js), so applying a template is
+// just loading it straight into customizer state - no format conversion.
+model DesignTemplate {
+  id           Int      @id @default(autoincrement())
+  name         String
+  category     String                          // matches Product.category: tshirt | mug | calling_card | other
+  thumbnailUrl String?  @map("thumbnail_url")
+  zoneLayers   Json     @map("zone_layers")
+  baseColor    String?  @map("base_color")
+  createdBy    Int?     @map("created_by")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([active])
 }

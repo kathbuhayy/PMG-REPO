@@ -2821,12 +2821,210 @@ async function ensureBucket() {
 }
 
 /** Extract userId from X-User-Id header; returns null when missing/invalid */
+/** Extract userId from X-User-Id header; returns null when missing/invalid */
 function getUserId(req) {
   const raw = req.headers["x-user-id"];
   if (!raw) return null;
   const id = parseInt(raw, 10);
   return Number.isFinite(id) && id > 0 ? id : null;
 }
+
+/** True if the X-User-Id header belongs to an admin or staff user. */
+async function isStaffOrAdmin(req) {
+  const userId = getUserId(req);
+  if (!userId) return false;
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return false;
+  const role = roleFromDb(user.role);
+  return role === "admin" || role === "staff";
+}
+
+// GET /api/templates?category=tshirt — browse active templates, optionally
+// filtered by product category. Public (any signed-in customer can browse).
+app.get("/api/templates", async (req, res) => {
+  try {
+    const { category } = req.query;
+    const templates = await prisma.designTemplate.findMany({
+      where: {
+        active: true,
+        ...(category ? { category: String(category) } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(templates);
+  } catch (err) {
+    console.error("GET /api/templates failed:", err);
+    res.status(500).json({ message: "Failed to load templates." });
+  }
+});
+
+// POST /api/templates — create a template from the current customizer state.
+// Staff/admin only.
+app.post("/api/templates", async (req, res) => {
+  try {
+    if (!(await isStaffOrAdmin(req))) {
+      return res
+        .status(403)
+        .json({ message: "Only staff or admin can create templates." });
+    }
+    const { name, category, zoneLayers, baseColor, thumbnailUrl } = req.body;
+    if (!name || !category || !zoneLayers) {
+      return res
+        .status(400)
+        .json({ message: "name, category, and zoneLayers are required." });
+    }
+    const template = await prisma.designTemplate.create({
+      data: {
+        name,
+        category,
+        zoneLayers,
+        baseColor: baseColor || null,
+        thumbnailUrl: thumbnailUrl || null,
+        createdBy: getUserId(req),
+      },
+    });
+    res.status(201).json(template);
+  } catch (err) {
+    console.error("POST /api/templates failed:", err);
+    res.status(500).json({ message: "Failed to save template." });
+  }
+});
+
+// PUT /api/templates/:id — rename or toggle active. Staff/admin only.
+app.put("/api/templates/:id", async (req, res) => {
+  try {
+    if (!(await isStaffOrAdmin(req))) {
+      return res
+        .status(403)
+        .json({ message: "Only staff or admin can edit templates." });
+    }
+    const id = parseInt(req.params.id, 10);
+    const { name, active } = req.body;
+    const template = await prisma.designTemplate.update({
+      where: { id },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(active !== undefined ? { active } : {}),
+      },
+    });
+    res.json(template);
+  } catch (err) {
+    console.error("PUT /api/templates/:id failed:", err);
+    res.status(500).json({ message: "Failed to update template." });
+  }
+});
+
+// DELETE /api/templates/:id — staff/admin only.
+app.delete("/api/templates/:id", async (req, res) => {
+  try {
+    if (!(await isStaffOrAdmin(req))) {
+      return res
+        .status(403)
+        .json({ message: "Only staff or admin can delete templates." });
+    }
+    const id = parseInt(req.params.id, 10);
+    await prisma.designTemplate.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /api/templates/:id failed:", err);
+    res.status(500).json({ message: "Failed to delete template." });
+  }
+});
+
+const DESIGN_REVIEW_STATUSES = [
+  "submitted",
+  "under_review",
+  "needs_revision",
+  "approved",
+  "rejected",
+];
+
+// PUT /api/orders/:id/design-review — staff/admin sets a review status +
+// optional feedback notes on the customer's uploaded design. Complements
+// the existing binary proofApproved flag (still set to true on "approved"
+// so the existing payment-gating logic in AdminOrders.js keeps working).
+app.put("/api/orders/:id/design-review", async (req, res) => {
+  try {
+    if (!(await isStaffOrAdmin(req))) {
+      return res
+        .status(403)
+        .json({ message: "Only staff or admin can review designs." });
+    }
+    const orderId = parseInt(req.params.id, 10);
+    const { status, notes } = req.body;
+    if (!status || !DESIGN_REVIEW_STATUSES.includes(status)) {
+      return res.status(400).json({
+        message: `status must be one of: ${DESIGN_REVIEW_STATUSES.join(", ")}`,
+      });
+    }
+
+    const reviewerId = getUserId(req);
+
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        designReviewStatus: status,
+        designReviewNotes: notes || null,
+        designReviewedAt: new Date(),
+        designReviewedBy: reviewerId,
+        ...(status === "approved" ? { proofApproved: true } : {}),
+        ...(status === "needs_revision" || status === "rejected"
+          ? { proofApproved: false }
+          : {}),
+      },
+      include: {
+        user: true,
+        items: { include: { product: true } },
+      },
+    });
+
+    // Approved reuses the existing design-approval email. Every other
+    // status gets a lighter in-app notification (no dedicated email
+    // template exists yet for needs_revision/rejected).
+    if (status === "approved") {
+      await notifyDesignApproval(order).catch((e) =>
+        console.warn("notifyDesignApproval failed (non-fatal):", e.message),
+      );
+    } else if (order.userId) {
+      const STATUS_LABELS = {
+        submitted: "Submitted",
+        under_review: "Under Review",
+        needs_revision: "Needs Revision",
+        rejected: "Rejected",
+      };
+      await prisma.notification.create({
+        data: {
+          userId: order.userId,
+          title: `Design review update — Order #${order.id}`,
+          body:
+            status === "needs_revision"
+              ? `Your design needs a revision${notes ? `: ${notes}` : "."}`
+              : `Your design status is now "${STATUS_LABELS[status] || status}".`,
+          type: "design_approved",
+          link: `/orders/${order.id}`,
+        },
+      }).catch((e) =>
+        console.warn("Notification create failed (non-fatal):", e.message),
+      );
+    }
+
+    await logActivity({
+      actor: req.actor,
+      action: "status_changed",
+      module: "orders",
+      description: `Order #${orderId} design review set to "${status}"`,
+      metadata: { orderId, status, notes: notes || null },
+    });
+
+    res.json({ message: "Design review updated", order });
+  } catch (err) {
+    console.error("PUT /api/orders/:id/design-review failed:", err);
+    if (err.code === "P2025") {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    res.status(500).json({ message: "Failed to update design review." });
+  }
+});
 
 // POST /api/builder/upload — upload a source asset to Supabase storage
 app.post("/api/builder/upload", upload.single("file"), async (req, res) => {
