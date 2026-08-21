@@ -1,42 +1,63 @@
+// src/components/TshirtCustomizer/TshirtZoneCanvas.js  (replace entire file)
 /**
  * TshirtZoneCanvas
- * Renders a 2×2 grid of print zones. Each zone supports drag and resize
- * for a placed image, plus any number of draggable/resizable text layers.
- * Dragging/resizing works directly in the grid tile — the modal (opened
- * via the pencil icon) is only needed for extra tools like align/rotate/zoom.
+ * Flat 2D "Edit" view - a grid of print zones. Each zone renders its
+ * full ordered layer stack (images and text, interleaved, bottom to
+ * top) with drag-to-move and drag-to-resize directly in the grid tile.
+ *
+ * DOM structure matches the existing CSS contract exactly:
+ *   .tsc-zone-wrapper                (grid cell)
+ *     .tsc-zone-header-tag            (label button above the card)
+ *       .tsc-zone-position-label
+ *     .tsc-zone-card                  (bordered card, position:relative, overflow:hidden)
+ *       .tsc-zone-inner.tsc-zone      (aspect-ratio 1/1, position:relative, overflow:hidden -
+ *                                      this is the ONLY correct positioning context for
+ *                                      %-based .tsc-zone-design-layer children)
+ *         .tsc-zone-crosshair-h/v
+ *         .tsc-zone-design-layer (x N, one per layer)
+ *         .tsc-zone-placeholder (when empty)
+ *         .tsc-zone-edit-btn / .tsc-zone-remove-btn (when non-empty, non-interactive)
  *
  * Props:
- *   zones          {string[]}  – active zone ids for this product
- *   zoneDesigns    {object}    – { zoneId: { imageUrl, x, y, w, h } | null }
- *   zoneTexts      {object}    – { zoneId: [ textLayer, ... ] }
- *   activeTextId   {string}    – id of the currently-selected text layer
- *   activeZone     {string}    – currently selected zone id
- *   onZoneSelect   {fn}        – called with zoneId when a zone is clicked
- *   onZoneDesignChange {fn}    – called with (zoneId, layer) where layer is { imageUrl, x, y, w, h } | null
- *   onAddText      {fn}        – called with zoneId to add a new text layer
- *   onTextSelect   {fn}        – called with (zoneId, textId)
- *   onTextChange   {fn}        – called with (zoneId, textId, updates)
- *   onTextRemove   {fn}        – called with (zoneId, textId)
+ *   zones           {string[]}         - active zone ids for this product
+ *   zoneLayers      {object}           - { zoneId: Layer[] } bottom-to-top
+ *   selectedLayerId {string|null}
+ *   activeZone      {string}
+ *   onZoneSelect    {fn(zoneId)}
+ *   onLayerSelect   {fn(zoneId, layerId)}
+ *   onLayerChange   {fn(zoneId, layerId, updates)}
+ *   onLayerRemove   {fn(zoneId, layerId)}
+ *   onZoneClear     {fn(zoneId)}        - remove every layer in a zone
+ *   onUploadClick   {fn(zoneId)}
+ *   aspectRatio     {number|null}
+ *   printSizeInches {{width,height}|null} - real print size, for bleed/safe guides
+ *   bleedInches     {number|undefined}    - from product.bleedInches
+ *   safeMarginInches {number|undefined}   - from product.safeMarginInches
  */
 import React, { useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import "./TshirtCustomizer.css";
 
 export const ZONE_META = [
-  { id: "left_sleeve", label: "LEFT SLEEVE", col: 1, row: 1 },
-  { id: "right_sleeve", label: "RIGHT SLEEVE", col: 2, row: 1 },
-  { id: "left_side", label: "LEFT SIDE", col: 1, row: 1 },
-  { id: "right_side", label: "RIGHT SIDE", col: 2, row: 1 },
-  { id: "front", label: "FRONT", col: 1, row: 2 },
-  { id: "back", label: "BACK", col: 2, row: 2 },
-  { id: "outside", label: "OUTSIDE", col: 1, row: 3 },
-  { id: "inside", label: "INSIDE", col: 2, row: 3 },
-  { id: "front_cover", label: "FRONT COVER", col: 1, row: 4 },
-  { id: "back_cover", label: "BACK COVER", col: 2, row: 4 },
-  { id: "wrap", label: "WRAP", col: 1, row: 5 },
+  { id: "left_sleeve", label: "LEFT SLEEVE" },
+  { id: "right_sleeve", label: "RIGHT SLEEVE" },
+  { id: "left_side", label: "LEFT SIDE" },
+  { id: "right_side", label: "RIGHT SIDE" },
+  { id: "front", label: "FRONT" },
+  { id: "back", label: "BACK" },
+  { id: "outside", label: "OUTSIDE" },
+  { id: "inside", label: "INSIDE" },
+  { id: "front_cover", label: "FRONT COVER" },
+  { id: "back_cover", label: "BACK COVER" },
+  { id: "wrap", label: "WRAP" },
 ];
 
-function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
+/**
+ * Generic draggable/resizable box for ONE layer (image or text).
+ * Uses the real .tsc-zone-design-layer / .tsc-text-layer classes so the
+ * existing CSS (sizing, object-fit, selection outline) applies correctly.
+ */
+function LayerBox({ layer, isActive, onSelect, onChange, onRemove }) {
   const wrapRef = useRef(null);
   const dragRef = useRef(null);
   const resizeRef = useRef(null);
@@ -50,13 +71,13 @@ function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
       dragRef.current = {
         startX: e.clientX,
         startY: e.clientY,
-        origX: text.x,
-        origY: text.y,
+        origX: layer.x,
+        origY: layer.y,
         rectW: rect.width,
         rectH: rect.height,
       };
     },
-    [text, onSelect],
+    [layer, onSelect],
   );
 
   const onPointerMove = useCallback(
@@ -66,11 +87,11 @@ function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
       const dx = ((e.clientX - startX) / rectW) * 100;
       const dy = ((e.clientY - startY) / rectH) * 100;
       onChange?.({
-        x: Math.max(0, Math.min(100 - text.w, origX + dx)),
-        y: Math.max(0, Math.min(100 - text.h, origY + dy)),
+        x: Math.max(0, Math.min(100 - layer.w, origX + dx)),
+        y: Math.max(0, Math.min(100 - layer.h, origY + dy)),
       });
     },
-    [text, onChange],
+    [layer, onChange],
   );
 
   const onPointerUp = useCallback(() => {
@@ -85,13 +106,13 @@ function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
       resizeRef.current = {
         startX: e.clientX,
         startY: e.clientY,
-        origW: text.w,
-        origH: text.h,
+        origW: layer.w,
+        origH: layer.h,
         rectW: rect.width,
         rectH: rect.height,
       };
     },
-    [text],
+    [layer],
   );
 
   const onResizeMove = useCallback(
@@ -101,49 +122,64 @@ function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
       const dw = ((e.clientX - startX) / rectW) * 100;
       const dh = ((e.clientY - startY) / rectH) * 100;
       onChange?.({
-        w: Math.max(10, Math.min(100 - text.x, origW + dw)),
-        h: Math.max(6, Math.min(100 - text.y, origH + dh)),
+        w: Math.max(5, Math.min(100 - layer.x, origW + dw)),
+        h: Math.max(5, Math.min(100 - layer.y, origH + dh)),
       });
     },
-    [text, onChange],
+    [layer, onChange],
   );
 
   const onResizeUp = useCallback(() => {
     resizeRef.current = null;
   }, []);
 
-  const textStyle = {
-    fontFamily: text.fontFamily,
-    fontSize: `${text.fontSize}cqh`,
-    color: text.color,
-    fontWeight: text.bold ? 700 : 400,
-    fontStyle: text.italic ? "italic" : "normal",
-    textAlign: text.align,
-    WebkitTextStroke: text.outline
-      ? `${Math.max(1, text.outlineWidth / 2)}px ${text.outlineColor}`
-      : undefined,
-    textShadow: text.shadow
-      ? `0 0 ${text.shadowBlur}px ${text.shadowColor}`
-      : undefined,
+  const boxStyle = {
+    left: `${layer.x}%`,
+    top: `${layer.y}%`,
+    width: `${layer.w}%`,
+    height: `${layer.h}%`,
   };
+
+  const textStyle =
+    layer.kind === "text"
+      ? {
+          fontFamily: layer.fontFamily,
+          fontSize: `${layer.fontSize}cqh`,
+          color: layer.color,
+          fontWeight: layer.bold ? 700 : 400,
+          fontStyle: layer.italic ? "italic" : "normal",
+          textAlign: layer.align,
+          WebkitTextStroke: layer.outline
+            ? `${Math.max(1, layer.outlineWidth / 2)}px ${layer.outlineColor}`
+            : undefined,
+          textShadow: layer.shadow
+            ? `0 0 ${layer.shadowBlur}px ${layer.shadowColor}`
+            : undefined,
+        }
+      : undefined;
 
   return (
     <div
       ref={wrapRef}
-      className={`tsc-text-layer${isActive ? " active" : ""}`}
-      style={{
-        left: `${text.x}%`,
-        top: `${text.y}%`,
-        width: `${text.w}%`,
-        height: `${text.h}%`,
-      }}
+      className={`tsc-zone-design-layer${layer.kind === "text" ? " tsc-text-layer" : ""}${isActive ? " active" : ""}`}
+      style={boxStyle}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
-      <span className="tsc-text-layer-content" style={textStyle}>
-        {text.text || "Text"}
-      </span>
+      {layer.kind === "image" ? (
+        <img
+          src={layer.imageUrl}
+          alt="design"
+          draggable={false}
+          style={layer.rotation ? { transform: `rotate(${layer.rotation}deg)` } : undefined}
+        />
+      ) : (
+        <span className="tsc-text-layer-content" style={textStyle}>
+          {layer.text || "Text"}
+        </span>
+      )}
+
       {isActive && (
         <>
           <button
@@ -154,11 +190,12 @@ function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
               e.stopPropagation();
               onRemove?.();
             }}
+            title="Delete layer"
           >
-            ×
+            x
           </button>
           <div
-            className="tsc-text-layer-resize"
+            className={layer.kind === "image" ? "tsc-zone-resize-handle" : "tsc-text-layer-resize"}
             onPointerDown={onResizeDown}
             onPointerMove={onResizeMove}
             onPointerUp={onResizeUp}
@@ -169,277 +206,109 @@ function TextLayerBox({ text, isActive, onSelect, onChange, onRemove }) {
   );
 }
 
+// Reasonable reconstructions of the modal's quick-align tools, applied
+// to whichever layer is currently selected.
+function alignLayer(layer, mode) {
+  switch (mode) {
+    case "centerBoth":
+      return { x: (100 - layer.w) / 2, y: (100 - layer.h) / 2 };
+    case "centerX":
+      return { x: (100 - layer.w) / 2 };
+    case "centerY":
+      return { y: (100 - layer.h) / 2 };
+    case "rotateRight":
+      return { rotation: ((layer.rotation || 0) + 90) % 360 };
+    case "fit":
+      return { x: 0, y: 0, w: 100, h: 100 };
+    default:
+      return {};
+  }
+}
+
 function ZoneBox({
   meta,
-  design,
-  texts = [],
-  activeTextId,
+  layers = [],
+  selectedLayerId,
   isActive,
   isInteractive = false,
   onSelect,
   onExpand,
-  onDesignChange,
+  onLayerSelect,
+  onLayerChange,
+  onLayerRemove,
+  onZoneClear,
   onUploadClick,
-  onAddText,
-  onTextSelect,
-  onTextChange,
-  onTextRemove,
-  aspectRatio,
+  printSizeInches,
+  bleedInches,
+  safeMarginInches,
 }) {
-  const containerRef = useRef(null);
-  const dragRef = useRef(null);
-  const resizeRef = useRef(null);
+  const hasAnyLayer = layers.length > 0;
+  const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
 
-  // ── drag (image) — works directly in grid, not just in modal ──────
-  const onImgPointerDown = useCallback(
-    (e) => {
-      if (!design) return;
-      e.stopPropagation();
-      e.currentTarget.setPointerCapture(e.pointerId);
-      const rect = containerRef.current.getBoundingClientRect();
-      dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        origX: design.x,
-        origY: design.y,
-        rectW: rect.width,
-        rectH: rect.height,
-      };
-    },
-    [design],
-  );
-
-  const onImgPointerMove = useCallback(
-    (e) => {
-      if (!dragRef.current || !design) return;
-      const { startX, startY, origX, origY, rectW, rectH } = dragRef.current;
-      const dx = ((e.clientX - startX) / rectW) * 100;
-      const dy = ((e.clientY - startY) / rectH) * 100;
-      onDesignChange?.({
-        ...design,
-        x: Math.max(0, Math.min(100 - design.w, origX + dx)),
-        y: Math.max(0, Math.min(100 - design.h, origY + dy)),
-      });
-    },
-    [design, onDesignChange],
-  );
-
-  const onImgPointerUp = useCallback(() => {
-    dragRef.current = null;
-  }, []);
-
-  // ── resize (image) — also works directly in grid ─────────────────
-  const onResizePointerDown = useCallback(
-    (e) => {
-      if (!design) return;
-      e.stopPropagation();
-      e.currentTarget.setPointerCapture(e.pointerId);
-      const rect = containerRef.current.getBoundingClientRect();
-      resizeRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        origW: design.w,
-        origH: design.h,
-        rectW: rect.width,
-        rectH: rect.height,
-      };
-    },
-    [design],
-  );
-
-  const onResizePointerMove = useCallback(
-    (e) => {
-      if (!resizeRef.current || !design) return;
-      const { startX, startY, origW, origH, rectW, rectH } = resizeRef.current;
-      const dw = ((e.clientX - startX) / rectW) * 100;
-      const dh = ((e.clientY - startY) / rectH) * 100;
-      onDesignChange?.({
-        ...design,
-        w: Math.max(10, Math.min(100 - design.x, origW + dw)),
-        h: Math.max(10, Math.min(100 - design.y, origH + dh)),
-      });
-    },
-    [design, onDesignChange],
-  );
-
-  const onResizePointerUp = useCallback(() => {
-    resizeRef.current = null;
-  }, []);
-
-  const handleZoomChange = (e) => {
-    const scale = Number(e.target.value);
-    if (!design || !onDesignChange) return;
-    const oldW = design.w;
-    const oldH = design.h;
-    const centerPctX = design.x + oldW / 2;
-    const centerPctY = design.y + oldH / 2;
-    const newW = Math.max(10, Math.min(100, scale));
-    const newH = Math.max(10, Math.min(100, scale));
-    onDesignChange({
-      ...design,
-      w: newW,
-      h: newH,
-      x: Math.max(0, Math.min(100 - newW, centerPctX - newW / 2)),
-      y: Math.max(0, Math.min(100 - newH, centerPctY - newH / 2)),
-    });
-  };
-
-  const centerBoth = (e) => {
-    e.stopPropagation();
-    if (!design || !onDesignChange) return;
-    onDesignChange({ ...design, x: (100 - design.w) / 2, y: (100 - design.h) / 2 });
-  };
-
-  const centerX = (e) => {
-    e.stopPropagation();
-    if (!design || !onDesignChange) return;
-    onDesignChange({ ...design, x: (100 - design.w) / 2 });
-  };
-
-  const centerY = (e) => {
-    e.stopPropagation();
-    if (!design || !onDesignChange) return;
-    onDesignChange({ ...design, y: (100 - design.h) / 2 });
-  };
-
-  const rotateRight = (e) => {
-    e.stopPropagation();
-    if (!design || !onDesignChange) return;
-    onDesignChange({ ...design, rotation: ((design.rotation || 0) + 90) % 360 });
-  };
-
-  const fitZone = (e) => {
-    e.stopPropagation();
-    if (!design || !onDesignChange) return;
-    onDesignChange({ ...design, w: 80, h: 80, x: 10, y: 10 });
-  };
-
-  const handleTextBoxSelect = (textId) => {
-    onSelect?.();
-    onTextSelect?.(textId);
-  };
+  // Safe-area guide, in percent of the zone box (which represents the
+  // trim/print boundary). Renders precisely INSIDE the existing box - safe
+  // since .tsc-zone-inner already clips to this boundary. Bleed is NOT
+  // rendered as a precise outward rectangle here (that would need
+  // overflow:visible on .tsc-zone-inner, which is deliberately overflow:
+  // hidden to prevent unclipped images - see file header comment) - it
+  // shows as a caption instead.
+  const hasGuides = printSizeInches?.width > 0 && printSizeInches?.height > 0;
+  const safeInsetX = hasGuides && safeMarginInches
+    ? (safeMarginInches / printSizeInches.width) * 100
+    : null;
+  const safeInsetY = hasGuides && safeMarginInches
+    ? (safeMarginInches / printSizeInches.height) * 100
+    : null;
 
   return (
-    <div className={`tsc-zone-wrapper${isActive ? " active" : ""}`}>
-      <div
+    <div className="tsc-zone-wrapper">
+      <button
+        type="button"
         className={`tsc-zone-header-tag${isActive ? " active" : ""}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect?.();
-        }}
-        title={`Click to select ${meta.label} for gallery injection`}
-      >
-        <span className="tsc-zone-position-label">{meta.label} DESIGN</span>
-      </div>
-
-      <div
-        className={`tsc-zone-card${isActive ? " active" : ""}${design ? " has-image" : ""}`}
         onClick={() => onSelect?.()}
       >
-        <div
-          className="tsc-zone-inner"
-          ref={containerRef}
-          style={{ aspectRatio: "1 / 1" }}
-        >
-          {isInteractive && (
-            <>
-              <div className="tsc-corner-tl" />
-              <div className="tsc-corner-tr" />
-              <div className="tsc-corner-bl" />
-              <div className="tsc-corner-br" />
-              <div className="tsc-zone-crosshair-h" />
-              <div className="tsc-zone-crosshair-v" />
-            </>
+        <span className="tsc-zone-position-label">{meta.label}</span>
+      </button>
+
+      <div
+        className={`tsc-zone-card${isActive ? " active" : ""}${hasAnyLayer ? " has-image" : ""}`}
+        onClick={() => onSelect?.()}
+      >
+        <div className={`tsc-zone-inner tsc-zone${isActive ? " active" : ""}`}>
+          <span className="tsc-zone-label">{meta.label}</span>
+
+          <div className="tsc-zone-crosshair-h" />
+          <div className="tsc-zone-crosshair-v" />
+
+          {safeInsetX !== null && (
+            <div
+              className="tsc-safe-guide"
+              style={{
+                position: "absolute",
+                top: `${safeInsetY}%`,
+                left: `${safeInsetX}%`,
+                right: `${safeInsetX}%`,
+                bottom: `${safeInsetY}%`,
+                border: "1.5px dashed #2563eb",
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+              title={`Safe area: keep important content ${safeMarginInches}in from the edge`}
+            />
           )}
 
-          <button
-            type="button"
-            className="tsc-zone-addtext-btn"
-            title="Add text"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect?.();
-              onAddText?.(meta.id);
-            }}
-          >
-            + T
-          </button>
+          {layers.map((layer) => (
+            <LayerBox
+              key={layer.id}
+              layer={layer}
+              isActive={selectedLayerId === layer.id}
+              onSelect={() => onLayerSelect?.(layer.id)}
+              onChange={(updates) => onLayerChange?.(layer.id, updates)}
+              onRemove={() => onLayerRemove?.(layer.id)}
+            />
+          ))}
 
-          {design ? (
-            <>
-              {!isInteractive && (
-                <>
-                  <button
-                    type="button"
-                    className="tsc-zone-edit-btn"
-                    title="Open advanced tools (align, rotate, zoom)"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelect?.();
-                      onExpand?.(meta);
-                    }}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    type="button"
-                    className="tsc-zone-remove-btn"
-                    title="Remove design from this zone"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDesignChange?.(null);
-                    }}
-                  >
-                    ×
-                  </button>
-                </>
-              )}
-
-              <div
-                className="tsc-zone-design-layer"
-                style={{
-                  left: `${design.x}%`,
-                  top: `${design.y}%`,
-                  width: `${design.w}%`,
-                  height: `${design.h}%`,
-                }}
-                onPointerDown={onImgPointerDown}
-                onPointerMove={onImgPointerMove}
-                onPointerUp={onImgPointerUp}
-              >
-                <img
-                  src={design.imageUrl}
-                  alt="design"
-                  draggable={false}
-                  style={
-                    design.rotation
-                      ? { transform: `rotate(${design.rotation}deg)` }
-                      : undefined
-                  }
-                />
-                <div
-                  className="tsc-zone-resize-handle"
-                  onPointerDown={onResizePointerDown}
-                  onPointerMove={onResizePointerMove}
-                  onPointerUp={onResizePointerUp}
-                />
-              </div>
-
-              {isInteractive && (
-                <button
-                  type="button"
-                  className="tsc-zone-clear-btn"
-                  title="Remove design from this zone"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDesignChange?.(null);
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </>
-          ) : (
+          {!hasAnyLayer && (
             <div
               className="tsc-zone-placeholder"
               onClick={(e) => {
@@ -465,65 +334,106 @@ function ZoneBox({
             </div>
           )}
 
-          {/* Text layers render above image/placeholder — draggable directly */}
-          {texts.map((t) => (
-            <TextLayerBox
-              key={t.id}
-              text={t}
-              isActive={activeTextId === t.id}
-              onSelect={() => handleTextBoxSelect(t.id)}
-              onChange={(updates) => onTextChange?.(t.id, updates)}
-              onRemove={() => onTextRemove?.(t.id)}
-            />
-          ))}
+          {hasAnyLayer && !isInteractive && (
+            <>
+              <button
+                type="button"
+                className="tsc-zone-edit-btn"
+                title="Open advanced tools (align, rotate, zoom)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect?.();
+                  onExpand?.(meta);
+                }}
+              >
+                &#9998;
+              </button>
+              <button
+                type="button"
+                className="tsc-zone-remove-btn"
+                title="Remove all designs from this zone"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onZoneClear?.();
+                }}
+              >
+                x
+              </button>
+            </>
+          )}
         </div>
-
-        {isInteractive && design && (
-          <>
-            <div className="tsc-zone-align-toolbar">
-              <button type="button" className="tsc-align-btn" onClick={centerBoth}>Center</button>
-              <button type="button" className="tsc-align-btn" onClick={centerX}>Center X</button>
-              <button type="button" className="tsc-align-btn" onClick={centerY}>Center Y</button>
-              <button type="button" className="tsc-align-btn" onClick={rotateRight}>Rotate ↻</button>
-              <button type="button" className="tsc-align-btn" onClick={fitZone}>Fit</button>
-            </div>
-
-            <div className="tsc-modal-zoom-bar">
-              <span className="tsc-zoom-label">Zoom Scale</span>
-              <input
-                type="range"
-                className="tsc-zoom-slider"
-                min={20}
-                max={100}
-                value={Math.round(design.w || 80)}
-                onChange={handleZoomChange}
-              />
-              <span className="tsc-zoom-label">{Math.round(design.w || 80)}%</span>
-            </div>
-
-            <p className="tsc-crop-hint">Drag design to pan/crop inside zone limits.</p>
-          </>
-        )}
       </div>
+
+      {bleedInches > 0 && (
+        <p
+          style={{
+            fontSize: 11,
+            color: "#dc2626",
+            margin: "4px 0 0",
+            textAlign: "center",
+          }}
+        >
+          Bleed: extend artwork {bleedInches}in past this edge
+        </p>
+      )}
+
+      {isInteractive && hasAnyLayer && (
+        <>
+          {selectedLayer ? (
+            <>
+              <div className="tsc-zone-align-toolbar">
+                <button type="button" className="tsc-align-btn" onClick={() => onLayerChange?.(selectedLayer.id, alignLayer(selectedLayer, "centerBoth"))}>Center</button>
+                <button type="button" className="tsc-align-btn" onClick={() => onLayerChange?.(selectedLayer.id, alignLayer(selectedLayer, "centerX"))}>Center X</button>
+                <button type="button" className="tsc-align-btn" onClick={() => onLayerChange?.(selectedLayer.id, alignLayer(selectedLayer, "centerY"))}>Center Y</button>
+                {selectedLayer.kind === "image" && (
+                  <button type="button" className="tsc-align-btn" onClick={() => onLayerChange?.(selectedLayer.id, alignLayer(selectedLayer, "rotateRight"))}>Rotate &#8635;</button>
+                )}
+                <button type="button" className="tsc-align-btn" onClick={() => onLayerChange?.(selectedLayer.id, alignLayer(selectedLayer, "fit"))}>Fit</button>
+              </div>
+
+              <div className="tsc-modal-zoom-bar">
+                <span className="tsc-zoom-label">Zoom Scale</span>
+                <input
+                  type="range"
+                  className="tsc-zoom-slider"
+                  min={5}
+                  max={100}
+                  value={Math.round(selectedLayer.w || 80)}
+                  onChange={(e) => {
+                    const w = Number(e.target.value);
+                    const h = selectedLayer.kind === "image" ? w : selectedLayer.h;
+                    onLayerChange?.(selectedLayer.id, { w, h });
+                  }}
+                />
+                <span className="tsc-zoom-label">{Math.round(selectedLayer.w || 80)}%</span>
+              </div>
+
+              <p className="tsc-crop-hint">Drag a layer to move it. Use the resize handle at its corner.</p>
+            </>
+          ) : (
+            <p className="tsc-crop-hint">Select a layer above to align, rotate, or resize it.</p>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
-
 export default function TshirtZoneCanvas({
   zones = [],
-  zoneDesigns = {},
-  zoneTexts = {},
-  activeTextId,
+  zoneLayers = {},
+  selectedLayerId,
   activeZone,
   onZoneSelect,
-  onZoneDesignChange,
+  onLayerSelect,
+  onLayerChange,
+  onLayerRemove,
+  onZoneClear,
   onUploadClick,
-  onAddText,
-  onTextSelect,
-  onTextChange,
-  onTextRemove,
   aspectRatio,
+  printSizeInches,
+  bleedInches,
+  safeMarginInches,
 }) {
   const [modalZone, setModalZone] = React.useState(null);
   const visibleZones = ZONE_META.filter((m) => zones.includes(m.id));
@@ -538,25 +448,25 @@ export default function TshirtZoneCanvas({
 
   return (
     <div className="tsc-canvas-wrap">
-      <p className="tsc-canvas-hint">Drag directly on a design to move it.</p>
+      <p className="tsc-canvas-hint">Drag directly on a layer to move it. Select a layer, then use the resize handle at its corner.</p>
       <div className="tsc-zone-grid">
         {visibleZones.map((meta) => (
           <ZoneBox
             key={meta.id}
             meta={meta}
-            design={zoneDesigns[meta.id] || null}
-            texts={zoneTexts[meta.id] || []}
-            activeTextId={activeZone === meta.id ? activeTextId : null}
+            layers={zoneLayers[meta.id] || []}
+            selectedLayerId={activeZone === meta.id ? selectedLayerId : null}
             isActive={activeZone === meta.id}
             onSelect={() => onZoneSelect(meta.id)}
             onExpand={(m) => setModalZone(m)}
-            onDesignChange={(layer) => onZoneDesignChange(meta.id, layer)}
+            onLayerSelect={(layerId) => onLayerSelect?.(meta.id, layerId)}
+            onLayerChange={(layerId, updates) => onLayerChange?.(meta.id, layerId, updates)}
+            onLayerRemove={(layerId) => onLayerRemove?.(meta.id, layerId)}
+            onZoneClear={() => onZoneClear?.(meta.id)}
             onUploadClick={onUploadClick}
-            onAddText={onAddText}
-            onTextSelect={(textId) => onTextSelect?.(meta.id, textId)}
-            onTextChange={(textId, updates) => onTextChange?.(meta.id, textId, updates)}
-            onTextRemove={(textId) => onTextRemove?.(meta.id, textId)}
-            aspectRatio={aspectRatio}
+            printSizeInches={printSizeInches}
+            bleedInches={bleedInches}
+            safeMarginInches={safeMarginInches}
           />
         ))}
       </div>
@@ -567,25 +477,25 @@ export default function TshirtZoneCanvas({
             <div className="tsc-zone-modal-card" onClick={(e) => e.stopPropagation()}>
               <div className="tsc-zone-modal-header">
                 <h3>Customize {modalZone.label}</h3>
-                <button type="button" className="tsc-zone-modal-close" onClick={() => setModalZone(null)}>×</button>
+                <button type="button" className="tsc-zone-modal-close" onClick={() => setModalZone(null)}>x</button>
               </div>
 
               <div className="tsc-zone-modal-body">
                 <ZoneBox
                   meta={modalZone}
-                  design={zoneDesigns[modalZone.id] || null}
-                  texts={zoneTexts[modalZone.id] || []}
-                  activeTextId={activeTextId}
+                  layers={zoneLayers[modalZone.id] || []}
+                  selectedLayerId={selectedLayerId}
                   isActive={true}
                   isInteractive={true}
                   onSelect={() => onZoneSelect(modalZone.id)}
-                  onDesignChange={(layer) => onZoneDesignChange(modalZone.id, layer)}
+                  onLayerSelect={(layerId) => onLayerSelect?.(modalZone.id, layerId)}
+                  onLayerChange={(layerId, updates) => onLayerChange?.(modalZone.id, layerId, updates)}
+                  onLayerRemove={(layerId) => onLayerRemove?.(modalZone.id, layerId)}
+                  onZoneClear={() => onZoneClear?.(modalZone.id)}
                   onUploadClick={onUploadClick}
-                  onAddText={onAddText}
-                  onTextSelect={(textId) => onTextSelect?.(modalZone.id, textId)}
-                  onTextChange={(textId, updates) => onTextChange?.(modalZone.id, textId, updates)}
-                  onTextRemove={(textId) => onTextRemove?.(modalZone.id, textId)}
-                  aspectRatio={aspectRatio}
+                  printSizeInches={printSizeInches}
+                  bleedInches={bleedInches}
+                  safeMarginInches={safeMarginInches}
                 />
               </div>
 

@@ -1,6 +1,14 @@
+// src/components/TshirtCustomizer/TshirtPreview3D.js  (replace entire file)
 // TshirtPreview3D
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry";
@@ -102,7 +110,7 @@ const SLEEVE_DECALS = {
   },
 };
 
-export default function TshirtPreview3D({
+const TshirtPreview3D = forwardRef(function TshirtPreview3D({
   modelPath,
   shirtColor = "#ffffff",
   zoneDesigns = {},
@@ -114,13 +122,19 @@ export default function TshirtPreview3D({
   onTextSelect,
   selectedLayer = null,
   onLayerSelect,
-}) {
+}, ref) {
   const mountRef = useRef(null);
   const modelRef = useRef(null);
   const sceneRef = useRef(null);
   const rendererRef = useRef(null);
   const meshesRef = useRef([]);
   const cameraRef = useRef(null);
+  // Mockup-view support: OrbitControls instance, the model's fitted
+  // center/distance (so preset angles orbit at the same radius the
+  // auto-fit logic already computed), and an in-flight camera transition.
+  const controlsRef = useRef(null);
+  const frameRef = useRef({ center: new THREE.Vector3(), dist: 3 });
+  const viewTransitionRef = useRef(null);
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -484,6 +498,9 @@ export default function TshirtPreview3D({
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
+      // Required so captureSnapshot() (renderer.domElement.toDataURL)
+      // reads the actual last-rendered frame instead of a blank buffer.
+      preserveDrawingBuffer: true,
     });
 
     renderer.setPixelRatio(
@@ -538,6 +555,7 @@ export default function TshirtPreview3D({
       camera,
       renderer.domElement
     );
+    controlsRef.current = controls;
 
     controls.enableDamping = true;
     controls.dampingFactor = 0.07;
@@ -1066,6 +1084,10 @@ export default function TshirtPreview3D({
         controls.target.copy(center);
         controls.update();
 
+        // Remember the auto-fit framing so setView() can orbit preset
+        // angles (front/back/left/right) at the same radius.
+        frameRef.current = { center: center.clone(), dist };
+
         setReady(true);
       },
       undefined,
@@ -1083,6 +1105,27 @@ export default function TshirtPreview3D({
         requestAnimationFrame(
           animate
         );
+
+      // Smoothly interpolate an in-flight setView() transition, if any.
+      const transition = viewTransitionRef.current;
+      if (transition) {
+        const t = Math.min(
+          1,
+          (performance.now() - transition.start) / transition.duration
+        );
+        const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        camera.position.lerpVectors(
+          transition.fromPos,
+          transition.toPos,
+          eased
+        );
+        controls.target.lerpVectors(
+          transition.fromTarget,
+          transition.toTarget,
+          eased
+        );
+        if (t >= 1) viewTransitionRef.current = null;
+      }
 
       controls.update();
 
@@ -1246,6 +1289,92 @@ export default function TshirtPreview3D({
     zones,
   ]);
 
+  // Mockup-view API for the parent (Preview mode's angle switcher /
+  // "Download mockup" button). Exposed via ref since the 3D scene is
+  // managed with plain Three.js objects, not React state.
+  useImperativeHandle(
+    ref,
+    () => ({
+      setView: (view) => {
+        const camera = cameraRef.current;
+        const controls = controlsRef.current;
+        if (!camera || !controls) return;
+
+        const { center, dist } = frameRef.current;
+        const offsets = {
+          front: new THREE.Vector3(0, 0, dist),
+          back: new THREE.Vector3(0, 0, -dist),
+          left: new THREE.Vector3(-dist, 0, 0),
+          right: new THREE.Vector3(dist, 0, 0),
+        };
+        const toPos = center
+          .clone()
+          .add(offsets[view] || offsets.front);
+
+        viewTransitionRef.current = {
+          fromPos: camera.position.clone(),
+          toPos,
+          fromTarget: controls.target.clone(),
+          toTarget: center.clone(),
+          start: performance.now(),
+          duration: 600,
+        };
+      },
+      captureSnapshot: () => {
+        const renderer = rendererRef.current;
+        if (!renderer) return null;
+        try {
+          return renderer.domElement.toDataURL("image/png");
+        } catch {
+          return null;
+        }
+      },
+      // Renders each preset angle in turn, grabs a still, then restores
+      // the camera to where it was. All renders happen synchronously in
+      // one JS task, so the canvas only ever visibly shows the final
+      // (restored) frame - no flashing through angles on screen.
+      captureAllViews: () => {
+        const camera = cameraRef.current;
+        const controls = controlsRef.current;
+        const renderer = rendererRef.current;
+        const scene = sceneRef.current;
+        if (!camera || !controls || !renderer || !scene) return null;
+
+        const { center, dist } = frameRef.current;
+        const offsets = {
+          front: new THREE.Vector3(0, 0, dist),
+          back: new THREE.Vector3(0, 0, -dist),
+          left: new THREE.Vector3(-dist, 0, 0),
+          right: new THREE.Vector3(dist, 0, 0),
+        };
+
+        const originalPos = camera.position.clone();
+        const originalTarget = controls.target.clone();
+
+        const shots = {};
+        try {
+          Object.entries(offsets).forEach(([view, offset]) => {
+            camera.position.copy(center.clone().add(offset));
+            controls.target.copy(center);
+            camera.lookAt(center);
+            controls.update();
+            renderer.render(scene, camera);
+            shots[view] = renderer.domElement.toDataURL("image/png");
+          });
+        } finally {
+          camera.position.copy(originalPos);
+          controls.target.copy(originalTarget);
+          camera.lookAt(originalTarget);
+          controls.update();
+          renderer.render(scene, camera);
+        }
+
+        return shots;
+      },
+    }),
+    [],
+  );
+
   return (
     <div className="tsc-preview-panel">
       <div
@@ -1313,7 +1442,11 @@ export default function TshirtPreview3D({
       </div>
     </div>
   );
-}
+});
+
+TshirtPreview3D.displayName = "TshirtPreview3D";
+
+export default TshirtPreview3D;
 
 function applyColor(
   model,

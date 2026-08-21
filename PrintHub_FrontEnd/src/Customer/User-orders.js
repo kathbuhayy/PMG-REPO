@@ -491,6 +491,8 @@ function UserOrders() {
   const getStatusLabel = (order) => {
     if (order.status === "return_requested") return "Return requested";
     if (order.status === "cancelled") return "Cancelled";
+    if (order.designReviewStatus === "needs_revision") return "Design needs revision";
+    if (order.designReviewStatus === "under_review") return "Design under review";
     if (order.payment_status !== "paid" && !order.proofApproved) {
       return "Waiting for approval";
     }
@@ -631,6 +633,39 @@ function UserOrders() {
           <strong>Total:</strong>
           <strong>{formatCurrency(order.total)}</strong>
         </div>
+        {order.designReviewStatus === "needs_revision" && (
+          <div
+            style={{
+              background: "#fffbeb",
+              border: "1px solid #fde68a",
+              borderRadius: 8,
+              padding: "10px 12px",
+              marginBottom: 12,
+              fontSize: 13,
+              color: "#92400e",
+            }}
+          >
+            <strong>Your design needs a revision.</strong>
+            {order.designReviewNotes && <> {order.designReviewNotes}</>}
+            {" "}Please contact us or update your design and we'll take another look.
+          </div>
+        )}
+        {order.designReviewStatus === "under_review" && (
+          <div
+            style={{
+              background: "#eff6ff",
+              border: "1px solid #bfdbfe",
+              borderRadius: 8,
+              padding: "10px 12px",
+              marginBottom: 12,
+              fontSize: 13,
+              color: "#1e40af",
+            }}
+          >
+            <strong>Your design is being reviewed by our team.</strong>
+            {" "}We'll let you know once it's approved or if any changes are needed.
+          </div>
+        )}
         <div className="uo-action-row">
           {order.payment_status !== "paid" && order.status !== "cancelled" && (
             <>
