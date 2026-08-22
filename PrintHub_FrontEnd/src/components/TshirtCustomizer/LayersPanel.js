@@ -1,4 +1,20 @@
+// src/components/TshirtCustomizer/LayersPanel.js  (replace entire file)
+/**
+ * LayersPanel
+ * Printify-style stacked layer list for the active zone. Renders
+ * top-of-stack first (matches how design tools usually list layers).
+ *
+ * Props:
+ *   layers          {Layer[]}  – zoneLayers[activeZone], bottom-to-top order
+ *   selectedLayerId {string|null}
+ *   onSelect        {fn(layerId)}
+ *   onRemove        {fn(layerId)}
+ *   onMove          {fn(layerId, direction)}  – direction: 1 (up) | -1 (down)
+ *   onApplyToAll    {fn()}  – "Apply to all areas"
+ *   dpiByLayerId    {object} – { [layerId]: { status, dpi } }, from layerDpiCheck
+ */
 import React from "react";
+import { SHAPE_PATHS } from "../../utils/shapeDefs";
 import "./TshirtCustomizer.css";
 
 function LayerThumb({ layer }) {
@@ -6,6 +22,15 @@ function LayerThumb({ layer }) {
     return (
       <div className="lp-thumb">
         <img src={layer.imageUrl} alt="" draggable={false} />
+      </div>
+    );
+  }
+  if (layer.kind === "shape") {
+    return (
+      <div className="lp-thumb lp-thumb-shape">
+        <svg viewBox="0 0 100 100" width="60%" height="60%">
+          <path d={SHAPE_PATHS[layer.shapeType] || SHAPE_PATHS.square} fill={layer.fillColor || "#111827"} />
+        </svg>
       </div>
     );
   }
@@ -77,7 +102,11 @@ export default function LayersPanel({
 
               <div className="lp-row-main">
                 <div className="lp-row-name">
-                  {layer.kind === "image" ? "Image" : layer.text || "Text"}
+                  {layer.kind === "image"
+                    ? "Image"
+                    : layer.kind === "shape"
+                      ? `${layer.shapeType?.charAt(0).toUpperCase()}${layer.shapeType?.slice(1)}` || "Shape"
+                      : layer.text || "Text"}
                 </div>
                 <DpiBadge quality={dpiByLayerId[layer.id]} />
               </div>

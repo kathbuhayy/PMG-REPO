@@ -2,8 +2,9 @@
 /**
  * TshirtZoneCanvas
  * Flat 2D "Edit" view - a grid of print zones. Each zone renders its
- * full ordered layer stack (images and text, interleaved, bottom to
- * top) with drag-to-move and drag-to-resize directly in the grid tile.
+ * full ordered layer stack (images, text, shapes, patterns, interleaved,
+ * bottom to top) with drag-to-move and drag-to-resize directly in the
+ * grid tile.
  *
  * DOM structure matches the existing CSS contract exactly:
  *   .tsc-zone-wrapper                (grid cell)
@@ -30,12 +31,12 @@
  *   onZoneClear     {fn(zoneId)}        - remove every layer in a zone
  *   onUploadClick   {fn(zoneId)}
  *   aspectRatio     {number|null}
- *   printSizeInches {{width,height}|null} - real print size, for bleed/safe guides
- *   bleedInches     {number|undefined}    - from product.bleedInches
- *   safeMarginInches {number|undefined}   - from product.safeMarginInches
  */
 import React, { useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
+import { SHAPE_PATHS } from "../../utils/shapeDefs";
+import { buildPatternSvgDef } from "../../utils/patternDefs";
+import { getCurveGeometry, buildArcPathD } from "../../utils/curvedText";
 import "./TshirtCustomizer.css";
 
 export const ZONE_META = [
@@ -53,9 +54,10 @@ export const ZONE_META = [
 ];
 
 /**
- * Generic draggable/resizable box for ONE layer (image or text).
- * Uses the real .tsc-zone-design-layer / .tsc-text-layer classes so the
- * existing CSS (sizing, object-fit, selection outline) applies correctly.
+ * Generic draggable/resizable box for ONE layer (image, text, shape,
+ * or pattern). Uses the real .tsc-zone-design-layer / .tsc-text-layer
+ * classes so the existing CSS (sizing, object-fit, selection outline)
+ * applies correctly.
  */
 function LayerBox({ layer, isActive, onSelect, onChange, onRemove }) {
   const wrapRef = useRef(null);
@@ -174,6 +176,66 @@ function LayerBox({ layer, isActive, onSelect, onChange, onRemove }) {
           draggable={false}
           style={layer.rotation ? { transform: `rotate(${layer.rotation}deg)` } : undefined}
         />
+      ) : layer.kind === "shape" ? (
+        <svg
+          viewBox="0 0 100 100"
+          width="100%"
+          height="100%"
+          style={layer.rotation ? { transform: `rotate(${layer.rotation}deg)` } : undefined}
+        >
+          <path d={SHAPE_PATHS[layer.shapeType] || SHAPE_PATHS.square} fill={layer.fillColor} />
+        </svg>
+      ) : layer.kind === "pattern" ? (
+        <svg
+          viewBox="0 0 100 100"
+          width="100%"
+          height="100%"
+          style={layer.rotation ? { transform: `rotate(${layer.rotation}deg)` } : undefined}
+        >
+          <defs>
+            <pattern
+              id={`pattern-${layer.id}`}
+              width={layer.tileSize}
+              height={layer.tileSize}
+              patternUnits="userSpaceOnUse"
+              dangerouslySetInnerHTML={{
+                __html: buildPatternSvgDef(layer.patternType, layer.tileSize, layer.fillColor, layer.backgroundColor),
+              }}
+            />
+          </defs>
+          <rect width="100" height="100" fill={`url(#pattern-${layer.id})`} />
+        </svg>
+      ) : layer.kind === "text" && layer.curve ? (
+        (() => {
+          const fontUnits = (layer.fontSize / 100) * 200;
+          const estWidth = Math.max(20, layer.text.length * fontUnits * 0.55);
+          const geometry = getCurveGeometry(estWidth, layer.curve);
+          const pathId = `curve-${layer.id}`;
+          const pathD = geometry
+            ? buildArcPathD(200, 100, geometry.radius, geometry.angleRad, layer.curve)
+            : `M 20,100 L 380,100`;
+
+          return (
+            <svg viewBox="0 0 400 200" width="100%" height="100%" style={{ overflow: "visible" }}>
+              <defs>
+                <path id={pathId} d={pathD} fill="none" />
+              </defs>
+              <text
+                fontFamily={layer.fontFamily}
+                fontSize={fontUnits}
+                fontWeight={layer.bold ? 700 : 400}
+                fontStyle={layer.italic ? "italic" : "normal"}
+                fill={layer.color}
+                stroke={layer.outline ? layer.outlineColor : undefined}
+                strokeWidth={layer.outline ? Math.max(1, layer.outlineWidth / 2) : undefined}
+              >
+                <textPath href={`#${pathId}`} xlinkHref={`#${pathId}`} startOffset="50%" textAnchor="middle">
+                  {layer.text || "Text"}
+                </textPath>
+              </text>
+            </svg>
+          );
+        })()
       ) : (
         <span className="tsc-text-layer-content" style={textStyle}>
           {layer.text || "Text"}
@@ -195,7 +257,7 @@ function LayerBox({ layer, isActive, onSelect, onChange, onRemove }) {
             x
           </button>
           <div
-            className={layer.kind === "image" ? "tsc-zone-resize-handle" : "tsc-text-layer-resize"}
+            className={layer.kind === "text" ? "tsc-text-layer-resize" : "tsc-zone-resize-handle"}
             onPointerDown={onResizeDown}
             onPointerMove={onResizeMove}
             onPointerUp={onResizeUp}
@@ -225,12 +287,13 @@ function alignLayer(layer, mode) {
   }
 }
 
-function ZoneBox({
+export function ZoneBox({
   meta,
   layers = [],
   selectedLayerId,
   isActive,
   isInteractive = false,
+  hideHeaderTag = false,
   onSelect,
   onExpand,
   onLayerSelect,
@@ -245,13 +308,6 @@ function ZoneBox({
   const hasAnyLayer = layers.length > 0;
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
 
-  // Safe-area guide, in percent of the zone box (which represents the
-  // trim/print boundary). Renders precisely INSIDE the existing box - safe
-  // since .tsc-zone-inner already clips to this boundary. Bleed is NOT
-  // rendered as a precise outward rectangle here (that would need
-  // overflow:visible on .tsc-zone-inner, which is deliberately overflow:
-  // hidden to prevent unclipped images - see file header comment) - it
-  // shows as a caption instead.
   const hasGuides = printSizeInches?.width > 0 && printSizeInches?.height > 0;
   const safeInsetX = hasGuides && safeMarginInches
     ? (safeMarginInches / printSizeInches.width) * 100
@@ -262,13 +318,15 @@ function ZoneBox({
 
   return (
     <div className="tsc-zone-wrapper">
-      <button
-        type="button"
-        className={`tsc-zone-header-tag${isActive ? " active" : ""}`}
-        onClick={() => onSelect?.()}
-      >
-        <span className="tsc-zone-position-label">{meta.label}</span>
-      </button>
+      {!hideHeaderTag && (
+        <button
+          type="button"
+          className={`tsc-zone-header-tag${isActive ? " active" : ""}`}
+          onClick={() => onSelect?.()}
+        >
+          <span className="tsc-zone-position-label">{meta.label}</span>
+        </button>
+      )}
 
       <div
         className={`tsc-zone-card${isActive ? " active" : ""}${hasAnyLayer ? " has-image" : ""}`}
@@ -336,18 +394,20 @@ function ZoneBox({
 
           {hasAnyLayer && !isInteractive && (
             <>
-              <button
-                type="button"
-                className="tsc-zone-edit-btn"
-                title="Open advanced tools (align, rotate, zoom)"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelect?.();
-                  onExpand?.(meta);
-                }}
-              >
-                &#9998;
-              </button>
+              {onExpand && (
+                <button
+                  type="button"
+                  className="tsc-zone-edit-btn"
+                  title="Open advanced tools (align, rotate, zoom)"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect?.();
+                    onExpand?.(meta);
+                  }}
+                >
+                  &#9998;
+                </button>
+              )}
               <button
                 type="button"
                 className="tsc-zone-remove-btn"

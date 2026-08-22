@@ -1,4 +1,4 @@
-// src/utils/zoneLayerModel.js
+// src/utils/zoneLayerModel.js  (replace entire file)
 /**
  * zoneLayerModel
  * Unified stacked-layer data model for the customizer.
@@ -11,17 +11,18 @@
  *     [zoneId]: Layer[]   // index 0 = bottom of stack, last = top
  *   }
  *
- * Layer shape (union of image/text — keep every field optional so both
- * kinds can share one array without a discriminated-union headache):
+ * Layer shape (union of image/text/shape/pattern — keep every field
+ * optional so kinds can share one array without a discriminated-union
+ * headache):
  *   {
- *     id, kind: 'image' | 'text',
+ *     id, kind: 'image' | 'text' | 'shape' | 'pattern',
  *     x, y, w, h, rotation,
- *     // image-only:
- *     imageUrl, naturalWidth, naturalHeight,
- *     // text-only:
- *     text, fontFamily, fontSize, color, bold, italic, align,
- *     outline, outlineColor, outlineWidth,
- *     shadow, shadowColor, shadowBlur,
+ *     // image-only: imageUrl, naturalWidth, naturalHeight
+ *     // text-only: text, fontFamily, fontSize, color, bold, italic, align,
+ *     //   outline, outlineColor, outlineWidth, shadow, shadowColor,
+ *     //   shadowBlur, curve
+ *     // shape-only: shapeType, fillColor
+ *     // pattern-only: patternType, fillColor, backgroundColor, tileSize
  *   }
  *
  * IMPORTANT: production orders already have `design_data` JSON saved in
@@ -70,7 +71,62 @@ export function createTextLayer(overrides = {}) {
     shadow: false,
     shadowColor: "#000000",
     shadowBlur: 4,
+    curve: 0,
     ...overrides,
+  };
+}
+
+export const SHAPE_TYPES = ["star", "heart", "line", "triangle", "circle", "square"];
+
+/** Simple geometric shape layer - a design element like Printify's
+ * Graphics library, rendered as an SVG path scaled to fill its box. */
+export function createShapeLayer({
+  shapeType = "star",
+  x = 20,
+  y = 20,
+  w = 40,
+  h = 40,
+  rotation = 0,
+  fillColor = "#111827",
+} = {}) {
+  return {
+    id: makeId("shape"),
+    kind: "shape",
+    shapeType,
+    x,
+    y,
+    w,
+    h,
+    rotation,
+    fillColor,
+  };
+}
+
+/** Repeating tileable pattern layer (stripes, dots, checkerboard, chevron,
+ * gingham) - fills its box with a tiled fill rather than a single icon. */
+export function createPatternLayer({
+  patternType = "stripes",
+  x = 10,
+  y = 10,
+  w = 80,
+  h = 80,
+  rotation = 0,
+  fillColor = "#111827",
+  backgroundColor = "#ffffff",
+  tileSize = 20,
+} = {}) {
+  return {
+    id: makeId("pattern"),
+    kind: "pattern",
+    patternType,
+    x,
+    y,
+    w,
+    h,
+    rotation,
+    fillColor,
+    backgroundColor,
+    tileSize,
   };
 }
 

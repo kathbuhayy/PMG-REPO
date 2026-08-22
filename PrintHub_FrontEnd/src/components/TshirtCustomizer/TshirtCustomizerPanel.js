@@ -22,11 +22,13 @@ import {
   FaMagic,
   FaFont,
   FaLayerGroup,
+  FaShapes,
 } from "react-icons/fa";
 import { useCustomizerUpload } from "../../hooks/useCustomizerUpload";
 import AIGeneratePanel from "../AIBuilder/AIGeneratePanel";
 import TemplatesPanel from "./TemplatesPanel";
 import TshirtZoneCanvas from "./TshirtZoneCanvas";
+import TshirtSideView from "./TshirtSideView";
 import TshirtPreview3D from "./TshirtPreview3D";
 import LayersPanel from "./LayersPanel";
 import { ZONE_META } from "./TshirtZoneCanvas";
@@ -37,6 +39,8 @@ import { filterZonesBySide } from "../../config/categoryDefaults";
 import {
   createImageLayer,
   createTextLayer,
+  createShapeLayer,
+  createPatternLayer,
   legacyToZoneLayers,
   deriveLegacyShape,
   addLayer,
@@ -46,6 +50,17 @@ import {
   applyToZones,
 } from "../../utils/zoneLayerModel";
 import { loadImageNaturalSize, getLayerPrintQuality } from "../../utils/layerDpiCheck";
+import { renderZoneLayersToDataURL, renderZoneLayersToCanvas } from "../../utils/renderZoneDesign";
+import {
+  computeResolutionScore,
+  computeSafeAreaScore,
+  computeColorContrastScore,
+  computeOverallScore,
+} from "../../utils/printReadiness";
+import { SHAPE_PATHS, SHAPE_LABELS } from "../../utils/shapeDefs";
+import { PATTERN_TYPES, PATTERN_LABELS, buildPatternSvgDef } from "../../utils/patternDefs";
+import { TEXT_FONTS, FONT_CATEGORIES, loadGoogleFonts } from "../../config/textFonts";
+import { buildApiUrl } from "../../config/api";
 
 
 
@@ -63,17 +78,6 @@ const QUICK_COLORS = [
   "#ec4899",
 ];
 
-const TEXT_FONTS = [
-  "Arial",
-  "Helvetica",
-  "Times New Roman",
-  "Georgia",
-  "Courier New",
-  "Verdana",
-  "Impact",
-  "Comic Sans MS",
-  "Trebuchet MS",
-];
 
 // Convert hue (0-360) to a hex color at full saturation/lightness=50%
 function hueToHex(hue) {
@@ -313,6 +317,22 @@ export default function TshirtCustomizerPanel({
     initialWip?.aiLastPrompt ?? ""
   );
 
+  const [fontSearch, setFontSearch] = useState("");
+  const [fontCategory, setFontCategory] = useState("Sans");
+
+  useEffect(() => {
+    if (activeTab === "text") loadGoogleFonts();
+  }, [activeTab]);
+
+  const filteredFonts = useMemo(() => {
+    const q = fontSearch.trim().toLowerCase();
+    return TEXT_FONTS.filter((f) => {
+      const matchesCategory = !fontSearch && f.category === fontCategory;
+      const matchesSearch = q && f.name.toLowerCase().includes(q);
+      return fontSearch ? matchesSearch : matchesCategory;
+    });
+  }, [fontSearch, fontCategory]);
+
   const prevZonesKeyRef = useRef(zones.join(","));
 
   // Clear layers and reset activeZone when print side (zones) changes
@@ -436,6 +456,78 @@ export default function TshirtCustomizerPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoneLayers, activeZone]);
 
+    // ── Print Readiness Score ────────────────────────────────────────────
+  // Separate from the active-zone-only DPI check above (which only feeds
+  // the Layers panel badge) - this one checks every zone, since the score
+  // should reflect the whole design, not just whichever zone happens to
+  // be selected right now.
+  const [dpiByZoneAndLayer, setDpiByZoneAndLayer] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const nextByZone = {};
+      for (const [zoneId, layers] of Object.entries(zoneLayers)) {
+        const imageLayers = layers.filter((l) => l.kind === "image");
+        if (imageLayers.length === 0) continue;
+        const nextForZone = {};
+        for (const layer of imageLayers) {
+          let sized = layer;
+          if (!layer.naturalWidth) {
+            try {
+              const size = await loadImageNaturalSize(layer.imageUrl);
+              sized = { ...layer, ...size };
+            } catch {
+              // Non-fatal - this layer just won't contribute a resolution score.
+            }
+          }
+          nextForZone[layer.id] = getLayerPrintQuality(sized, zoneId);
+        }
+        nextByZone[zoneId] = nextForZone;
+      }
+      if (!cancelled) setDpiByZoneAndLayer(nextByZone);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoneLayers]);
+
+  const [readinessScore, setReadinessScore] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const resolution = computeResolutionScore(dpiByZoneAndLayer);
+      const safeArea = computeSafeAreaScore(zoneLayers, printSizeInches, product?.safeMarginInches);
+
+      let colorContrast = { score: 100, label: "No design to sample", ratio: null };
+      const anyZoneWithContent = Object.entries(zoneLayers).find(([, layers]) => layers?.length > 0);
+      if (anyZoneWithContent) {
+        try {
+          const [, layers] = anyZoneWithContent;
+          const canvas = await renderZoneLayersToCanvas(layers, 256);
+          colorContrast = computeColorContrastScore(canvas, shirtColor);
+        } catch {
+          // Non-fatal - contrast sub-score just falls back to its default.
+        }
+      }
+
+      if (!cancelled) {
+        setReadinessScore({
+          overall: computeOverallScore({ resolution, safeArea, colorContrast }),
+          resolution,
+          safeArea,
+          colorContrast,
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dpiByZoneAndLayer, zoneLayers, printSizeInches, shirtColor, product?.safeMarginInches]);
+
   // Hidden input ref for gallery upload
   const galleryFileInputRef = useRef(null);
 
@@ -478,6 +570,20 @@ export default function TshirtCustomizerPanel({
     setActiveTab("text");
   };
 
+  const handleAddShape = (shapeType) => {
+    if (!activeZone) return;
+    const layer = createShapeLayer({ shapeType });
+    setZoneLayers((prev) => addLayer(prev, activeZone, layer));
+    setSelectedLayerId(layer.id);
+  };
+
+  const handleAddPattern = (patternType) => {
+    if (!activeZone) return;
+    const layer = createPatternLayer({ patternType });
+    setZoneLayers((prev) => addLayer(prev, activeZone, layer));
+    setSelectedLayerId(layer.id);
+  };
+
   // Generic layer field update - used by the text editor fields, the
   // flat canvas drag/resize, and the size-adjust sliders alike.
   const handleLayerUpdate = (zoneId, layerId, updates) => {
@@ -511,6 +617,18 @@ export default function TshirtCustomizerPanel({
   const activeZoneTextLayers = activeZoneLayers.filter((l) => l.kind === "text");
   const selectedLayer = activeZoneLayers.find((l) => l.id === selectedLayerId) || null;
   const activeTextLayer = selectedLayer?.kind === "text" ? selectedLayer : null;
+  const activeShapeLayer = selectedLayer?.kind === "shape" ? selectedLayer : null;
+  const activePatternLayer = selectedLayer?.kind === "pattern" ? selectedLayer : null;
+
+  const updateActiveShape = (updates) => {
+    if (!activeZone || !selectedLayerId) return;
+    handleLayerUpdate(activeZone, selectedLayerId, updates);
+  };
+
+  const updateActivePattern = (updates) => {
+    if (!activeZone || !selectedLayerId) return;
+    handleLayerUpdate(activeZone, selectedLayerId, updates);
+  };
 
   const updateActiveText = (updates) => {
     if (!activeZone || !selectedLayerId) return;
@@ -680,6 +798,87 @@ export default function TshirtCustomizerPanel({
   const handleSetMockupView = (view) => {
     setActiveMockupView(view);
     previewRef.current?.setView?.(view);
+  };
+
+  // ── "Real Life Picture Preview" (Printful) ──────────────────────────
+  // Composites the current front-zone design onto Printful's real studio
+  // photo of an actual blank garment. Only offered for designType/category
+  // "tshirt" right now, matching the backend's PRINTFUL_CATALOG mapping -
+  // hides itself for anything else rather than showing a broken button.
+  const [realLifePreview, setRealLifePreview] = useState(null); // { status: 'loading'|'error'|'result', message, mockups }
+
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  const handleRealLifePreview = async () => {
+    setRealLifePreview({ status: "loading", message: "Preparing your design…" });
+    try {
+      // Flatten + upload every zone that actually has a layer in it -
+      // front/back/sleeves all get their own mockup image if populated.
+      const zonesWithContent = Object.entries(zoneLayers).filter(
+        ([, layers]) => layers && layers.length > 0,
+      );
+      if (zonesWithContent.length === 0) {
+        throw new Error("Add a design to at least one zone first.");
+      }
+
+      const designs = [];
+      for (const [zoneId, layers] of zonesWithContent) {
+        setRealLifePreview({ status: "loading", message: `Preparing ${zoneId} design…` });
+        const dataUrl = await renderZoneLayersToDataURL(layers, 1024);
+
+        setRealLifePreview({ status: "loading", message: `Uploading ${zoneId} design…` });
+        const uploadRes = await fetch(buildApiUrl("/api/mockup/upload-design"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataUrl }),
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadData.message || `Failed to upload ${zoneId} design.`);
+        designs.push({ zoneId, imageUrl: uploadData.url });
+      }
+
+      setRealLifePreview({ status: "loading", message: "Mapping your designs onto real product photos…" });
+      const taskRes = await fetch(buildApiUrl("/api/mockup/printful/create-task"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ designs, category: designType, shirtColor }),
+      });
+      const taskData = await taskRes.json();
+      if (!taskRes.ok) throw new Error(taskData.message || "Failed to create mockup task.");
+
+      const POLL_INTERVAL_MS = 1500;
+      const MAX_ATTEMPTS = 20;
+      let mockups = null;
+
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        setRealLifePreview({
+          status: "loading",
+          message: `Rendering your mockups… (${attempt}/${MAX_ATTEMPTS})`,
+        });
+
+        const statusRes = await fetch(
+          buildApiUrl(`/api/mockup/printful/task-status?taskKey=${taskData.taskKey}`),
+        );
+        const statusData = await statusRes.json();
+        if (!statusRes.ok) throw new Error(statusData.message || "Failed to check mockup status.");
+
+        if (statusData.status === "completed") {
+          mockups = statusData.mockups || [];
+          break;
+        }
+        if (statusData.status === "failed") {
+          throw new Error("Printful reported the mockup task failed.");
+        }
+        await wait(POLL_INTERVAL_MS);
+      }
+
+      if (!mockups || mockups.length === 0) throw new Error("Timed out waiting for the mockup to render.");
+      setRealLifePreview({ status: "result", mockups });
+    } catch (err) {
+      setRealLifePreview({ status: "error", message: err.message || "Something went wrong." });
+    }
   };
 
   const handleDownloadMockup = () => {
@@ -861,6 +1060,14 @@ export default function TshirtCustomizerPanel({
           >
             <FaFont className="tsc-vtab-icon" />
             Text
+          </button>
+          <button
+            type="button"
+            className={`tsc-vtab-btn${activeTab === "graphics" ? " active" : ""}`}
+            onClick={() => setActiveTab("graphics")}
+          >
+            <FaShapes className="tsc-vtab-icon" />
+            Graphics
           </button>
           <button
             type="button"
@@ -1122,19 +1329,65 @@ export default function TshirtCustomizerPanel({
 
                   <div className="tsc-text-editor-field">
                     <label className="tsc-spec-label">Font</label>
-                    <select
-                      className="tsc-select-control"
-                      value={activeTextLayer.fontFamily}
-                      onChange={(e) =>
-                        updateActiveText({ fontFamily: e.target.value })
-                      }
+                    <input
+                      type="text"
+                      className="tsc-text-input"
+                      placeholder="Search fonts…"
+                      value={fontSearch}
+                      onChange={(e) => setFontSearch(e.target.value)}
+                      style={{ marginBottom: 8 }}
+                    />
+                    {!fontSearch && (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                        {FONT_CATEGORIES.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            className={`tsc-text-toggle-btn${fontCategory === cat ? " active" : ""}`}
+                            onClick={() => setFontCategory(cat)}
+                            style={{ fontSize: 11, padding: "4px 10px" }}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        maxHeight: 180,
+                        overflowY: "auto",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 8,
+                      }}
                     >
-                      {TEXT_FONTS.map((f) => (
-                        <option key={f} value={f}>
-                          {f}
-                        </option>
+                      {filteredFonts.length === 0 && (
+                        <p style={{ fontSize: 12, color: "#94a3b8", padding: "10px 12px", margin: 0 }}>
+                          No fonts match "{fontSearch}".
+                        </p>
+                      )}
+                      {filteredFonts.map((f) => (
+                        <button
+                          key={f.name}
+                          type="button"
+                          onClick={() => updateActiveText({ fontFamily: f.name })}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "8px 12px",
+                            border: "none",
+                            borderBottom: "1px solid #f1f5f9",
+                            background: activeTextLayer.fontFamily === f.name ? "#eff6ff" : "#fff",
+                            cursor: "pointer",
+                            fontFamily: f.name,
+                            fontSize: 15,
+                            color: "#111827",
+                          }}
+                        >
+                          {f.name}
+                        </button>
                       ))}
-                    </select>
+                    </div>
                   </div>
 
                   <div className="tsc-text-editor-field">
@@ -1247,6 +1500,26 @@ export default function TshirtCustomizerPanel({
                       )}
                     </div>
                   </div>
+
+                  <div className="tsc-text-editor-field">
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <label className="tsc-spec-label">Curve</label>
+                      <button
+                        type="button"
+                        onClick={() => updateActiveText({ curve: 0 })}
+                        style={{ fontSize: 11, color: "#6b7280", background: "none", border: "none", cursor: "pointer" }}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <input
+                      type="range"
+                      min={-100}
+                      max={100}
+                      value={activeTextLayer.curve || 0}
+                      onChange={(e) => updateActiveText({ curve: Number(e.target.value) })}
+                    />
+                  </div>
                 </>
               )}
             </div>
@@ -1357,6 +1630,80 @@ export default function TshirtCustomizerPanel({
             />
           )}
 
+          {/* Tab: Graphics (shapes library) */}
+          {activeTab === "graphics" && (
+            <div className="tsc-sidebar-section">
+              <div className="tsc-sidebar-header-row">
+                <h4>Graphics</h4>
+              </div>
+              <div className="mv-grid">
+                {Object.keys(SHAPE_PATHS).map((shapeType) => (
+                  <button
+                    key={shapeType}
+                    type="button"
+                    className="mv-thumb"
+                    disabled={!activeZone}
+                    onClick={() => handleAddShape(shapeType)}
+                    title={`Add ${SHAPE_LABELS[shapeType]}`}
+                  >
+                    <div className="mv-thumb-img">
+                      <svg viewBox="0 0 100 100" width="60%" height="60%">
+                        <path d={SHAPE_PATHS[shapeType]} fill="#111827" />
+                      </svg>
+                    </div>
+                    <span className="mv-thumb-label">{SHAPE_LABELS[shapeType]}</span>
+                  </button>
+                ))}
+              </div>
+              {!activeZone && (
+                <p className="tsc-gallery-empty" style={{ marginTop: 10 }}>
+                  Select a zone first to add a shape.
+                </p>
+              )}
+
+              <div style={{ borderTop: "1px solid #e5e7eb", margin: "16px 0" }} />
+
+              <div className="tsc-sidebar-header-row">
+                <h4>Patterns</h4>
+              </div>
+              <div className="mv-grid">
+                {PATTERN_TYPES.map((patternType) => (
+                  <button
+                    key={patternType}
+                    type="button"
+                    className="mv-thumb"
+                    disabled={!activeZone}
+                    onClick={() => handleAddPattern(patternType)}
+                    title={`Add ${PATTERN_LABELS[patternType]}`}
+                  >
+                    <div className="mv-thumb-img">
+                      <svg viewBox="0 0 100 100" width="100%" height="100%">
+                        <defs>
+                          <pattern
+                            id={`pattern-preview-${patternType}`}
+                            width="20"
+                            height="20"
+                            patternUnits="userSpaceOnUse"
+                            dangerouslySetInnerHTML={{
+                              __html: buildPatternSvgDef(patternType, 20, "#111827", "#ffffff"),
+                            }}
+                          />
+                        </defs>
+                        <rect width="100" height="100" fill={`url(#pattern-preview-${patternType})`} />
+                      </svg>
+                    </div>
+                    <span className="mv-thumb-label">{PATTERN_LABELS[patternType]}</span>
+                  </button>
+                ))}
+              </div>
+              {!activeZone && (
+                <p className="tsc-gallery-empty" style={{ marginTop: 10 }}>
+                  Select a zone first to add a pattern.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Tab: Templates */}
           {activeTab === "templates" && (
             <TemplatesPanel
@@ -1367,7 +1714,53 @@ export default function TshirtCustomizerPanel({
             />
           )}
 
-          {/* Image/Text Size controls - shown whenever a layer is selected */}
+          {/* Shape fill color - only when a shape layer is selected */}
+          {activeShapeLayer && (
+            <div className="tsc-sidebar-section">
+              <label className="tsc-spec-label">Shape color</label>
+              <input
+                type="color"
+                value={activeShapeLayer.fillColor}
+                onChange={(e) => updateActiveShape({ fillColor: e.target.value })}
+              />
+            </div>
+          )}
+
+          {/* Pattern colors + tile size - only when a pattern layer is selected */}
+          {activePatternLayer && (
+            <div className="tsc-sidebar-section">
+              <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+                <div>
+                  <label className="tsc-spec-label">Pattern color</label>
+                  <input
+                    type="color"
+                    value={activePatternLayer.fillColor}
+                    onChange={(e) => updateActivePattern({ fillColor: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="tsc-spec-label">Background</label>
+                  <input
+                    type="color"
+                    value={activePatternLayer.backgroundColor}
+                    onChange={(e) => updateActivePattern({ backgroundColor: e.target.value })}
+                  />
+                </div>
+              </div>
+              <label className="tsc-spec-label">
+                Pattern size ({activePatternLayer.tileSize})
+              </label>
+              <input
+                type="range"
+                min={8}
+                max={40}
+                value={activePatternLayer.tileSize}
+                onChange={(e) => updateActivePattern({ tileSize: Number(e.target.value) })}
+              />
+            </div>
+          )}
+
+          {/* Image/Text/Shape Size controls - shown whenever a layer is selected */}
           {selectedLayerData && (
             <div className="tsc-sidebar-section tsc-size-controls">
               <div className="tsc-size-header">
@@ -1375,7 +1768,11 @@ export default function TshirtCustomizerPanel({
                   <strong>
                     {selectedLayerData.kind === "image"
                       ? "Image Size"
-                      : "Text Size"}
+                      : selectedLayerData.kind === "shape"
+                        ? "Shape Size"
+                        : selectedLayerData.kind === "pattern"
+                          ? "Pattern Area Size"
+                          : "Text Size"}
                   </strong>
                   <span>Adjust width and height</span>
                 </div>
@@ -1433,6 +1830,10 @@ export default function TshirtCustomizerPanel({
                 onClick={() => {
                   if (selectedLayerData.kind === "image") {
                     resizeSelectedLayer(80, 80);
+                  } else if (selectedLayerData.kind === "shape") {
+                    resizeSelectedLayer(40, 40);
+                  } else if (selectedLayerData.kind === "pattern") {
+                    resizeSelectedLayer(80, 80);
                   } else {
                     resizeSelectedLayer(80, 20);
                   }
@@ -1461,22 +1862,39 @@ export default function TshirtCustomizerPanel({
         {mode === "edit" ? (
           <div className="tsc-right-preview">
             <div className="tsc-preview-panel">
-              <TshirtZoneCanvas
-                zones={zones}
-                zoneLayers={zoneLayers}
-                selectedLayerId={selectedLayerId}
-                activeZone={activeZone}
-                onZoneSelect={handleZoneSelect}
-                onLayerSelect={handleLayerSelect}
-                onLayerChange={handleLayerUpdate}
-                onLayerRemove={handleLayerRemove}
-                onZoneClear={handleClearZone}
-                onUploadClick={handleZoneUploadClick}
-                aspectRatio={aspectRatio}
-                printSizeInches={printSizeInches}
-                bleedInches={product?.bleedInches}
-                safeMarginInches={product?.safeMarginInches}
-              />
+              {zones.length === 2 && zones.includes("front") && zones.includes("back") ? (
+                <TshirtSideView
+                  zoneLayers={zoneLayers}
+                  selectedLayerId={selectedLayerId}
+                  activeZone={activeZone}
+                  onZoneSelect={handleZoneSelect}
+                  onLayerSelect={handleLayerSelect}
+                  onLayerChange={handleLayerUpdate}
+                  onLayerRemove={handleLayerRemove}
+                  onZoneClear={handleClearZone}
+                  onUploadClick={handleZoneUploadClick}
+                  printSizeInches={printSizeInches}
+                  bleedInches={product?.bleedInches}
+                  safeMarginInches={product?.safeMarginInches}
+                />
+              ) : (
+                <TshirtZoneCanvas
+                  zones={zones}
+                  zoneLayers={zoneLayers}
+                  selectedLayerId={selectedLayerId}
+                  activeZone={activeZone}
+                  onZoneSelect={handleZoneSelect}
+                  onLayerSelect={handleLayerSelect}
+                  onLayerChange={handleLayerUpdate}
+                  onLayerRemove={handleLayerRemove}
+                  onZoneClear={handleClearZone}
+                  onUploadClick={handleZoneUploadClick}
+                  aspectRatio={aspectRatio}
+                  printSizeInches={printSizeInches}
+                  bleedInches={product?.bleedInches}
+                  safeMarginInches={product?.safeMarginInches}
+                />
+              )}
             </div>
           </div>
         ) : (
@@ -1500,7 +1918,77 @@ export default function TshirtCustomizerPanel({
               </div>
 
               {previewSupportsMockupView && (
-                <div className="lp-panel" style={{ width: 190, flexShrink: 0, borderTop: "none", paddingTop: 0, marginTop: 0 }}>
+                <div style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+                  {readinessScore && (
+                    <div className="lp-panel" style={{ borderTop: "none", paddingTop: 0, marginTop: 0 }}>
+                      <div className="lp-header" style={{ marginBottom: 14 }}>
+                        <span>Print Readiness</span>
+                      </div>
+
+                      {(() => {
+                        const score = readinessScore.overall;
+                        const color = score >= 80 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626";
+                        const circumference = 2 * Math.PI * 42;
+                        const dashOffset = circumference * (1 - score / 100);
+                        return (
+                          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                            <svg width="100" height="100" viewBox="0 0 100 100">
+                              <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" strokeWidth="8" />
+                              <circle
+                                cx="50" cy="50" r="42" fill="none"
+                                stroke={color} strokeWidth="8" strokeLinecap="round"
+                                strokeDasharray={circumference}
+                                strokeDashoffset={dashOffset}
+                                transform="rotate(-90 50 50)"
+                                style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                              />
+                              <text x="50" y="46" textAnchor="middle" fontSize="24" fontWeight="700" fill="#111827">
+                                {score}
+                              </text>
+                              <text x="50" y="63" textAnchor="middle" fontSize="9" fill="#6b7280">
+                                / 100
+                              </text>
+                            </svg>
+                          </div>
+                        );
+                      })()}
+
+                      {[
+                        { label: "Resolution", data: readinessScore.resolution },
+                        { label: "Safe Area", data: readinessScore.safeArea },
+                        { label: "Color Contrast", data: readinessScore.colorContrast },
+                      ].map(({ label, data }) => (
+                        <div
+                          key={label}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: 12,
+                            padding: "6px 0",
+                            borderTop: "1px solid #f1f5f9",
+                          }}
+                        >
+                          <span style={{ color: "#374151" }}>
+                            {data.score >= 80 ? "✓" : data.score >= 50 ? "⚠" : "✕"} {label}
+                          </span>
+                          <span style={{ fontWeight: 600, color: data.score >= 80 ? "#16a34a" : data.score >= 50 ? "#d97706" : "#dc2626" }}>
+                            {data.score}/100
+                          </span>
+                        </div>
+                      ))}
+
+                      {readinessScore.overall < 80 && (
+                        <p style={{ fontSize: 11, color: "#6b7280", marginTop: 10, lineHeight: 1.5 }}>
+                          {readinessScore.resolution.score < 80 && "Try a higher-resolution image for crisper printing. "}
+                          {readinessScore.safeArea.score < 80 && "Move your design further from the edge. "}
+                          {readinessScore.colorContrast.score < 80 && "This design may be hard to see on this shirt color. "}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+              <div className="lp-panel" style={{ borderTop: "none", paddingTop: 0, marginTop: 0 }}>
                   <div className="lp-header" style={{ marginBottom: 12 }}>
                     <span>Mockup View</span>
                   </div>
@@ -1543,12 +2031,95 @@ export default function TshirtCustomizerPanel({
                   >
                     Download mockup
                   </button>
+
+                  {designType === "tshirt" && (
+                    <button
+                      type="button"
+                      className="tsc-use-btn-header"
+                      style={{ width: "100%", marginTop: 8 }}
+                      onClick={handleRealLifePreview}
+                    >
+                      View in Real Life Picture Preview
+                    </button>
+                  )}
                 </div>
+              </div>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {realLifePreview && (
+        <div
+          onClick={() => setRealLifePreview(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              borderRadius: 12,
+              padding: 20,
+              maxWidth: "min(90vw, 500px)",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <strong style={{ fontSize: 14 }}>Real Life Picture Preview</strong>
+              <button
+                type="button"
+                onClick={() => setRealLifePreview(null)}
+                style={{ border: "none", background: "none", fontSize: 20, cursor: "pointer", lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </div>
+
+            {realLifePreview.status === "loading" && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "32px 0" }}>
+                <span className="tsc-spinner" />
+                <p style={{ fontSize: 13, color: "#6b7280", textAlign: "center" }}>{realLifePreview.message}</p>
+              </div>
+            )}
+
+            {realLifePreview.status === "error" && (
+              <p style={{ fontSize: 13, color: "#b91c1c", textAlign: "center", padding: "24px 0" }}>
+                {realLifePreview.message}
+              </p>
+            )}
+
+            {realLifePreview.status === "result" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+                {realLifePreview.mockups.map((m, i) => (
+                  <div key={i}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", margin: "0 0 4px" }}>
+                      {m.placement}
+                    </p>
+                    <img
+                      src={m.mockupUrl}
+                      alt={`Real life preview - ${m.placement}`}
+                      style={{ width: "100%", height: "auto", borderRadius: 8 }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

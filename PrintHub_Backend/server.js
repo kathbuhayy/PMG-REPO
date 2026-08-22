@@ -3025,6 +3025,243 @@ app.put("/api/orders/:id/design-review", async (req, res) => {
     res.status(500).json({ message: "Failed to update design review." });
   }
 });
+// ── "Real Life Picture Preview" (Printful Mockup Generator API) ─────────
+// Composites the customer's current flattened design onto Printful's real
+// studio photography of an actual blank garment. Unlike the Front/Back/
+// Left/Right 3D angle thumbnails (which render YOUR garment via Three.js),
+// this shows the design on PRINTFUL's stock blank - close enough for a
+// generic tee/mug, but not literally the exact product a customer receives
+// if your physical stock differs.
+//
+// Requires PRINTFUL_API_KEY in .env (get one from your Printful dashboard
+// under Settings -> API). Without it, these routes return a clean 400
+// rather than crashing.
+const PRINTFUL_API_KEY = process.env.PRINTFUL_API_KEY || "";
+const PRINTFUL_CATALOG = {
+  // Printful catalog product/variant IDs. 71 + 4012 (white, size M) are
+  // real, documented values for a Bella+Canvas 3001 tee. The dark-variant
+  // ID below is a PLACEHOLDER - confirm the real black/M variant id by
+  // calling GET https://api.printful.com/products/71 with your API key
+  // and reading the variants array before relying on it.
+  tshirt: {
+    productId: 71,
+    variantLight: 4012, // White, M - confirmed real
+    variantDark: 4017, // Black, M - PLACEHOLDER, verify against /products/71
+  },
+};
+
+function hexLuminance(hex) {
+  const clean = (hex || "#ffffff").replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16) || 255;
+  const g = parseInt(clean.substring(2, 4), 16) || 255;
+  const b = parseInt(clean.substring(4, 6), 16) || 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+// POST /api/mockup/upload-design — save a flattened design (base64 PNG)
+// to Supabase storage, return the public URL Printful needs to fetch it.
+app.post("/api/mockup/upload-design", async (req, res) => {
+  try {
+    const { dataUrl } = req.body;
+    if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+      return res.status(400).json({ message: "dataUrl must be a data:image/... string" });
+    }
+
+    const matches = dataUrl.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/);
+    if (!matches) {
+      return res.status(400).json({ message: "Could not parse image data URL" });
+    }
+
+    await ensureBucket();
+
+    const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
+    const buffer = Buffer.from(matches[2], "base64");
+    const path = `mockups/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from(BUILDER_BUCKET)
+      .upload(path, buffer, { contentType: `image/${ext}`, upsert: false });
+    if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+    const { data: urlData } = supabase.storage.from(BUILDER_BUCKET).getPublicUrl(path);
+    res.json({ url: urlData.publicUrl });
+  } catch (err) {
+    console.error("mockup upload-design failed:", err);
+    res.status(500).json({ message: "Failed to upload design for mockup." });
+  }
+});
+
+// Internal zone id -> candidate Printful placement key names to try, in
+// order. Printful's exact placement keys vary per product template, so
+// rather than hardcoding one guess, we check each candidate against this
+// product's actual available_placements and use whichever one really
+// exists - skipping the zone entirely if none of the candidates match.
+const ZONE_TO_PRINTFUL_PLACEMENT_CANDIDATES = {
+  front: ["front"],
+  back: ["back"],
+  left_sleeve: ["sleeve_left", "left_sleeve", "left"],
+  right_sleeve: ["sleeve_right", "right_sleeve", "right"],
+};
+
+app.post("/api/mockup/printful/create-task", async (req, res) => {
+  try {
+    if (!PRINTFUL_API_KEY) {
+      return res.status(400).json({ message: "PRINTFUL_API_KEY is not set on the server." });
+    }
+
+    // designs: [{ zoneId: "front", imageUrl: "https://..." }, ...]
+    const { designs, category = "tshirt", shirtColor } = req.body;
+    if (!Array.isArray(designs) || designs.length === 0) {
+      return res.status(400).json({ message: "designs must be a non-empty array of { zoneId, imageUrl }." });
+    }
+
+    const catalogEntry = PRINTFUL_CATALOG[category];
+    if (!catalogEntry) {
+      return res.status(400).json({
+        message: `No Printful catalog mapping configured for category "${category}" yet.`,
+      });
+    }
+
+    const isLight = hexLuminance(shirtColor) > 128;
+    const variantId = isLight ? catalogEntry.variantLight : catalogEntry.variantDark;
+
+    // Printful requires a `position` object (in px) telling it exactly
+    // where/how large to place each design - it does NOT infer full
+    // coverage from image_url alone (that's the "Position field is
+    // missing" error). Those px dimensions come from this printfiles
+    // endpoint, specific to the product+placement, and this same response
+    // also tells us which placements this product template even supports.
+    const printfilesRes = await fetch(
+      `https://api.printful.com/mockup-generator/printfiles/${catalogEntry.productId}`,
+      { headers: { Authorization: `Bearer ${PRINTFUL_API_KEY}` } },
+    );
+    const printfilesData = await printfilesRes.json();
+    if (!printfilesRes.ok) {
+      return res.status(printfilesRes.status).json({
+        message:
+          printfilesData?.result ||
+          printfilesData?.error?.message ||
+          "Failed to fetch Printful printfile dimensions.",
+      });
+    }
+
+    const availablePlacements = printfilesData.result?.available_placements || {};
+    const variantEntry = printfilesData.result?.variant_printfiles?.find(
+      (v) => v.variant_id === variantId,
+    );
+
+    const files = [];
+    const skippedZones = [];
+
+    for (const { zoneId, imageUrl } of designs) {
+      const candidates = ZONE_TO_PRINTFUL_PLACEMENT_CANDIDATES[zoneId] || [zoneId];
+      const placementKey = candidates.find((key) => key in availablePlacements);
+
+      if (!placementKey) {
+        skippedZones.push(zoneId);
+        continue;
+      }
+
+      const printfileId = variantEntry?.placements?.[placementKey];
+      const printfile = printfilesData.result?.printfiles?.find(
+        (p) => p.printfile_id === printfileId,
+      );
+
+      if (!printfile?.width || !printfile?.height) {
+        skippedZones.push(zoneId);
+        continue;
+      }
+
+      files.push({
+        placement: placementKey,
+        image_url: imageUrl,
+        // Full-bleed placement: design covers the entire print area for
+        // that specific placement.
+        position: {
+          area_width: printfile.width,
+          area_height: printfile.height,
+          width: printfile.width,
+          height: printfile.height,
+          top: 0,
+          left: 0,
+        },
+      });
+    }
+
+    if (files.length === 0) {
+      return res.status(400).json({
+        message: `None of the provided zones (${designs.map((d) => d.zoneId).join(", ")}) map to a placement this product supports.`,
+      });
+    }
+
+    const printfulRes = await fetch(
+      `https://api.printful.com/mockup-generator/create-task/${catalogEntry.productId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${PRINTFUL_API_KEY}`,
+        },
+        body: JSON.stringify({
+          variant_ids: [variantId],
+          format: "jpg",
+          files,
+        }),
+      },
+    );
+
+    const data = await printfulRes.json();
+    if (!printfulRes.ok) {
+      return res.status(printfulRes.status).json({
+        message: data?.result || data?.error?.message || "Printful create-task failed",
+      });
+    }
+
+    res.json({ taskKey: data.result.task_key, skippedZones });
+  } catch (err) {
+    console.error("mockup create-task failed:", err);
+    res.status(500).json({ message: "Failed to reach Printful." });
+  }
+});
+
+// GET /api/mockup/printful/task-status?taskKey=...
+app.get("/api/mockup/printful/task-status", async (req, res) => {
+  try {
+    if (!PRINTFUL_API_KEY) {
+      return res.status(400).json({ message: "PRINTFUL_API_KEY is not set on the server." });
+    }
+
+    const { taskKey } = req.query;
+    if (!taskKey) {
+      return res.status(400).json({ message: "taskKey query param is required" });
+    }
+
+    const printfulRes = await fetch(
+      `https://api.printful.com/mockup-generator/task?task_key=${taskKey}`,
+      { headers: { Authorization: `Bearer ${PRINTFUL_API_KEY}` } },
+    );
+
+    const data = await printfulRes.json();
+    if (!printfulRes.ok) {
+      return res.status(printfulRes.status).json({
+        message: data?.result || data?.error?.message || "Printful task-status failed",
+      });
+    }
+
+    // Return every mockup Printful generated (one per placement/style),
+    // not just the first - the frontend renders these as a small gallery.
+    res.json({
+      status: data.result?.status,
+      mockups: (data.result?.mockups || []).map((m) => ({
+        placement: m.placement,
+        mockupUrl: m.mockup_url,
+      })),
+    });
+  } catch (err) {
+    console.error("mockup task-status failed:", err);
+    res.status(500).json({ message: "Failed to reach Printful." });
+  }
+});
 
 // POST /api/builder/upload — upload a source asset to Supabase storage
 app.post("/api/builder/upload", upload.single("file"), async (req, res) => {
