@@ -1,13 +1,19 @@
 /**
  * Image generation helper.
  *
- * Production:  fal.ai FLUX.1 [dev]  — requires FAL_KEY + balance
- * Development: Pollinations.AI       — free, no key, set FAL_MOCK=true in .env
+ * Production:  OpenAI GPT Image 2   — requires OPENAI_API_KEY + billing set up
+ * Development: Pollinations.AI      — free, no key, set FAL_MOCK=true in .env
+ *
+ * NOTE: this file used to call fal.ai's FLUX.1 [dev]. The function name,
+ * exported signature, and return shape are unchanged so nothing calling
+ * generateImage() elsewhere (server.js) needs to be touched. Only the
+ * production path underneath was swapped.
  */
 
-const FAL_BASE = "https://fal.run";
-const DEFAULT_MODEL = "fal-ai/flux/dev";
+const OPENAI_IMAGES_URL = "https://api.openai.com/v1/images/generations";
+const DEFAULT_MODEL = "gpt-image-2";
 
+// Pollinations dev fallback still uses these pixel dimensions.
 const SIZE_MAP = {
   square_hd: [1024, 1024],
   square: [512, 512],
@@ -17,13 +23,24 @@ const SIZE_MAP = {
   landscape_16_9: [1024, 576],
 };
 
+// OpenAI's GPT Image 2 only accepts these three sizes — map every
+// existing imageSize key onto the closest one.
+const OPENAI_SIZE_MAP = {
+  square_hd: "1024x1024",
+  square: "1024x1024",
+  portrait_4_3: "1024x1536",
+  portrait_16_9: "1024x1536",
+  landscape_4_3: "1536x1024",
+  landscape_16_9: "1536x1024",
+};
+
 /**
  * Generate an image from a text prompt.
  * @param {Object} opts
  * @param {string} opts.prompt
  * @param {string} [opts.model]
  * @param {string} [opts.imageSize]
- * @param {number} [opts.numSteps]
+ * @param {number} [opts.numSteps] - unused by OpenAI, kept for signature compatibility
  * @returns {Promise<{url: string, width: number, height: number, seed: number|null}>}
  */
 async function generateImage({
@@ -35,7 +52,7 @@ async function generateImage({
   if (process.env.FAL_MOCK === "true") {
     return generateWithPollinations(prompt, imageSize);
   }
-  return generateWithFal(prompt, model, imageSize, numSteps);
+  return generateWithOpenAI(prompt, model, imageSize);
 }
 
 // ── Pollinations.AI (free, no key) ──────────────────────────────────────────
@@ -53,35 +70,35 @@ async function generateWithPollinations(prompt, imageSize) {
   return { url, width, height, seed };
 }
 
-// ── fal.ai FLUX.1 ────────────────────────────────────────────────────────────
-async function generateWithFal(prompt, model, imageSize, numSteps) {
-  const falKey = process.env.FAL_KEY;
-  if (!falKey) throw new Error("FAL_KEY environment variable is not set");
+// ── OpenAI GPT Image 2 ───────────────────────────────────────────────────────
+async function generateWithOpenAI(prompt, model, imageSize) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY environment variable is not set");
 
-  const [width, height] = SIZE_MAP[imageSize] || [1024, 1024];
+  const size = OPENAI_SIZE_MAP[imageSize] || "1024x1024";
+  const [width, height] = size.split("x").map(Number);
 
-  const res = await fetch(`${FAL_BASE}/${model}`, {
+  const res = await fetch(OPENAI_IMAGES_URL, {
     method: "POST",
     headers: {
-      Authorization: `Key ${falKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
+      model,
       prompt,
-      image_size: imageSize,
-      num_inference_steps: numSteps,
-      guidance_scale: 3.5,
-      num_images: 1,
-      safety_tolerance: "2",
-      output_format: "jpeg",
+      size,
+      quality: "high",
+      background: "transparent",
+      n: 1,
     }),
   });
 
   if (!res.ok) {
-    let errMsg = `fal.ai error: ${res.status}`;
+    let errMsg = `OpenAI error: ${res.status}`;
     try {
       const errBody = await res.json();
-      errMsg = errBody?.message || errBody?.detail || errMsg;
+      errMsg = errBody?.error?.message || errMsg;
     } catch {
       /* ignore */
     }
@@ -89,14 +106,14 @@ async function generateWithFal(prompt, model, imageSize, numSteps) {
   }
 
   const data = await res.json();
-  const image = data?.images?.[0];
-  if (!image?.url) throw new Error("fal.ai returned no image URL");
+  const image = data?.data?.[0];
+  if (!image?.b64_json) throw new Error("OpenAI returned no image data");
 
   return {
-    url: image.url,
-    width: image.width || width,
-    height: image.height || height,
-    seed: data.seed ?? null,
+    url: `data:image/png;base64,${image.b64_json}`,
+    width,
+    height,
+    seed: null,
   };
 }
 

@@ -14,7 +14,7 @@ const { logActivity, identifyActor } = require("./services/activityLog");
 const {
   generateModelFromText,
   generateModelFromImage,
-} = require("./services/meshy");
+} = require("./services/tripo3d");
 
 const {
   buildReceiptPayload,
@@ -3285,14 +3285,10 @@ app.post("/api/builder/generate-image", async (req, res) => {
       `🎨 Builder generate-image (2D): owner=${ownerKey}${userId ? ` (userId=${userId})` : " (guest)"}, prompt="${prompt.slice(0, 80)}..."`,
     );
 
-    // Append system-level prompt guidelines to avoid copyrighted content
-    // and guide the generation to a transparent/white background graphic.
-    const guidelines =
-      "flat vector graphic design, isolated subject on transparent " +
-      "or white background, no copyrighted characters, no trademarked logos, " +
-      "print-ready artwork, high contrast, clean edges";
-
-    const finalPrompt = `${prompt.trim()}, ${guidelines}`;
+    // Single, mild style guideline — kept short and non-directive to avoid
+    // tripping OpenAI's moderation on prompts that look like instruction
+    // overrides (ALL CAPS, "IMPORTANT:", long negation lists, etc.)
+    const finalPrompt = `${prompt.trim()}. Flat graphic design style, isolated subject on a transparent background, clean print-ready artwork.`;
 
     const result = await generateImage({
       prompt: finalPrompt,
@@ -3317,7 +3313,36 @@ app.post("/api/builder/generate-image", async (req, res) => {
   }
 });
 
-// POST /api/builder/generate — generate a 3D model via Meshy and store in Supabase
+/**
+ * Download a .glb from a (likely temporary) URL and store it permanently
+ * in Supabase, returning the public URL. Tripo3D model URLs expire ~5
+ * minutes after generation, so this must run right after the task
+ * succeeds, before the caller does anything else with the URL.
+ */
+async function persistGlbToSupabase(tempGlbUrl, ownerKey) {
+  await ensureBucket();
+
+  const fileRes = await fetch(tempGlbUrl);
+  if (!fileRes.ok) {
+    throw new Error(
+      `Failed to download generated model (status ${fileRes.status}) before it expired`,
+    );
+  }
+  const buffer = Buffer.from(await fileRes.arrayBuffer());
+
+  const path = `3d-models/${ownerKey}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.glb`;
+  const { error } = await supabase.storage
+    .from(BUILDER_BUCKET)
+    .upload(path, buffer, { contentType: "model/gltf-binary", upsert: false });
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+  const { data: urlData } = supabase.storage
+    .from(BUILDER_BUCKET)
+    .getPublicUrl(path);
+  return { url: urlData.publicUrl, path };
+}
+
+// POST /api/builder/generate — generate a 3D model via Tripo3D and store in Supabase
 app.post("/api/builder/generate", async (req, res) => {
   const userId = getUserId(req);
   // allow guests: derive an ownerKey for cooldown/storage (prefer userId when present)
@@ -3354,19 +3379,25 @@ app.post("/api/builder/generate", async (req, res) => {
       `🎨 Builder generate (3D): owner=${ownerKey}${userId ? ` (userId=${userId})` : " (guest)"}, productId=${productId || "N/A"}, prompt="${prompt.slice(0, 80)}..."`,
     );
 
-    // Call Meshy text-to-3D
-    const { glbUrl, meshyTaskId } = await generateModelFromText({
+    // Call Tripo3D text-to-3D
+    const { glbUrl: tempGlbUrl, tripoTaskId } = await generateModelFromText({
       prompt: prompt.trim(),
       quality: quality || "standard",
     });
 
-    console.log(`✅ Generated 3D model (Meshy direct)`);
+    // Tripo3D's URL expires in ~5 minutes — download and store it
+    // permanently right away so it doesn't disappear on the user.
+    const { url: glbUrl, path } = await persistGlbToSupabase(
+      tempGlbUrl,
+      ownerKey,
+    );
+
+    console.log(`✅ Generated 3D model (Tripo3D) and stored permanently`);
     return res.json({
       glbUrl,
-      meshyUrl: glbUrl,
-      meshyTaskId,
-      stored: false,
-      path: null,
+      tripoTaskId,
+      stored: true,
+      path,
     });
   } catch (e) {
     // Reset cooldown on failure so user can retry
@@ -3378,7 +3409,7 @@ app.post("/api/builder/generate", async (req, res) => {
   }
 });
 
-// POST /api/builder/generate-from-image — generate a 3D model from uploaded image via Meshy
+// POST /api/builder/generate-from-image — generate a 3D model from uploaded image via Tripo3D
 app.post("/api/builder/generate-from-image", async (req, res) => {
   const userId = getUserId(req);
   const rawOwner = userId
@@ -3413,20 +3444,28 @@ app.post("/api/builder/generate-from-image", async (req, res) => {
       `🎨 Builder generate-from-image: owner=${ownerKey}${userId ? ` (userId=${userId})` : " (guest)"}, image=${imageUrl.slice(0, 60)}...${description ? ` description="${description.slice(0, 60)}..."` : ""}`,
     );
 
-    // Call Meshy image-to-3D
-    const { glbUrl, meshyTaskId } = await generateModelFromImage({
+    // Call Tripo3D image-to-3D
+    const { glbUrl: tempGlbUrl, tripoTaskId } = await generateModelFromImage({
       imageUrl: imageUrl.trim(),
       description: description ? description.trim() : undefined,
       quality: quality || "standard",
     });
 
-    console.log(`✅ Generated 3D model from image (Meshy direct)`);
+    // Tripo3D's URL expires in ~5 minutes — download and store it
+    // permanently right away so it doesn't disappear on the user.
+    const { url: glbUrl, path } = await persistGlbToSupabase(
+      tempGlbUrl,
+      ownerKey,
+    );
+
+    console.log(
+      `✅ Generated 3D model from image (Tripo3D) and stored permanently`,
+    );
     return res.json({
       glbUrl,
-      meshyUrl: glbUrl,
-      meshyTaskId,
-      stored: false,
-      path: null,
+      tripoTaskId,
+      stored: true,
+      path,
     });
   } catch (e) {
     delete generationCooldown[ownerKey];

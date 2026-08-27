@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { FaMagic, FaExclamationTriangle } from "react-icons/fa";
+import { FaMagic, FaExclamationTriangle, FaCube } from "react-icons/fa";
+import AIBuilder3DPreview from "./AIBuilder3DPreview";
 import "./AIBuilder.css";
 
 /**
@@ -19,9 +20,17 @@ export default function AIGeneratePanel({
   onPromptChange,
   lastPrompt: propLastPrompt,
   onLastPromptChange,
+  handleGenerate3D,
+  generating3D,
+  gen3DError,
+  setGen3DError,
+  model3D,
+  setModel3D,
+  onUseModel3D,
 }) {
   const [localPrompt, setLocalPrompt] = useState("");
   const [localLastPrompt, setLocalLastPrompt] = useState("");
+  const [show3DPreview, setShow3DPreview] = useState(false);
 
   const prompt =
     propPrompt !== undefined ? propPrompt : localPrompt;
@@ -49,21 +58,11 @@ export default function AIGeneratePanel({
 
     setGenError("");
 
-    // Add transparent-background instructions
-    // without changing the user's original prompt.
-    const transparentPrompt = `${prompt.trim()}
-
-IMPORTANT:
-Create ONLY the requested main design or subject.
-Use a completely transparent background.
-Do NOT include any scenery, environment, room, landscape, sky, floor, background, backdrop, or surrounding objects.
-Do NOT add a white background or colored background.
-Do NOT place the design inside a rectangle, square, frame, or scene.
-The empty area around the design must remain transparent.
-Make the artwork clean, centered, and suitable for printing on a T-shirt.`;
-
+    // Pass the raw prompt through — style/background guidance is now
+    // handled once, server-side, to avoid stacking instructions the
+    // model's safety system can mistake for a prompt injection attempt.
     const item = await handleGenerate(
-      transparentPrompt,
+      prompt.trim(),
       activeZone
     );
 
@@ -71,6 +70,24 @@ Make the artwork clean, centered, and suitable for printing on a T-shirt.`;
       onGenerated(item);
       setLastPrompt(prompt);
       setPrompt("");
+    }
+  };
+
+  /**
+   * Triggers actual 3D model generation via Tripo3D (separate from the
+   * flat 2D image generation above). Result is a .glb model shown in
+   * an inline 3D viewer, not added to the flat design canvas.
+   */
+  const onSubmit3D = async () => {
+    if (!prompt.trim()) {
+      setGen3DError("Please enter a description.");
+      return;
+    }
+
+    setGen3DError("");
+    const result = await handleGenerate3D(prompt.trim());
+    if (result) {
+      setShow3DPreview(true);
     }
   };
 
@@ -164,6 +181,101 @@ Make the artwork clean, centered, and suitable for printing on a T-shirt.`;
       {genError && (
         <div className="ai-gen-error">
           {genError}
+        </div>
+      )}
+
+      {handleGenerate3D && (
+        <>
+          <button
+            type="button"
+            className="ai-gen-btn"
+            style={{ marginTop: "8px", background: "#2d3250" }}
+            onClick={onSubmit3D}
+            disabled={generating3D || !prompt.trim()}
+          >
+            {generating3D ? (
+              <>
+                <span
+                  className="aib-spinner"
+                  style={{ marginRight: "6px" }}
+                />
+                Generating 3D model…
+              </>
+            ) : (
+              <>
+                <FaCube style={{ marginRight: 6 }} />
+                Generate 3D Model
+              </>
+            )}
+          </button>
+
+          {gen3DError && <div className="ai-gen-error">{gen3DError}</div>}
+        </>
+      )}
+
+      {show3DPreview && model3D?.glbUrl && (
+        <div
+          className="aib-3d-modal"
+          role="dialog"
+          onClick={() => setShow3DPreview(false)}
+        >
+          <div
+            className="aib-modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="aib-modal-close"
+              onClick={() => setShow3DPreview(false)}
+            >
+              Close
+            </button>
+            <div className="aib-3d-wrapper" style={{ height: 400 }}>
+              <AIBuilder3DPreview
+                designImage={model3D.glbUrl}
+                prompt={model3D.prompt}
+              />
+            </div>
+
+            {onUseModel3D ? (
+              <>
+                <button
+                  type="button"
+                  className="ai-gen-btn"
+                  style={{ marginTop: "12px" }}
+                  onClick={() => {
+                    onUseModel3D(model3D);
+                    setShow3DPreview(false);
+                  }}
+                >
+                  <FaCube style={{ marginRight: 6 }} />
+                  Use as Product Model
+                </button>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#888",
+                    textAlign: "center",
+                    marginTop: "8px",
+                  }}
+                >
+                  This model is saved permanently. Click above to preview it
+                  on the product itself.
+                </p>
+              </>
+            ) : (
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#888",
+                  textAlign: "center",
+                  marginTop: "8px",
+                }}
+              >
+                This model is saved permanently, though this product type
+                doesn't have a 3D view to apply it to.
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>

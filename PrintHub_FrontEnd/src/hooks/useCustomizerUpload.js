@@ -60,6 +60,11 @@ export function useCustomizerUpload(
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState("");
 
+  // ── 3D model generation state (separate from 2D image generation) ──
+  const [generating3D, setGenerating3D] = useState(false);
+  const [gen3DError, setGen3DError] = useState("");
+  const [model3D, setModel3D] = useState(null); // { glbUrl, tripoTaskId, prompt } | null
+
   // Convert file to Base64 asynchronously if it fits within safe localStorage limits
   const convertFileToBase64 = (file, callback) => {
     if (file.size > 1.5 * 1024 * 1024) return; // 1.5MB safe limit for localStorage
@@ -125,8 +130,9 @@ export function useCustomizerUpload(
       setGenError("");
 
       try {
-        // Purely prompt for the graphic design without item context to avoid confusing the AI
-        const fullPrompt = `${prompt.trim()}, flat graphic design, transparent background, high quality`;
+        // Style/background guidance is added once, server-side — pass
+        // the user's prompt through unmodified here.
+        const fullPrompt = prompt.trim();
 
         const userId = getUserId();
         const res = await fetch(buildApiUrl("/api/builder/generate-image"), {
@@ -176,6 +182,53 @@ export function useCustomizerUpload(
     },
     [productLabel],
   );
+
+  // ── Generate an actual 3D model via Tripo3D (separate from the 2D flat design above) ──
+  const handleGenerate3D = useCallback(async (prompt) => {
+    if (!prompt.trim()) {
+      setGen3DError("Please enter a description.");
+      return null;
+    }
+
+    setGenerating3D(true);
+    setGen3DError("");
+    setModel3D(null);
+
+    try {
+      const userId = getUserId();
+      const res = await fetch(buildApiUrl("/api/builder/generate"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(userId ? { "X-User-Id": String(userId) } : {}),
+        },
+        body: JSON.stringify({ prompt: prompt.trim(), quality: "standard" }),
+      });
+      const data = await res.json();
+
+      if (res.status === 429) {
+        setGen3DError(data.message || "Please wait before generating again.");
+        return null;
+      }
+      if (!res.ok) throw new Error(data.message || "3D generation failed");
+
+      const glbUrl = data.glbUrl || data.tripoUrl;
+      if (!glbUrl) throw new Error("No 3D model returned. Please try again.");
+
+      const result = {
+        glbUrl,
+        tripoTaskId: data.tripoTaskId,
+        prompt: prompt.trim(),
+      };
+      setModel3D(result);
+      return result;
+    } catch (err) {
+      setGen3DError(err.message || "Something went wrong. Please try again.");
+      return null;
+    } finally {
+      setGenerating3D(false);
+    }
+  }, []);
 
   const uploadUsedImages = useCallback(
     async (zoneDesigns) => {
@@ -393,6 +446,12 @@ export function useCustomizerUpload(
     generating,
     genError,
     setGenError,
+    generating3D,
+    gen3DError,
+    setGen3DError,
+    model3D,
+    setModel3D,
+    handleGenerate3D,
     handleFileChange,
     handleGenerate,
     uploadUsedImages,

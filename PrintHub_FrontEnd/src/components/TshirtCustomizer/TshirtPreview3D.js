@@ -1,1513 +1,2293 @@
-// src/components/TshirtCustomizer/TshirtPreview3D.js  (replace entire file)
-// TshirtPreview3D
-
 import React, {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
-  forwardRef,
-  useImperativeHandle,
 } from "react";
+
 import * as THREE from "three";
+
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
-import "./TshirtCustomizer.css";
 
-const textureLoader = new THREE.TextureLoader();
-textureLoader.setCrossOrigin("anonymous");
-const textureCache = {};
 
-function drawTextLayer(ctx, t, zoneX, zoneY, zoneW, zoneH) {
-  const boxX = zoneX + (t.x / 100) * zoneW;
-  const boxY = zoneY + (t.y / 100) * zoneH;
-  const boxW = (t.w / 100) * zoneW;
-  const boxH = (t.h / 100) * zoneH;
-  const fontPx = (t.fontSize / 100) * zoneH;
+// =========================================================
+// NEW tshirt.glb CONFIGURATION
+// =========================================================
 
-  ctx.save();
-  ctx.font = `${t.italic ? "italic " : ""}${t.bold ? "700" : "400"} ${fontPx}px ${t.fontFamily}`;
-  ctx.textBaseline = "middle";
-  ctx.textAlign =
-    t.align === "left" ? "left" : t.align === "right" ? "right" : "center";
+// Your new GLB contains:
+//
+// tripo_part_0
+// tripo_part_1
+// tripo_part_2
+// tripo_part_3
+// tripo_part_4
 
-  let drawX = boxX + boxW / 2;
-  if (t.align === "left") drawX = boxX;
-  if (t.align === "right") drawX = boxX + boxW;
+const TSHIRT_MESH_NAMES = [
+  "tripo_part_0",
+  "tripo_part_1",
+  "tripo_part_2",
+  "tripo_part_3",
+  "tripo_part_4",
+];
 
-  const drawY = boxY + boxH / 2;
 
-  if (t.shadow) {
-    ctx.shadowColor = t.shadowColor;
-    ctx.shadowBlur = (t.shadowBlur / 100) * zoneH;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-  }
+// =========================================================
+// DECAL CONFIGURATION
+// =========================================================
 
-  if (t.outline) {
-    ctx.lineWidth = (t.outlineWidth / 100) * zoneH;
-    ctx.strokeStyle = t.outlineColor;
-    ctx.strokeText(t.text || "", drawX, drawY);
-  }
-
-  ctx.fillStyle = t.color;
-  ctx.fillText(t.text || "", drawX, drawY);
-  ctx.restore();
-}
-
-function loadTextureCached(url, onLoad) {
-  if (textureCache[url]) {
-    onLoad(textureCache[url]);
-    return;
-  }
-
-  textureLoader.load(url, (texture) => {
-    textureCache[url] = texture;
-    onLoad(texture);
-  });
-}
-
-const FRONT_BODY_MESH = "Material1718";
-const BACK_BODY_MESH = "Material1722";
-const SLEEVE_MESH_NAMES = new Set(["Material1724"]);
-
-const BODY_ZONES = {
+const ZONE_CONFIG = {
   front: {
-    meshName: FRONT_BODY_MESH,
-    uMin: 0.25,
-    uMax: 0.75,
-    vMin: 0.01,
-    vMax: 0.6,
+    type: "body",
+    direction: 1,
   },
+
   back: {
-    meshName: BACK_BODY_MESH,
-    uMin: 0.25,
-    uMax: 0.75,
-    vMin: 0.01,
-    vMax: 0.6,
+    type: "body",
+    direction: -1,
   },
-};
 
-const SLEEVE_DECALS = {
   left_sleeve: {
+    type: "sleeve",
     side: -1,
-    ry: Math.PI / 2,
-    sw: 0.30,
-    sh: 0.26,
-    y: -0.15,
-    z: 0.1,
-    depth: 0.2,
   },
+
   right_sleeve: {
+    type: "sleeve",
     side: 1,
-    ry: -Math.PI / 2,
-    sw: 0.18,
-    sh: 0.16,
-    y: 0,
-    z: 0.0,
-    depth: 0.2,
   },
 };
 
-const TshirtPreview3D = forwardRef(function TshirtPreview3D({
-  modelPath,
-  shirtColor = "#ffffff",
-  zoneDesigns = {},
-  zoneTexts = {},
-  zones = [],
-  onZoneDesignChange,
-  onTextChange,
-  onZoneSelect,
-  onTextSelect,
-  selectedLayer = null,
-  onLayerSelect,
-}, ref) {
-  const mountRef = useRef(null);
-  const modelRef = useRef(null);
-  const sceneRef = useRef(null);
-  const rendererRef = useRef(null);
-  const meshesRef = useRef([]);
-  const cameraRef = useRef(null);
-  // Mockup-view support: OrbitControls instance, the model's fitted
-  // center/distance (so preset angles orbit at the same radius the
-  // auto-fit logic already computed), and an in-flight camera transition.
-  const controlsRef = useRef(null);
-  const frameRef = useRef({ center: new THREE.Vector3(), dist: 3 });
-  const viewTransitionRef = useRef(null);
 
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState("");
-  const [zoom, setZoom] = useState(100);
-
-  const rebuildSleeveDecalsPendingRef = useRef(false);
-  const rebuildSleeveDecalsQueuedRef = useRef(false);
-
-  const zoneTextsRef = useRef(zoneTexts);
-  zoneTextsRef.current = zoneTexts;
-
-  const onZoneDesignChangeRef = useRef(onZoneDesignChange);
-  onZoneDesignChangeRef.current = onZoneDesignChange;
-
-  const onTextChangeRef = useRef(onTextChange);
-  onTextChangeRef.current = onTextChange;
-
-  const onZoneSelectRef = useRef(onZoneSelect);
-  onZoneSelectRef.current = onZoneSelect;
-
-  const onTextSelectRef = useRef(onTextSelect);
-  onTextSelectRef.current = onTextSelect;
-
-  const onLayerSelectRef = useRef(onLayerSelect);
-  onLayerSelectRef.current = onLayerSelect;
-
-  const shirtColorRef = useRef(shirtColor);
-  shirtColorRef.current = shirtColor;
-
-  const designsRef = useRef(zoneDesigns);
-  designsRef.current = zoneDesigns;
-
-  const zonesRef = useRef(zones);
-  zonesRef.current = zones;
-
-  const clearDecals = useCallback(() => {
-    const model = modelRef.current;
-    if (!model) return;
-
-    meshesRef.current.forEach((m) => {
-      m.parent?.remove(m);
-      m.geometry.dispose();
-
-      if (m.material.map) {
-        m.material.map.dispose();
-      }
-
-      m.material.dispose();
-    });
-
-    meshesRef.current = [];
-  }, []);
-
-  const updateZoneTextures = useCallback(() => {
-    const model = modelRef.current;
-    if (!model) return;
-
-    Object.entries(BODY_ZONES).forEach(([zoneId, uv]) => {
-      const design = designsRef.current[zoneId];
-      const texts = zoneTextsRef.current[zoneId] || [];
-      const target = model.getObjectByName(uv.meshName);
-
-      if (!target?.material) return;
-
-      const isZoneActive =
-        zonesRef.current.length === 0 ||
-        zonesRef.current.includes(zoneId);
-
-      const hasContent =
-        Boolean(design?.imageUrl) ||
-        texts.length > 0;
-
-      if (!isZoneActive || !hasContent) {
-        const oldUserData = target.material.userData;
-
-        if (target.material.map) {
-          target.material.map.dispose();
-        }
-
-        const newMat = new THREE.MeshPhongMaterial({
-          color: new THREE.Color(shirtColorRef.current),
-          map: null,
-          shininess: 10,
-          side: THREE.DoubleSide,
-        });
-
-        newMat.userData = oldUserData || {};
-        newMat.userData.isZoneTexture = false;
-
-        target.material.dispose();
-        target.material = newMat;
-
-        return;
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = 2048;
-      canvas.height = 2048;
-
-      const ctx = canvas.getContext("2d");
-
-      ctx.fillStyle = shirtColorRef.current;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      const x = uv.uMin * canvas.width;
-      const y = uv.vMin * canvas.height;
-      const w = (uv.uMax - uv.uMin) * canvas.width;
-      const h = (uv.vMax - uv.vMin) * canvas.height;
-
-      const finalize = () => {
-        texts.forEach((t) => {
-          drawTextLayer(ctx, t, x, y, w, h);
-        });
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.needsUpdate = true;
-
-        const oldUserData = target.material.userData;
-
-        if (target.material.map) {
-          target.material.map.dispose();
-        }
-
-        const newMat = new THREE.MeshPhongMaterial({
-          color: new THREE.Color("#ffffff"),
-          map: texture,
-          shininess: 10,
-          side: THREE.DoubleSide,
-        });
-
-        newMat.userData = oldUserData || {};
-        newMat.userData.isZoneTexture = true;
-
-        target.material.dispose();
-        target.material = newMat;
-      };
-
-      if (design?.imageUrl) {
-        const img = new Image();
-        img.crossOrigin = "Anonymous";
-
-        img.onload = () => {
-          if (!modelRef.current) return;
-
-          const designX = design.x ?? 10;
-          const designY = design.y ?? 10;
-          const designW = design.w ?? 80;
-          const designH = design.h ?? 80;
-
-          ctx.drawImage(
-            img,
-            x + (designX / 100) * w,
-            y + (designY / 100) * h,
-            (designW / 100) * w,
-            (designH / 100) * h
-          );
-
-          finalize();
-        };
-
-        img.src = design.imageUrl;
-      } else {
-        finalize();
-      }
-    });
-  }, []);
-
-  const rebuildSleeveDecals = useCallback(() => {
-    const model = modelRef.current;
-    const scene = sceneRef.current;
-
-    if (!model || !scene) return;
-
-    clearDecals();
-
-    model.updateMatrixWorld(true);
-
-    const sleeveMesh = Array.from(SLEEVE_MESH_NAMES)
-      .map((name) => model.getObjectByName(name))
-      .find(Boolean);
-
-    if (!sleeveMesh) return;
-
-    sleeveMesh.updateMatrixWorld(true);
-
-    const box = new THREE.Box3().setFromObject(sleeveMesh);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-
-    Object.entries(SLEEVE_DECALS)
-      .filter(([zoneId]) => {
-        return (
-          zonesRef.current.length === 0 ||
-          zonesRef.current.includes(zoneId)
-        );
-      })
-      .forEach(([zoneId, cfg]) => {
-        const design = designsRef.current[zoneId];
-        const texts = zoneTextsRef.current[zoneId] || [];
-
-        const hasContent =
-          Boolean(design?.imageUrl) ||
-          texts.length > 0;
-
-        if (!hasContent) return;
-
-        const buildDecal = (tex) => {
-          if (!modelRef.current) return;
-
-          const canvas = document.createElement("canvas");
-          canvas.width = 1024;
-          canvas.height = 1024;
-
-          const ctx = canvas.getContext("2d");
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          if (tex && design) {
-            ctx.drawImage(
-              tex.image,
-              0,
-              0,
-              canvas.width,
-              canvas.height
-            );
-          }
-
-          texts.forEach((t) => {
-            drawTextLayer(
-              ctx,
-              t,
-              0,
-              0,
-              canvas.width,
-              canvas.height
-            );
-          });
-
-          const finalTexture = new THREE.CanvasTexture(canvas);
-
-          finalTexture.colorSpace = THREE.SRGBColorSpace;
-          finalTexture.wrapS = THREE.RepeatWrapping;
-          finalTexture.repeat.x = -1;
-          finalTexture.needsUpdate = true;
-
-          const designX = design?.x ?? 10;
-          const designY = design?.y ?? 10;
-          const designW = design?.w ?? 80;
-          const designH = design?.h ?? 80;
-
-          const zoneW = size.z * cfg.sw;
-          const zoneH = size.y * cfg.sh;
-
-          const actualW = zoneW * (designW / 100);
-          const actualH = zoneH * (designH / 100);
-
-          const offsetZ =
-            ((designX + designW / 2) / 100 - 0.5) *
-            zoneW;
-
-          const offsetY =
-            (0.5 - (designY + designH / 2) / 100) *
-            zoneH;
-
-          const position = new THREE.Vector3(
-            cfg.side > 0
-              ? box.max.x - size.x * 0.05
-              : box.min.x + size.x * 0.05,
-            center.y + size.y * cfg.y + offsetY,
-            center.z + size.z * cfg.z + offsetZ
-          );
-
-          const orientation = new THREE.Euler(
-            0,
-            cfg.ry,
-            0
-          );
-
-          const decalSize = new THREE.Vector3(
-            actualW,
-            actualH,
-            size.x * cfg.depth
-          );
-
-          const geometry = new DecalGeometry(
-            sleeveMesh,
-            position,
-            orientation,
-            decalSize
-          );
-
-          const material = new THREE.MeshBasicMaterial({
-            map: finalTexture,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthTest: true,
-            depthWrite: false,
-            polygonOffset: true,
-            polygonOffsetFactor: -4,
-            polygonOffsetUnits: -4,
-          });
-
-          const mesh = new THREE.Mesh(
-            geometry,
-            material
-          );
-
-          mesh.userData.isDesignDecal = true;
-          mesh.userData.zoneId = zoneId;
-
-          scene.add(mesh);
-          meshesRef.current.push(mesh);
-        };
-
-        if (design?.imageUrl) {
-          loadTextureCached(design.imageUrl, (tex) => {
-            tex.colorSpace = THREE.SRGBColorSpace;
-            buildDecal(tex);
-          });
-        } else {
-          buildDecal(null);
-        }
-      });
-  }, [clearDecals]);
-
-  const rebuildSleeveDecalsThrottled = useCallback(() => {
-    if (rebuildSleeveDecalsPendingRef.current) {
-      rebuildSleeveDecalsQueuedRef.current = true;
-      return;
-    }
-
-    rebuildSleeveDecalsPendingRef.current = true;
-
-    rebuildSleeveDecals();
-
-    setTimeout(() => {
-      rebuildSleeveDecalsPendingRef.current = false;
-
-      if (rebuildSleeveDecalsQueuedRef.current) {
-        rebuildSleeveDecalsQueuedRef.current = false;
-        rebuildSleeveDecalsThrottled();
-      }
-    }, 60);
-  }, [rebuildSleeveDecals]);
-
-  // =========================================================
-  // THREE.JS SETUP
-  // =========================================================
-
-  useEffect(() => {
-    if (!mountRef.current || !modelPath) return;
-
-    setReady(false);
-    setError("");
-
-    const container = mountRef.current;
-
-    const w0 = container.offsetWidth || 260;
-    const h0 = container.offsetHeight || 340;
-
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      // Required so captureSnapshot() (renderer.domElement.toDataURL)
-      // reads the actual last-rendered frame instead of a blank buffer.
-      preserveDrawingBuffer: true,
-    });
-
-    renderer.setPixelRatio(
-      window.devicePixelRatio || 1
-    );
-
-    renderer.setSize(w0, h0);
-
-    container.appendChild(renderer.domElement);
-
-    rendererRef.current = renderer;
-
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
-
-    scene.background = new THREE.Color(0x1e2433);
-
-    const camera = new THREE.PerspectiveCamera(
-      45,
-      w0 / h0,
-      0.1,
-      1000
-    );
-
-    camera.position.set(0, 0, 3);
-    camera.zoom = zoom / 100;
-    camera.updateProjectionMatrix();
-
-    cameraRef.current = camera;
-
-    scene.add(
-      new THREE.AmbientLight(0xffffff, 1.5)
-    );
-
-    const dir = new THREE.DirectionalLight(
-      0xffffff,
-      1.0
-    );
-
-    dir.position.set(5, 10, 7.5);
-    scene.add(dir);
-
-    scene.add(
-      new THREE.HemisphereLight(
-        0xffffff,
-        0x444444,
-        0.8
-      )
-    );
-
-    const controls = new OrbitControls(
-      camera,
-      renderer.domElement
-    );
-    controlsRef.current = controls;
-
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.07;
-    controls.autoRotate = false;
-    controls.autoRotateSpeed = 2.5;
-
-    const raycaster = new THREE.Raycaster();
-    const pointerNDC = new THREE.Vector2();
-
-    let dragState = null;
-
-    const meshNameToZone = {
-      [FRONT_BODY_MESH]: "front",
-      [BACK_BODY_MESH]: "back",
-    };
-
-    const clamp = (v, min, max) =>
-      Math.max(min, Math.min(max, v));
-
-    const getNDC = (clientX, clientY) => {
-      const rect =
-        renderer.domElement.getBoundingClientRect();
-
-      pointerNDC.x =
-        ((clientX - rect.left) / rect.width) * 2 - 1;
-
-      pointerNDC.y =
-        -((clientY - rect.top) / rect.height) * 2 + 1;
-
-      return pointerNDC;
-    };
-
-    const uvToZonePercent = (uv, zoneCfg) => {
-      const x =
-        (uv.x - zoneCfg.uMin) /
-        (zoneCfg.uMax - zoneCfg.uMin);
-
-      const canvasYFrac = 1 - uv.y;
-
-      const y =
-        (canvasYFrac - zoneCfg.vMin) /
-        (zoneCfg.vMax - zoneCfg.vMin);
-
-      return {
-        x: x * 100,
-        y: y * 100,
-      };
-    };
-
-    const raycastBodyZone = (
-      clientX,
-      clientY
-    ) => {
-      const model = modelRef.current;
-
-      if (!model) return null;
-
-      getNDC(clientX, clientY);
-
-      raycaster.setFromCamera(
-        pointerNDC,
-        camera
-      );
-
-      const targets = Object.keys(meshNameToZone)
-        .map((name) =>
-          model.getObjectByName(name)
-        )
-        .filter(Boolean);
-
-      const hits =
-        raycaster.intersectObjects(
-          targets,
-          false
-        );
-
-      if (!hits.length || !hits[0].uv) {
-        return null;
-      }
-
-      const zoneId =
-        meshNameToZone[
-          hits[0].object.name
-        ];
-
-      const zoneCfg = BODY_ZONES[zoneId];
-
-      if (!zoneCfg) return null;
-
-      return {
-        zoneId,
-        pct: uvToZonePercent(
-          hits[0].uv,
-          zoneCfg
-        ),
-      };
-    };
-
-    const raycastSleeveDecal = (
-      clientX,
-      clientY
-    ) => {
-      if (!meshesRef.current.length) {
-        return null;
-      }
-
-      getNDC(clientX, clientY);
-
-      raycaster.setFromCamera(
-        pointerNDC,
-        camera
-      );
-
-      const hits =
-        raycaster.intersectObjects(
-          meshesRef.current.filter(
-            (m) =>
-              m.userData.isDesignDecal
-          ),
-          false
-        );
-
-      return hits[0] || null;
-    };
-
-    const findHitTarget = (
-      zoneId,
-      pctX,
-      pctY
-    ) => {
-      const texts =
-        zoneTextsRef.current[zoneId] || [];
-
-      for (
-        let i = texts.length - 1;
-        i >= 0;
-        i--
-      ) {
-        const t = texts[i];
-
-        if (
-          pctX >= t.x &&
-          pctX <= t.x + t.w &&
-          pctY >= t.y &&
-          pctY <= t.y + t.h
-        ) {
-          return {
-            kind: "text",
-            zoneId,
-            id: t.id,
-            w: t.w,
-            h: t.h,
-            x: t.x,
-            y: t.y,
-          };
-        }
-      }
-
-      const d =
-        designsRef.current[zoneId];
-
-      if (d?.imageUrl) {
-        const dx = d.x ?? 10;
-        const dy = d.y ?? 10;
-        const dw = d.w ?? 80;
-        const dh = d.h ?? 80;
-
-        if (
-          pctX >= dx &&
-          pctX <= dx + dw &&
-          pctY >= dy &&
-          pctY <= dy + dh
-        ) {
-          return {
-            kind: "image",
-            zoneId,
-            w: dw,
-            h: dh,
-            x: dx,
-            y: dy,
-          };
-        }
-      }
-
-      return null;
-    };
-
-    const applyDrag = (x, y) => {
-      if (!dragState) return;
-
-      if (dragState.kind === "image") {
-        const design =
-          designsRef.current[
-            dragState.zoneId
-          ] || {};
-
-        onZoneDesignChangeRef.current?.(
-          dragState.zoneId,
-          {
-            ...design,
-            x,
-            y,
-          }
-        );
-      } else {
-        onTextChangeRef.current?.(
-          dragState.zoneId,
-          dragState.id,
-          {
-            x,
-            y,
-          }
-        );
-      }
-    };
-
-    const onPointerMove = (e) => {
-      if (!dragState) return;
-
-      if (dragState.mode === "body") {
-        const hit = raycastBodyZone(
-          e.clientX,
-          e.clientY
-        );
-
-        if (
-          !hit ||
-          hit.zoneId !==
-            dragState.zoneId
-        ) {
-          return;
-        }
-
-        applyDrag(
-          clamp(
-            hit.pct.x -
-              dragState.grabDX,
-            0,
-            100 - dragState.w
-          ),
-          clamp(
-            hit.pct.y -
-              dragState.grabDY,
-            0,
-            100 - dragState.h
-          )
-        );
-      } else {
-        const SENSITIVITY = 220;
-
-        const rect =
-          renderer.domElement.getBoundingClientRect();
-
-        const dxPct =
-          ((e.clientX -
-            dragState.startX) /
-            rect.width) *
-          SENSITIVITY;
-
-        const dyPct =
-          ((e.clientY -
-            dragState.startY) /
-            rect.height) *
-          SENSITIVITY;
-
-        applyDrag(
-          clamp(
-            dragState.origX + dxPct,
-            0,
-            100 - dragState.w
-          ),
-          clamp(
-            dragState.origY - dyPct,
-            0,
-            100 - dragState.h
-          )
-        );
-      }
-    };
-
-    const onPointerUp = () => {
-      dragState = null;
-
-      controls.enabled = true;
-
-      renderer.domElement.style.cursor =
-        "auto";
-
-      window.removeEventListener(
-        "pointermove",
-        onPointerMove
-      );
-
-      window.removeEventListener(
-        "pointerup",
-        onPointerUp
-      );
-    };
-
-    const startDrag = (
-      state,
-      zoneId,
-      id
-    ) => {
-      controls.enabled = false;
-
-      dragState = state;
-
-      renderer.domElement.style.cursor =
-        "grabbing";
-
-      onLayerSelectRef.current?.({
-        kind: state.kind,
-        zoneId,
-        ...(id ? { id } : {}),
-      });
-
-      onZoneSelectRef.current?.(
-        zoneId
-      );
-
-      if (id) {
-        onTextSelectRef.current?.(
-          zoneId,
-          id
-        );
-      }
-
-      window.addEventListener(
-        "pointermove",
-        onPointerMove
-      );
-
-      window.addEventListener(
-        "pointerup",
-        onPointerUp
-      );
-    };
-
-    const onPointerDown = (e) => {
-      if (
-        e.button !== undefined &&
-        e.button !== 0
-      ) {
-        return;
-      }
-
-      const bodyHit =
-        raycastBodyZone(
-          e.clientX,
-          e.clientY
-        );
-
-      if (bodyHit) {
-        const target =
-          findHitTarget(
-            bodyHit.zoneId,
-            bodyHit.pct.x,
-            bodyHit.pct.y
-          );
-
-        if (target) {
-          e.stopImmediatePropagation();
-          e.preventDefault();
-
-          startDrag(
-            {
-              mode: "body",
-              kind: target.kind,
-              zoneId: target.zoneId,
-              id: target.id,
-              w: target.w,
-              h: target.h,
-              grabDX:
-                bodyHit.pct.x -
-                target.x,
-              grabDY:
-                bodyHit.pct.y -
-                target.y,
-            },
-            target.zoneId,
-            target.id
-          );
-        }
-
-        return;
-      }
-
-      const sleeveHit =
-        raycastSleeveDecal(
-          e.clientX,
-          e.clientY
-        );
-
-      const zoneId =
-        sleeveHit?.object?.userData
-          ?.zoneId;
-
-      const design = zoneId
-        ? designsRef.current[
-            zoneId
-          ]
-        : null;
-
-      if (
-        zoneId &&
-        design?.imageUrl
-      ) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-
-        startDrag(
-          {
-            mode: "sleeve",
-            kind: "image",
-            zoneId,
-            w: design.w ?? 80,
-            h: design.h ?? 80,
-            startX: e.clientX,
-            startY: e.clientY,
-            origX: design.x ?? 10,
-            origY: design.y ?? 10,
-          },
-          zoneId
-        );
-      }
-    };
-
-    const onHoverMove = (e) => {
-      if (dragState) return;
-
-      const bodyHit =
-        raycastBodyZone(
-          e.clientX,
-          e.clientY
-        );
-
-      const hit =
-        bodyHit &&
-        findHitTarget(
-          bodyHit.zoneId,
-          bodyHit.pct.x,
-          bodyHit.pct.y
-        );
-
-      renderer.domElement.style.cursor =
-        hit ? "grab" : "auto";
-    };
-
-    renderer.domElement.addEventListener(
-      "pointerdown",
-      onPointerDown,
-      true
-    );
-
-    renderer.domElement.addEventListener(
-      "pointermove",
-      onHoverMove
-    );
-
-    new GLTFLoader().load(
+// =========================================================
+// DECAL PROJECTION DEPTH
+// =========================================================
+
+// How deep the front/back decal projection box reaches into
+// the shirt surface. Too large = bleeds through to the other
+// side. Too small = design gets clipped on curved areas.
+const BODY_DECAL_DEPTH_RATIO = 0.6;
+
+// How wide/tall the front/back decal covers relative to the
+// whole shirt. Push these toward 1.0 for a full all-over
+// front/back print (edge-to-edge); keep them smaller for a
+// chest-pocket-sized logo/design. Height is kept back from 1.0
+// so the decal doesn't reach into the neckline curve, where a
+// flat projection distorts and leaves gaps.
+const BODY_DECAL_WIDTH_RATIO = 0.85;
+const BODY_DECAL_HEIGHT_RATIO = 0.75;
+
+// The sleeve is a narrow cylinder, not a flat panel — a decal
+// as wide as the torso wraps past the visible side of the arm
+// and onto the underside, which causes a warped/mirrored look.
+// Keeping width/height closer to the sleeve's actual diameter
+// keeps the decal on the front-facing arc only.
+const SLEEVE_DECAL_WIDTH_RATIO = 0.28;
+const SLEEVE_DECAL_HEIGHT_RATIO = 0.3;
+const SLEEVE_DECAL_DEPTH_RATIO = 0.08;
+
+
+// =========================================================
+// COMPONENT
+// =========================================================
+
+const TshirtPreview3D = forwardRef(
+  function TshirtPreview3D(
+    {
       modelPath,
-      (gltf) => {
-        const model = gltf.scene;
+      shirtColor = "#ffffff",
 
-        modelRef.current = model;
+      zoneDesigns = {},
+      zoneTexts = {},
 
-        model.rotation.y = 5;
+      zones = [],
 
-        scene.add(model);
+      onZoneDesignChange,
+      onTextChange,
+      onZoneSelect,
+      onTextSelect,
 
-        applyColor(
-          model,
-          shirtColorRef.current
-        );
+      selectedLayer = null,
+      onLayerSelect,
+    },
+    ref
+  ) {
 
-        updateZoneTextures();
+    const mountRef = useRef(null);
 
-        rebuildSleeveDecals();
+    const modelRef = useRef(null);
 
-        const box =
-          new THREE.Box3().setFromObject(
-            model
-          );
+    const sceneRef = useRef(null);
 
-        const center =
-          box.getCenter(
-            new THREE.Vector3()
-          );
+    const rendererRef = useRef(null);
 
-        const size =
-          box.getSize(
-            new THREE.Vector3()
-          );
+    const cameraRef = useRef(null);
 
-        const maxDim =
-          Math.max(
-            size.x,
-            size.y,
-            size.z
-          );
+    const controlsRef = useRef(null);
 
-        const fov =
-          camera.fov *
-          (Math.PI / 180);
+    const frameRef = useRef({
+      center: new THREE.Vector3(),
+      dist: 3,
+    });
 
-        const dist =
-          (maxDim /
-            2 /
-            Math.tan(
-              fov / 2
-            )) *
-          1.8;
 
-        camera.position.set(
-          center.x,
-          center.y,
-          center.z + dist
-        );
+    // All design decals
+    const decalsRef = useRef([]);
 
-        camera.near = dist / 100;
-        camera.far = dist * 100;
 
-        camera.updateProjectionMatrix();
+    // Refs for latest React values
+    const designsRef = useRef(zoneDesigns);
 
-        controls.target.copy(center);
-        controls.update();
+    const zoneTextsRef = useRef(zoneTexts);
 
-        // Remember the auto-fit framing so setView() can orbit preset
-        // angles (front/back/left/right) at the same radius.
-        frameRef.current = { center: center.clone(), dist };
+    const zonesRef = useRef(zones);
 
-        setReady(true);
-      },
-      undefined,
-      () => {
-        setError(
-          "Failed to load 3D model. Place shirt.glb in public/models/."
-        );
-      }
-    );
+    const shirtColorRef = useRef(shirtColor);
 
-    let rafId;
+    const onZoneDesignChangeRef =
+      useRef(onZoneDesignChange);
 
-    const animate = () => {
-      rafId =
-        requestAnimationFrame(
-          animate
-        );
+    const onTextChangeRef =
+      useRef(onTextChange);
 
-      // Smoothly interpolate an in-flight setView() transition, if any.
-      const transition = viewTransitionRef.current;
-      if (transition) {
-        const t = Math.min(
-          1,
-          (performance.now() - transition.start) / transition.duration
-        );
-        const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-        camera.position.lerpVectors(
-          transition.fromPos,
-          transition.toPos,
-          eased
-        );
-        controls.target.lerpVectors(
-          transition.fromTarget,
-          transition.toTarget,
-          eased
-        );
-        if (t >= 1) viewTransitionRef.current = null;
-      }
+    const onZoneSelectRef =
+      useRef(onZoneSelect);
 
-      controls.update();
+    const onTextSelectRef =
+      useRef(onTextSelect);
 
-      renderer.render(
-        scene,
-        camera
-      );
-    };
+    const onLayerSelectRef =
+      useRef(onLayerSelect);
 
-    animate();
 
-    const onResize = () => {
-      const w =
-        container.offsetWidth || 260;
+    designsRef.current = zoneDesigns;
 
-      const h =
-        container.offsetHeight || 340;
+    zoneTextsRef.current = zoneTexts;
 
-      renderer.setSize(w, h);
+    zonesRef.current = zones;
 
-      camera.aspect = w / h;
+    shirtColorRef.current = shirtColor;
 
-      camera.updateProjectionMatrix();
-    };
+    onZoneDesignChangeRef.current =
+      onZoneDesignChange;
 
-    window.addEventListener(
-      "resize",
-      onResize
-    );
+    onTextChangeRef.current =
+      onTextChange;
 
-    const ro =
-      new ResizeObserver(
-        onResize
-      );
+    onZoneSelectRef.current =
+      onZoneSelect;
 
-    ro.observe(container);
+    onTextSelectRef.current =
+      onTextSelect;
 
-    return () => {
-      renderer.domElement.removeEventListener(
-        "pointerdown",
-        onPointerDown,
-        true
-      );
+    onLayerSelectRef.current =
+      onLayerSelect;
 
-      renderer.domElement.removeEventListener(
-        "pointermove",
-        onHoverMove
-      );
 
-      window.removeEventListener(
-        "pointermove",
-        onPointerMove
-      );
+    const [ready, setReady] =
+      useState(false);
 
-      window.removeEventListener(
-        "pointerup",
-        onPointerUp
-      );
+    const [error, setError] =
+      useState("");
 
-      window.removeEventListener(
-        "resize",
-        onResize
-      );
+    const [zoom, setZoom] =
+      useState(100);
 
-      ro.disconnect();
 
-      cancelAnimationFrame(rafId);
+    // =====================================================
+    // REMOVE OLD DECALS
+    // =====================================================
 
-      controls.dispose();
-      renderer.dispose();
+    const clearDecals = useCallback(() => {
 
-      if (
-        container.contains(
-          renderer.domElement
-        )
-      ) {
-        container.removeChild(
-          renderer.domElement
-        );
-      }
+      decalsRef.current.forEach(
+        (decal) => {
 
-      meshesRef.current.forEach(
-        (m) => {
-          m.parent?.remove(m);
-          m.geometry.dispose();
+          if (!decal) return;
 
-          if (m.material.map) {
-            m.material.map.dispose();
+          decal.parent?.remove(decal);
+
+          if (decal.geometry) {
+            decal.geometry.dispose();
           }
 
-          m.material.dispose();
+          if (decal.material) {
+
+            if (decal.material.map) {
+              decal.material.map.dispose();
+            }
+
+            decal.material.dispose();
+          }
         }
       );
 
-      meshesRef.current = [];
+      decalsRef.current = [];
 
-      if (modelRef.current) {
-        modelRef.current.traverse(
-          (node) => {
-            if (node.isMesh) {
-              node.geometry?.dispose();
+    }, []);
 
-              (
-                Array.isArray(
-                  node.material
-                )
-                  ? node.material
-                  : [node.material]
-              ).forEach((m) =>
-                m?.dispose()
-              );
+
+    // =====================================================
+    // GET ALL NEW TSHIRT MESHES
+    // =====================================================
+
+    const getTshirtMeshes =
+      useCallback(() => {
+
+        const model =
+          modelRef.current;
+
+        if (!model) {
+          return [];
+        }
+
+        const meshes = [];
+
+        model.traverse(
+          (child) => {
+
+            if (
+              child.isMesh &&
+              TSHIRT_MESH_NAMES.includes(
+                child.name
+              )
+            ) {
+              meshes.push(child);
             }
           }
         );
 
-        modelRef.current = null;
+        return meshes;
+
+      }, []);
+
+
+    // =====================================================
+    // CREATE DESIGN CANVAS
+    // =====================================================
+
+    const createDesignTexture =
+      useCallback(
+        (
+          zoneId,
+          design,
+          texts,
+          callback
+        ) => {
+
+          const canvas =
+            document.createElement(
+              "canvas"
+            );
+
+          canvas.width = 2048;
+
+          canvas.height = 2048;
+
+
+          const ctx =
+            canvas.getContext("2d");
+
+
+          if (!ctx) {
+            callback(null);
+            return;
+          }
+
+
+          // Transparent background
+          ctx.clearRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+
+          const finalize = () => {
+
+            // Add text layers
+            texts.forEach(
+              (textLayer) => {
+
+                drawTextLayer(
+                  ctx,
+                  textLayer,
+                  0,
+                  0,
+                  canvas.width,
+                  canvas.height
+                );
+              }
+            );
+
+
+            const texture =
+              new THREE.CanvasTexture(
+                canvas
+              );
+
+
+            texture.colorSpace =
+              THREE.SRGBColorSpace;
+
+            texture.needsUpdate = true;
+
+
+            callback(texture);
+          };
+
+
+          // Image design
+          if (design?.imageUrl) {
+
+            const image =
+              new Image();
+
+            image.crossOrigin =
+              "anonymous";
+
+
+            image.onload = () => {
+
+              const x =
+                design.x ?? 0;
+
+              const y =
+                design.y ?? 0;
+
+              const w =
+                design.w ?? 100;
+
+              const h =
+                design.h ?? 100;
+
+
+              ctx.drawImage(
+                image,
+
+                (x / 100) *
+                  canvas.width,
+
+                (y / 100) *
+                  canvas.height,
+
+                (w / 100) *
+                  canvas.width,
+
+                (h / 100) *
+                  canvas.height
+              );
+
+
+              finalize();
+            };
+
+
+            image.onerror = () => {
+
+              console.error(
+                `[3D preview] Failed to load ${zoneId} design`
+              );
+
+              finalize();
+            };
+
+
+            image.src =
+              design.imageUrl;
+
+          } else {
+
+            finalize();
+          }
+        },
+        []
+      );
+
+
+    // =====================================================
+    // CREATE BODY DECAL
+    // =====================================================
+
+    const createBodyDecal =
+      useCallback(
+        (
+          zoneId,
+          texture,
+          meshes
+        ) => {
+
+          const scene =
+            sceneRef.current;
+
+          if (
+            !scene ||
+            !texture ||
+            meshes.length === 0
+          ) {
+            return;
+          }
+
+
+          // Get entire shirt dimensions
+          const model =
+            modelRef.current;
+
+          model.updateMatrixWorld(
+            true
+          );
+
+
+          const box =
+            new THREE.Box3()
+              .setFromObject(
+                model
+              );
+
+
+          const size =
+            box.getSize(
+              new THREE.Vector3()
+            );
+
+
+          const center =
+            box.getCenter(
+              new THREE.Vector3()
+            );
+
+
+          const direction =
+            ZONE_CONFIG[
+              zoneId
+            ].direction;
+
+
+          /*
+           * FRONT/BACK DECAL SIZE
+           *
+           * width:
+           * shirt width
+           *
+           * height:
+           * printable shirt area
+           */
+
+          const decalWidth =
+            size.x * BODY_DECAL_WIDTH_RATIO;
+
+          const decalHeight =
+            size.y * BODY_DECAL_HEIGHT_RATIO;
+
+
+          // Offset slightly away from shirt surface
+          const zOffset =
+            size.z * 0.55;
+
+
+          const position =
+            new THREE.Vector3(
+              center.x,
+              center.y +
+                size.y * 0.02,
+              center.z +
+                direction * zOffset
+            );
+
+
+          // Front faces camera
+          const orientation =
+            new THREE.Euler(
+              0,
+              direction === 1
+                ? 0
+                : Math.PI,
+              0
+            );
+
+
+          // NOTE: the "depth" axis (z) used to be size.z * 2,
+          // which is TWICE the whole garment's depth — that
+          // made the projection box swallow the entire shirt,
+          // so the decal painted through to the opposite side.
+          // Keeping this shallow so it only hugs the surface
+          // near the projection point fixes the bleed-through.
+          const decalSize =
+            new THREE.Vector3(
+              decalWidth,
+              decalHeight,
+              size.z * BODY_DECAL_DEPTH_RATIO
+            );
+
+
+          // Try decal on every shirt mesh.
+          // Only geometry intersecting the decal
+          // projection receives it.
+
+          meshes.forEach(
+            (mesh) => {
+
+              const geometry =
+                new DecalGeometry(
+                  mesh,
+                  position,
+                  orientation,
+                  decalSize
+                );
+
+
+              if (
+                !geometry ||
+                !geometry.attributes
+                  ?.position ||
+                geometry.attributes
+                  .position.count === 0
+              ) {
+                geometry?.dispose();
+                return;
+              }
+
+
+              const material =
+                new THREE.MeshBasicMaterial({
+                  map: texture.clone(),
+
+                  transparent: true,
+
+                  side:
+                    THREE.DoubleSide,
+
+                  depthTest: true,
+
+                  depthWrite: false,
+
+                  polygonOffset: true,
+
+                  polygonOffsetFactor: -4,
+
+                  polygonOffsetUnits: -4,
+                });
+
+
+              material.map.needsUpdate =
+                true;
+
+
+              const decal =
+                new THREE.Mesh(
+                  geometry,
+                  material
+                );
+
+
+              decal.renderOrder = 10;
+
+              decal.userData =
+                {
+                  isDesignDecal: true,
+
+                  zoneId,
+                };
+
+
+              scene.add(
+                decal
+              );
+
+
+              decalsRef.current.push(
+                decal
+              );
+            }
+          );
+
+        },
+        []
+      );
+
+
+    // =====================================================
+    // CREATE SLEEVE DECAL
+    // =====================================================
+
+    const createSleeveDecal =
+      useCallback(
+        (
+          zoneId,
+          texture,
+          meshes
+        ) => {
+
+          const scene =
+            sceneRef.current;
+
+          const model =
+            modelRef.current;
+
+
+          if (
+            !scene ||
+            !model ||
+            !texture ||
+            meshes.length === 0
+          ) {
+            return;
+          }
+
+
+          model.updateMatrixWorld(
+            true
+          );
+
+
+          const box =
+            new THREE.Box3()
+              .setFromObject(
+                model
+              );
+
+
+          const size =
+            box.getSize(
+              new THREE.Vector3()
+            );
+
+
+          const center =
+            box.getCenter(
+              new THREE.Vector3()
+            );
+
+
+          const side =
+            ZONE_CONFIG[
+              zoneId
+            ].side;
+
+
+          const position =
+            new THREE.Vector3(
+              side < 0
+                ? box.min.x +
+                  size.x * 0.12
+                : box.max.x -
+                  size.x * 0.12,
+
+              center.y +
+                size.y * 0.18,
+
+              center.z
+            );
+
+
+          const orientation =
+            new THREE.Euler(
+              0,
+
+              side < 0
+                ? Math.PI / 2
+                : -Math.PI / 2,
+
+              0
+            );
+
+
+          // NOTE: the depth axis (z, which becomes world X
+          // after the 90° rotation above) used to be
+          // size.x * 0.25 — a quarter of the shirt's total
+          // width. That reached clear across into the torso
+          // mesh, which is why the design showed up on the
+          // front/back too. Shrinking it to a thin shell
+          // around the sleeve surface fixes the bleed.
+          const decalSize =
+            new THREE.Vector3(
+              size.z * SLEEVE_DECAL_WIDTH_RATIO,
+
+              size.y * SLEEVE_DECAL_HEIGHT_RATIO,
+
+              size.x * SLEEVE_DECAL_DEPTH_RATIO
+            );
+
+
+          meshes.forEach(
+            (mesh) => {
+
+              const geometry =
+                new DecalGeometry(
+                  mesh,
+                  position,
+                  orientation,
+                  decalSize
+                );
+
+
+              if (
+                !geometry ||
+                !geometry.attributes
+                  ?.position ||
+                geometry.attributes
+                  .position.count === 0
+              ) {
+                geometry?.dispose();
+                return;
+              }
+
+
+              const material =
+                new THREE.MeshBasicMaterial({
+                  map: texture.clone(),
+
+                  transparent: true,
+
+                  side:
+                    THREE.DoubleSide,
+
+                  depthTest: true,
+
+                  depthWrite: false,
+
+                  polygonOffset: true,
+
+                  polygonOffsetFactor: -4,
+
+                  polygonOffsetUnits: -4,
+                });
+
+
+              material.map.needsUpdate =
+                true;
+
+
+              const decal =
+                new THREE.Mesh(
+                  geometry,
+                  material
+                );
+
+
+              decal.renderOrder = 10;
+
+              decal.userData =
+                {
+                  isDesignDecal: true,
+
+                  zoneId,
+                };
+
+
+              scene.add(
+                decal
+              );
+
+
+              decalsRef.current.push(
+                decal
+              );
+            }
+          );
+
+        },
+        []
+      );
+
+
+    // =====================================================
+    // REBUILD ALL DESIGN DECALS
+    // =====================================================
+
+    const rebuildAllDecals =
+      useCallback(() => {
+
+        const model =
+          modelRef.current;
+
+
+        if (!model) {
+          return;
+        }
+
+
+        clearDecals();
+
+
+        const meshes =
+          getTshirtMeshes();
+
+
+        console.log(
+          "[3D preview] shirt meshes:",
+          meshes.map(
+            (mesh) => mesh.name
+          )
+        );
+
+
+        const zoneIds = [
+          "front",
+          "back",
+          "left_sleeve",
+          "right_sleeve",
+        ];
+
+
+        zoneIds.forEach(
+          (zoneId) => {
+
+            const isActive =
+              zonesRef.current.length === 0 ||
+              zonesRef.current.includes(
+                zoneId
+              );
+
+
+            if (!isActive) {
+              return;
+            }
+
+
+            const design =
+              designsRef.current[
+                zoneId
+              ];
+
+
+            const texts =
+              zoneTextsRef.current[
+                zoneId
+              ] || [];
+
+
+            const hasContent =
+              Boolean(
+                design?.imageUrl
+              ) ||
+              texts.length > 0;
+
+
+            if (!hasContent) {
+              return;
+            }
+
+
+            console.log(
+              `[3D preview] building ${zoneId}`,
+              {
+                hasImage:
+                  Boolean(
+                    design?.imageUrl
+                  ),
+
+                imageUrl:
+                  design?.imageUrl
+                    ? design.imageUrl.slice(
+                        0,
+                        80
+                      )
+                    : null,
+
+                textCount:
+                  texts.length,
+              }
+            );
+
+
+            createDesignTexture(
+              zoneId,
+
+              design,
+
+              texts,
+
+              (texture) => {
+
+                if (
+                  !texture ||
+                  !modelRef.current
+                ) {
+                  texture?.dispose();
+                  return;
+                }
+
+
+                if (
+                  zoneId === "front" ||
+                  zoneId === "back"
+                ) {
+
+                  createBodyDecal(
+                    zoneId,
+
+                    texture,
+
+                    meshes
+                  );
+
+                } else {
+
+                  createSleeveDecal(
+                    zoneId,
+
+                    texture,
+
+                    meshes
+                  );
+                }
+
+
+                texture.dispose();
+              }
+            );
+          }
+        );
+
+      },
+      [
+        clearDecals,
+
+        getTshirtMeshes,
+
+        createDesignTexture,
+
+        createBodyDecal,
+
+        createSleeveDecal,
+      ]
+    );
+
+
+    // =====================================================
+    // APPLY SHIRT COLOR
+    // =====================================================
+
+    const updateShirtColor =
+      useCallback(
+        (color) => {
+
+          const model =
+            modelRef.current;
+
+          if (!model) {
+            return;
+          }
+
+
+          const newColor =
+            new THREE.Color(
+              color
+            );
+
+
+          model.traverse(
+            (node) => {
+
+              if (
+                !node.isMesh ||
+                node.userData
+                  ?.isDesignDecal
+              ) {
+                return;
+              }
+
+
+              const materials =
+                Array.isArray(
+                  node.material
+                )
+                  ? node.material
+                  : [
+                      node.material,
+                    ];
+
+
+              materials.forEach(
+                (material) => {
+
+                  if (
+                    !material ||
+                    !material.color
+                  ) {
+                    return;
+                  }
+
+
+                  material.color.copy(
+                    newColor
+                  );
+
+                  material.needsUpdate =
+                    true;
+                }
+              );
+            }
+          );
+
+        },
+        []
+      );
+
+
+    // =====================================================
+    // THREE.JS SETUP
+    // =====================================================
+
+    useEffect(() => {
+
+      if (
+        !mountRef.current ||
+        !modelPath
+      ) {
+        return;
       }
 
-      sceneRef.current = null;
-      cameraRef.current = null;
-    };
-  }, [modelPath]);
 
-  useEffect(() => {
-    if (cameraRef.current) {
-      cameraRef.current.zoom =
-        zoom / 100;
+      setReady(false);
 
-      cameraRef.current.updateProjectionMatrix();
-    }
-  }, [zoom]);
+      setError("");
 
-  useEffect(() => {
-    if (modelRef.current) {
-      applyColor(
-        modelRef.current,
+
+      const container =
+        mountRef.current;
+
+
+      const width =
+        container.offsetWidth ||
+        260;
+
+      const height =
+        container.offsetHeight ||
+        340;
+
+
+      // Renderer
+      const renderer =
+        new THREE.WebGLRenderer({
+          antialias: true,
+
+          alpha: true,
+
+          preserveDrawingBuffer: true,
+        });
+
+
+      renderer.setPixelRatio(
+        Math.min(
+          window.devicePixelRatio || 1,
+          2
+        )
+      );
+
+
+      renderer.setSize(
+        width,
+        height
+      );
+
+
+      renderer.outputColorSpace =
+        THREE.SRGBColorSpace;
+
+
+      container.appendChild(
+        renderer.domElement
+      );
+
+
+      rendererRef.current =
+        renderer;
+
+
+      // Scene
+      const scene =
+        new THREE.Scene();
+
+
+      scene.background =
+        new THREE.Color(
+          0x1e2433
+        );
+
+
+      sceneRef.current =
+        scene;
+
+
+      // Camera
+      const camera =
+        new THREE.PerspectiveCamera(
+          45,
+
+          width / height,
+
+          0.01,
+
+          1000
+        );
+
+
+      camera.position.set(
+        0,
+        0,
+        3
+      );
+
+
+      cameraRef.current =
+        camera;
+
+
+      // Lights
+      const ambient =
+        new THREE.AmbientLight(
+          0xffffff,
+          1.8
+        );
+
+
+      scene.add(
+        ambient
+      );
+
+
+      const mainLight =
+        new THREE.DirectionalLight(
+          0xffffff,
+          2.2
+        );
+
+
+      mainLight.position.set(
+        4,
+        7,
+        6
+      );
+
+
+      scene.add(
+        mainLight
+      );
+
+
+      const fillLight =
+        new THREE.DirectionalLight(
+          0xffffff,
+          1.0
+        );
+
+
+      fillLight.position.set(
+        -5,
+        2,
+        4
+      );
+
+
+      scene.add(
+        fillLight
+      );
+
+
+      const hemi =
+        new THREE.HemisphereLight(
+          0xffffff,
+          0x444444,
+          1.0
+        );
+
+
+      scene.add(
+        hemi
+      );
+
+
+      // Controls
+      const controls =
+        new OrbitControls(
+          camera,
+          renderer.domElement
+        );
+
+
+      controls.enableDamping =
+        true;
+
+      controls.dampingFactor =
+        0.07;
+
+
+      controlsRef.current =
+        controls;
+
+
+      // =================================================
+      // LOAD NEW GLB
+      // =================================================
+
+      const loader =
+        new GLTFLoader();
+
+
+      loader.load(
+
+        modelPath,
+
+
+        (gltf) => {
+
+          const model =
+            gltf.scene;
+
+
+          // IMPORTANT:
+          // Your old code had:
+          //
+          // model.rotation.y = 5;
+          //
+          // That rotates the shirt almost
+          // completely sideways.
+          //
+          // We keep the shirt facing front.
+
+          model.rotation.set(
+            0,
+            0,
+            0
+          );
+
+
+          model.updateMatrixWorld(
+            true
+          );
+
+
+          // Debug meshes
+          console.log(
+            "========== NEW TSHIRT GLB =========="
+          );
+
+
+          model.traverse(
+            (child) => {
+
+              if (
+                child.isMesh
+              ) {
+
+                console.log(
+                  "MESH:",
+
+                  child.name,
+
+                  "| MATERIAL:",
+
+                  Array.isArray(
+                    child.material
+                  )
+                    ? child.material.map(
+                        (m) =>
+                          m?.name
+                      )
+                    : child.material
+                        ?.name
+                );
+
+
+                // Ensure decals can render
+                if (
+                  child.material
+                ) {
+
+                  const materials =
+                    Array.isArray(
+                      child.material
+                    )
+                      ? child.material
+                      : [
+                          child.material,
+                        ];
+
+
+                  materials.forEach(
+                    (material) => {
+
+                      if (!material) {
+                        return;
+                      }
+
+
+                      material.side =
+                        THREE.FrontSide;
+
+                      material.needsUpdate =
+                        true;
+                    }
+                  );
+                }
+              }
+            }
+          );
+
+
+          console.log(
+            "===================================="
+          );
+
+
+          modelRef.current =
+            model;
+
+
+          scene.add(
+            model
+          );
+
+
+          // Apply shirt color
+          updateShirtColor(
+            shirtColorRef.current
+          );
+
+
+          // Fit camera
+          const box =
+            new THREE.Box3()
+              .setFromObject(
+                model
+              );
+
+
+          const center =
+            box.getCenter(
+              new THREE.Vector3()
+            );
+
+
+          const size =
+            box.getSize(
+              new THREE.Vector3()
+            );
+
+
+          const maxDimension =
+            Math.max(
+              size.x,
+              size.y,
+              size.z
+            );
+
+
+          const fov =
+            camera.fov *
+            (
+              Math.PI / 180
+            );
+
+
+          const distance =
+            (
+              maxDimension /
+              (
+                2 *
+                Math.tan(
+                  fov / 2
+                )
+              )
+            ) *
+            1.8;
+
+
+          camera.position.set(
+            center.x,
+            center.y,
+            center.z + distance
+          );
+
+
+          camera.near =
+            distance / 100;
+
+
+          camera.far =
+            distance * 100;
+
+
+          camera.updateProjectionMatrix();
+
+
+          controls.target.copy(
+            center
+          );
+
+
+          controls.update();
+
+
+          frameRef.current =
+            {
+              center:
+                center.clone(),
+
+              dist:
+                distance,
+            };
+
+
+          setReady(true);
+
+
+          // Build designs AFTER
+          // model is fully loaded
+
+          setTimeout(
+            () => {
+
+              rebuildAllDecals();
+
+            },
+            50
+          );
+        },
+
+
+        undefined,
+
+
+        (loadError) => {
+
+          console.error(
+            loadError
+          );
+
+
+          setError(
+            "Failed to load 3D model. Check the model path."
+          );
+        }
+      );
+
+
+      // =================================================
+      // ANIMATION
+      // =================================================
+
+      let animationFrame;
+
+
+      const animate = () => {
+
+        animationFrame =
+          requestAnimationFrame(
+            animate
+          );
+
+
+        controls.update();
+
+
+        renderer.render(
+          scene,
+          camera
+        );
+      };
+
+
+      animate();
+
+
+      // =================================================
+      // RESIZE
+      // =================================================
+
+      const onResize = () => {
+
+        const newWidth =
+          container.offsetWidth ||
+          260;
+
+        const newHeight =
+          container.offsetHeight ||
+          340;
+
+
+        renderer.setSize(
+          newWidth,
+          newHeight
+        );
+
+
+        camera.aspect =
+          newWidth /
+          newHeight;
+
+
+        camera.updateProjectionMatrix();
+      };
+
+
+      window.addEventListener(
+        "resize",
+        onResize
+      );
+
+
+      const resizeObserver =
+        new ResizeObserver(
+          onResize
+        );
+
+
+      resizeObserver.observe(
+        container
+      );
+
+
+      // =================================================
+      // CLEANUP
+      // =================================================
+
+      return () => {
+
+        clearDecals();
+
+
+        cancelAnimationFrame(
+          animationFrame
+        );
+
+
+        resizeObserver.disconnect();
+
+
+        window.removeEventListener(
+          "resize",
+          onResize
+        );
+
+
+        controls.dispose();
+
+
+        if (
+          modelRef.current
+        ) {
+
+          modelRef.current.traverse(
+            (node) => {
+
+              if (
+                node.isMesh
+              ) {
+
+                node.geometry?.dispose();
+
+
+                const materials =
+                  Array.isArray(
+                    node.material
+                  )
+                    ? node.material
+                    : [
+                        node.material,
+                      ];
+
+
+                materials.forEach(
+                  (material) => {
+
+                    if (
+                      material?.map
+                    ) {
+
+                      material.map.dispose();
+                    }
+
+
+                    material?.dispose();
+                  }
+                );
+              }
+            }
+          );
+
+
+          scene.remove(
+            modelRef.current
+          );
+
+
+          modelRef.current =
+            null;
+        }
+
+
+        renderer.dispose();
+
+
+        if (
+          container.contains(
+            renderer.domElement
+          )
+        ) {
+
+          container.removeChild(
+            renderer.domElement
+          );
+        }
+
+
+        rendererRef.current =
+          null;
+
+        sceneRef.current =
+          null;
+
+        cameraRef.current =
+          null;
+
+        controlsRef.current =
+          null;
+      };
+
+    },
+    [
+      modelPath,
+
+      clearDecals,
+
+      rebuildAllDecals,
+
+      updateShirtColor,
+    ]
+    );
+
+
+    // =====================================================
+    // UPDATE SHIRT COLOR
+    // =====================================================
+
+    useEffect(() => {
+
+      if (
+        !modelRef.current
+      ) {
+        return;
+      }
+
+
+      updateShirtColor(
         shirtColor
       );
 
-      updateZoneTextures();
+    },
+    [
+      shirtColor,
+      updateShirtColor,
+    ]
+    );
 
-      rebuildSleeveDecalsThrottled();
-    }
-  }, [
-    shirtColor,
-    updateZoneTextures,
-    rebuildSleeveDecalsThrottled,
-  ]);
 
-  useEffect(() => {
-    if (ready) {
-      updateZoneTextures();
-      rebuildSleeveDecalsThrottled();
-    }
-  }, [
-    ready,
-    zoneDesigns,
-    zoneTexts,
-    updateZoneTextures,
-    rebuildSleeveDecalsThrottled,
-    zones,
-  ]);
+    // =====================================================
+    // UPDATE DESIGNS
+    // =====================================================
 
-  // Mockup-view API for the parent (Preview mode's angle switcher /
-  // "Download mockup" button). Exposed via ref since the 3D scene is
-  // managed with plain Three.js objects, not React state.
-  useImperativeHandle(
-    ref,
-    () => ({
-      setView: (view) => {
-        const camera = cameraRef.current;
-        const controls = controlsRef.current;
-        if (!camera || !controls) return;
+    useEffect(() => {
 
-        const { center, dist } = frameRef.current;
-        const offsets = {
-          front: new THREE.Vector3(0, 0, dist),
-          back: new THREE.Vector3(0, 0, -dist),
-          left: new THREE.Vector3(-dist, 0, 0),
-          right: new THREE.Vector3(dist, 0, 0),
-        };
-        const toPos = center
-          .clone()
-          .add(offsets[view] || offsets.front);
+      if (
+        !ready ||
+        !modelRef.current
+      ) {
+        return;
+      }
 
-        viewTransitionRef.current = {
-          fromPos: camera.position.clone(),
-          toPos,
-          fromTarget: controls.target.clone(),
-          toTarget: center.clone(),
-          start: performance.now(),
-          duration: 600,
-        };
-      },
-      captureSnapshot: () => {
-        const renderer = rendererRef.current;
-        if (!renderer) return null;
-        try {
-          return renderer.domElement.toDataURL("image/png");
-        } catch {
-          return null;
-        }
-      },
-      // Renders each preset angle in turn, grabs a still, then restores
-      // the camera to where it was. All renders happen synchronously in
-      // one JS task, so the canvas only ever visibly shows the final
-      // (restored) frame - no flashing through angles on screen.
-      captureAllViews: () => {
-        const camera = cameraRef.current;
-        const controls = controlsRef.current;
-        const renderer = rendererRef.current;
-        const scene = sceneRef.current;
-        if (!camera || !controls || !renderer || !scene) return null;
 
-        const { center, dist } = frameRef.current;
-        const offsets = {
-          front: new THREE.Vector3(0, 0, dist),
-          back: new THREE.Vector3(0, 0, -dist),
-          left: new THREE.Vector3(-dist, 0, 0),
-          right: new THREE.Vector3(dist, 0, 0),
-        };
+      rebuildAllDecals();
 
-        const originalPos = camera.position.clone();
-        const originalTarget = controls.target.clone();
+    },
+    [
+      ready,
 
-        const shots = {};
-        try {
-          Object.entries(offsets).forEach(([view, offset]) => {
-            camera.position.copy(center.clone().add(offset));
-            controls.target.copy(center);
-            camera.lookAt(center);
-            controls.update();
-            renderer.render(scene, camera);
-            shots[view] = renderer.domElement.toDataURL("image/png");
-          });
-        } finally {
-          camera.position.copy(originalPos);
-          controls.target.copy(originalTarget);
-          camera.lookAt(originalTarget);
+      zoneDesigns,
+
+      zoneTexts,
+
+      zones,
+
+      rebuildAllDecals,
+    ]
+    );
+
+
+    // =====================================================
+    // ZOOM
+    // =====================================================
+
+    useEffect(() => {
+
+      const camera =
+        cameraRef.current;
+
+
+      if (!camera) {
+        return;
+      }
+
+
+      camera.zoom =
+        zoom / 100;
+
+
+      camera.updateProjectionMatrix();
+
+    },
+    [zoom]
+    );
+
+
+    // =====================================================
+    // EXPOSE METHODS TO PARENT
+    // =====================================================
+
+    useImperativeHandle(
+      ref,
+
+      () => ({
+
+        setView: (
+          view
+        ) => {
+
+          const camera =
+            cameraRef.current;
+
+          const controls =
+            controlsRef.current;
+
+
+          if (
+            !camera ||
+            !controls
+          ) {
+            return;
+          }
+
+
+          const {
+            center,
+            dist,
+          } =
+            frameRef.current;
+
+
+          const offsets = {
+
+            front:
+              new THREE.Vector3(
+                0,
+                0,
+                dist
+              ),
+
+            back:
+              new THREE.Vector3(
+                0,
+                0,
+                -dist
+              ),
+
+            left:
+              new THREE.Vector3(
+                -dist,
+                0,
+                0
+              ),
+
+            right:
+              new THREE.Vector3(
+                dist,
+                0,
+                0
+              ),
+          };
+
+
+          const offset =
+            offsets[view] ||
+            offsets.front;
+
+
+          camera.position.copy(
+            center
+              .clone()
+              .add(
+                offset
+              )
+          );
+
+
+          controls.target.copy(
+            center
+          );
+
+
+          camera.lookAt(
+            center
+          );
+
+
           controls.update();
-          renderer.render(scene, camera);
-        }
+        },
 
-        return shots;
-      },
-    }),
-    [],
-  );
 
-  return (
-    <div className="tsc-preview-panel">
-      <div
-        className="tsc-preview-3d"
-        ref={mountRef}
-      >
-        {!ready && !error && (
-          <div className="tsc-preview-loading">
-            <span
-              className="tsc-spinner"
-              style={{
-                borderTopColor:
-                  "#455073",
-                borderColor:
-                  "rgba(69,80,115,0.2)",
-              }}
-            />
+        captureSnapshot: () => {
 
-            <span>
-              Loading 3D preview…
-            </span>
-          </div>
-        )}
+          const renderer =
+            rendererRef.current;
 
-        {error && (
-          <div className="tsc-preview-error">
-            {error}
-          </div>
-        )}
-      </div>
 
-      {/* Zoom controls */}
-      <div className="tsc-zoom-row">
-        <button
-          type="button"
-          className="tsc-zoom-btn"
-          onClick={() => {
-            setZoom((z) =>
-              Math.max(
-                50,
-                z - 25
-              )
+          if (!renderer) {
+            return null;
+          }
+
+
+          try {
+
+            return renderer.domElement.toDataURL(
+              "image/png"
             );
-          }}
-        >
-          −
-        </button>
 
-        <span>{zoom}%</span>
+          } catch {
 
-        <button
-          type="button"
-          className="tsc-zoom-btn"
-          onClick={() => {
-            setZoom((z) =>
-              Math.min(
-                200,
-                z + 25
-              )
+            return null;
+          }
+        },
+
+
+        captureAllViews: () => {
+
+          const camera =
+            cameraRef.current;
+
+          const controls =
+            controlsRef.current;
+
+          const renderer =
+            rendererRef.current;
+
+          const scene =
+            sceneRef.current;
+
+
+          if (
+            !camera ||
+            !controls ||
+            !renderer ||
+            !scene
+          ) {
+            return null;
+          }
+
+
+          const {
+            center,
+            dist,
+          } =
+            frameRef.current;
+
+
+          const views = {
+
+            front:
+              new THREE.Vector3(
+                0,
+                0,
+                dist
+              ),
+
+            back:
+              new THREE.Vector3(
+                0,
+                0,
+                -dist
+              ),
+
+            left:
+              new THREE.Vector3(
+                -dist,
+                0,
+                0
+              ),
+
+            right:
+              new THREE.Vector3(
+                dist,
+                0,
+                0
+              ),
+          };
+
+
+          const originalPosition =
+            camera.position.clone();
+
+
+          const originalTarget =
+            controls.target.clone();
+
+
+          const screenshots =
+            {};
+
+
+          try {
+
+            Object.entries(
+              views
+            ).forEach(
+              (
+                [
+                  view,
+                  offset,
+                ]
+              ) => {
+
+                camera.position.copy(
+                  center
+                    .clone()
+                    .add(
+                      offset
+                    )
+                );
+
+
+                controls.target.copy(
+                  center
+                );
+
+
+                camera.lookAt(
+                  center
+                );
+
+
+                controls.update();
+
+
+                renderer.render(
+                  scene,
+                  camera
+                );
+
+
+                screenshots[
+                  view
+                ] =
+                  renderer.domElement.toDataURL(
+                    "image/png"
+                  );
+              }
             );
-          }}
-        >
-          +
-        </button>
-      </div>
-    </div>
-  );
-});
 
-TshirtPreview3D.displayName = "TshirtPreview3D";
+          } finally {
+
+            camera.position.copy(
+              originalPosition
+            );
+
+
+            controls.target.copy(
+              originalTarget
+            );
+
+
+            camera.lookAt(
+              originalTarget
+            );
+
+
+            controls.update();
+
+
+            renderer.render(
+              scene,
+              camera
+            );
+          }
+
+
+          return screenshots;
+        },
+      }),
+
+      []
+    );
+
+
+    // =====================================================
+    // UI
+    // =====================================================
+
+    return (
+
+      <div className="tsc-preview-panel">
+
+        <div
+          className="tsc-preview-3d"
+          ref={mountRef}
+        >
+
+          {!ready &&
+            !error && (
+
+              <div className="tsc-preview-loading">
+
+                <span
+                  className="tsc-spinner"
+                  style={{
+                    borderTopColor:
+                      "#455073",
+
+                    borderColor:
+                      "rgba(69,80,115,0.2)",
+                  }}
+                />
+
+                <span>
+                  Loading 3D preview…
+                </span>
+
+              </div>
+            )}
+
+
+          {error && (
+
+            <div className="tsc-preview-error">
+              {error}
+            </div>
+
+          )}
+
+        </div>
+
+
+        <div className="tsc-zoom-row">
+
+          <button
+            type="button"
+            className="tsc-zoom-btn"
+
+            onClick={() => {
+
+              setZoom(
+                (currentZoom) =>
+                  Math.max(
+                    50,
+
+                    currentZoom -
+                      25
+                  )
+              );
+
+            }}
+          >
+            −
+          </button>
+
+
+          <span>
+            {zoom}%
+          </span>
+
+
+          <button
+            type="button"
+            className="tsc-zoom-btn"
+
+            onClick={() => {
+
+              setZoom(
+                (currentZoom) =>
+                  Math.min(
+                    200,
+
+                    currentZoom +
+                      25
+                  )
+              );
+
+            }}
+          >
+            +
+          </button>
+
+        </div>
+
+      </div>
+    );
+  }
+);
+
+
+TshirtPreview3D.displayName =
+  "TshirtPreview3D";
+
 
 export default TshirtPreview3D;
 
-function applyColor(
-  model,
-  hexColor
+
+// =========================================================
+// TEXT DRAWING HELPER
+// =========================================================
+
+function drawTextLayer(
+  ctx,
+  textLayer,
+  offsetX = 0,
+  offsetY = 0,
+  width = 2048,
+  height = 2048
 ) {
-  const color =
-    new THREE.Color(hexColor);
 
-  model.traverse((node) => {
-    if (
-      node.isMesh &&
-      !node.userData?.isDesignDecal
-    ) {
-      if (
-        node.geometry.hasAttribute(
-          "color"
-        )
-      ) {
-        node.geometry.deleteAttribute(
-          "color"
-        );
-      }
+  if (
+    !textLayer ||
+    !textLayer.text
+  ) {
+    return;
+  }
 
-      if (node.material) {
-        const oldMap =
-          node.material.map;
 
-        const oldUserData =
-          node.material.userData;
+  const x =
+    offsetX +
+    (
+      (
+        textLayer.x ?? 0
+      ) /
+      100
+    ) *
+    width;
 
-        const isZoneTexture =
-          oldUserData?.isZoneTexture;
 
-        if (
-          oldMap &&
-          !isZoneTexture
-        ) {
-          oldMap.dispose();
-        }
+  const y =
+    offsetY +
+    (
+      (
+        textLayer.y ?? 0
+      ) /
+      100
+    ) *
+    height;
 
-        const newMat =
-          new THREE.MeshPhongMaterial({
-            color: isZoneTexture
-              ? new THREE.Color(
-                  "#ffffff"
-                )
-              : color,
-            map: isZoneTexture
-              ? oldMap
-              : null,
-            shininess: 10,
-            side: THREE.DoubleSide,
-          });
 
-        newMat.userData =
-          oldUserData || {};
+  const textWidth =
+    (
+      (
+        textLayer.w ?? 50
+      ) /
+      100
+    ) *
+    width;
 
-        node.material.dispose();
 
-        node.material = newMat;
-      }
-    }
-  });
+  const textHeight =
+    (
+      (
+        textLayer.h ?? 10
+      ) /
+      100
+    ) *
+    height;
+
+
+  const fontSize =
+    Math.max(
+      12,
+      textHeight * 0.8
+    );
+
+
+  ctx.save();
+
+
+  ctx.fillStyle =
+    textLayer.color ||
+    "#000000";
+
+
+  ctx.font =
+    `${textLayer.fontWeight || "normal"} ` +
+    `${fontSize}px ` +
+    `${textLayer.fontFamily || "Arial"}`;
+
+
+  ctx.textAlign =
+    textLayer.textAlign ||
+    "center";
+
+
+  ctx.textBaseline =
+    "middle";
+
+
+  const centerX =
+    x +
+    textWidth / 2;
+
+
+  const centerY =
+    y +
+    textHeight / 2;
+
+
+  ctx.translate(
+    centerX,
+    centerY
+  );
+
+
+  if (
+    textLayer.rotation
+  ) {
+
+    ctx.rotate(
+      (
+        textLayer.rotation *
+        Math.PI
+      ) /
+      180
+    );
+  }
+
+
+  if (
+    textLayer.strokeColor
+  ) {
+
+    ctx.strokeStyle =
+      textLayer.strokeColor;
+
+
+    ctx.lineWidth =
+      textLayer.strokeWidth ||
+      1;
+
+
+    ctx.strokeText(
+      textLayer.text,
+      0,
+      0
+    );
+  }
+
+
+  ctx.fillText(
+    textLayer.text,
+    0,
+    0
+  );
+
+
+  ctx.restore();
 }

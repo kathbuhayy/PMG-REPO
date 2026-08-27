@@ -136,6 +136,12 @@ export default function FlatCustomizerPanel({
     generating,
     genError,
     setGenError,
+    generating3D,
+    gen3DError,
+    setGen3DError,
+    model3D,
+    setModel3D,
+    handleGenerate3D,
     uploadUsedImages,
   } = useCustomizerUpload(
     config.label,
@@ -798,6 +804,12 @@ export default function FlatCustomizerPanel({
               generating={generating}
               genError={genError}
               setGenError={setGenError}
+              handleGenerate3D={handleGenerate3D}
+              generating3D={generating3D}
+              gen3DError={gen3DError}
+              setGen3DError={setGen3DError}
+              model3D={model3D}
+              setModel3D={setModel3D}
             />
           </div>
         </div>

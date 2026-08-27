@@ -2288,3 +2288,231 @@
   font-weight: 700;
   color: #9ca3af;
 }
+/* =====================================================
+   T-SHIRT FOUR-AREA CUSTOMIZER
+===================================================== */
+
+.tsc-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  padding: 24px;
+  width: 100%;
+}
+
+.tsc-zone-wrapper {
+  min-width: 0;
+}
+
+.tsc-zone-card {
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.tsc-zone-card:hover {
+  border-color: #2563eb;
+}
+
+.tsc-zone-card.active {
+  border-color: #2563eb;
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.tsc-zone-header-tag {
+  display: block;
+  margin: 0 auto 8px;
+}
+
+.tsc-zone-inner {
+  min-height: 260px;
+  background: #ffffff;
+}
+
+.tsc-zone-placeholder {
+  cursor: pointer;
+}
+
+.tsc-zone-upload-trigger {
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 16px;
+
+  background: #eff6ff;
+  color: #2563eb;
+
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.tsc-zone-upload-trigger:hover {
+  background: #dbeafe;
+  transform: scale(1.06);
+}
+
+
+/* =====================================================
+   UPLOAD WORKSPACE
+===================================================== */
+
+.tsc-upload-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tsc-upload-title h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #1f2937;
+}
+
+.tsc-upload-title p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #6b7280;
+}
+
+.tsc-main-upload-btn {
+  width: 100%;
+  min-height: 46px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  border: none;
+  border-radius: 10px;
+
+  background: #2563eb;
+  color: white;
+
+  font-weight: 700;
+  cursor: pointer;
+
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.tsc-main-upload-btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.tsc-upload-help {
+  text-align: center;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.tsc-upload-empty {
+  min-height: 150px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+
+  color: #94a3b8;
+  text-align: center;
+}
+
+.tsc-upload-empty svg {
+  font-size: 28px;
+  color: #64748b;
+}
+
+.tsc-upload-empty strong {
+  color: #475569;
+  font-size: 13px;
+}
+
+.tsc-upload-empty span {
+  font-size: 11px;
+}
+
+
+/* =====================================================
+   PRINT AREA BUTTONS
+===================================================== */
+
+.tsc-zone-instructions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+
+  padding-top: 16px;
+  margin-top: 16px;
+
+  border-top: 1px solid #e5e7eb;
+}
+
+.tsc-zone-instructions strong {
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+
+  font-size: 12px;
+  color: #475569;
+}
+
+.tsc-zone-instructions button {
+  padding: 9px 8px;
+
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+
+  background: white;
+  color: #475569;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.tsc-zone-instructions button:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.tsc-zone-instructions button.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+
+/* =====================================================
+   RESPONSIVE
+===================================================== */
+
+@media (max-width: 1100px) {
+  .tsc-zone-grid {
+    gap: 18px;
+    padding: 16px;
+  }
+
+  .tsc-zone-inner {
+    min-height: 210px;
+  }
+}
+
+@media (max-width: 700px) {
+  .tsc-zone-grid {
+    grid-template-columns: 1fr;
+  }
+}
