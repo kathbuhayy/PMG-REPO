@@ -1,3 +1,4 @@
+// prisma/schema.prisma  (replace entire file)
 generator client {
   provider = "prisma-client-js"
 }
@@ -169,6 +170,8 @@ model Product {
   images       String[]  @default([])
   quantity_mode String?   // 'dropdown' | 'text' — admin-configurable quantity input mode
   quantity_count Int?     // threshold for auto-selecting contact/quote when using text mode
+  bleedInches      Float?  @map("bleed_inches")       // how far artwork can extend past the trim edge
+  safeMarginInches Float?  @map("safe_margin_inches")  // recommended inset from trim edge for text/important content
   substrateMaterialName String? @map("substrate_material_name") // must match InventorySubstrate.materialName
   substrateUsagePerUnit Float?  @map("substrate_usage_per_unit") // meters consumed per unit, calibrated at reference print size below
   inkColorChannel       String? @map("ink_color_channel")        // must match InventoryInk.colorChannel
@@ -258,6 +261,10 @@ model Order {
   shipping_address String?
   billing_address String?
   proofApproved        Boolean     @default(false)
+  designReviewStatus   String?     @default("submitted") @map("design_review_status")
+  designReviewNotes    String?     @map("design_review_notes")
+  designReviewedAt     DateTime?   @map("design_reviewed_at")
+  designReviewedBy     Int?        @map("design_reviewed_by")
   payment_status       String      @default("unpaid")
   isBulkOrder          Boolean     @default(false) @map("is_bulk_order")
   amountPaid           Decimal     @default(0) @db.Decimal(14,2) @map("amount_paid")
@@ -373,4 +380,25 @@ model ActivityLog {
   @@index([createdAt])
   @@index([userId])
   @@index([module])
+}
+
+// Reusable starting-point designs staff/admin can create from the
+// customizer and customers can browse/apply before editing further.
+// zoneLayers stores the same stacked-layer shape used by zoneLayerModel.js
+// on the frontend (see TshirtCustomizerPanel.js), so applying a template is
+// just loading it straight into customizer state - no format conversion.
+model DesignTemplate {
+  id           Int      @id @default(autoincrement())
+  name         String
+  category     String                          // matches Product.category: tshirt | mug | calling_card | other
+  thumbnailUrl String?  @map("thumbnail_url")
+  zoneLayers   Json     @map("zone_layers")
+  baseColor    String?  @map("base_color")
+  createdBy    Int?     @map("created_by")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([active])
 }

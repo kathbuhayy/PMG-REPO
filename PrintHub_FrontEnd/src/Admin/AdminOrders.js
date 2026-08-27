@@ -329,6 +329,8 @@ function AdminOrders() {
           total: parseFloat(order.total),
           status: order.status || "pending",
           proofApproved: Boolean(order.proofApproved),
+          designReviewStatus: order.designReviewStatus || "submitted",
+          designReviewNotes: order.designReviewNotes || null,
           paymentStatus:
             order.status === "cancelled"
               ? "cancelled"
@@ -487,6 +489,58 @@ function AdminOrders() {
 
   const handleDeleteOrder = (order) => {
     setDeleteOrderTarget(order);
+  };
+
+  const [reviewNotesDraft, setReviewNotesDraft] = useState("");
+  const [reviewSubmittingStatus, setReviewSubmittingStatus] = useState(null);
+
+  const submitDesignReview = async (order, status) => {
+    setReviewSubmittingStatus(status);
+    try {
+      const res = await adminFetch(
+        buildApiUrl(`/api/orders/${order.dbId}/design-review`),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status, notes: reviewNotesDraft.trim() || null }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Failed to update design review");
+
+      const patch = {
+        designReviewStatus: status,
+        designReviewNotes: reviewNotesDraft.trim() || null,
+        ...(status === "approved" ? { proofApproved: true } : {}),
+        ...(status === "needs_revision" || status === "rejected"
+          ? { proofApproved: false }
+          : {}),
+      };
+      setOrders((prev) =>
+        prev.map((o) => (o.dbId === order.dbId ? { ...o, ...patch } : o)),
+      );
+      setDetailOrder((current) =>
+        current?.dbId === order.dbId ? { ...current, ...patch } : current,
+      );
+      setReviewNotesDraft("");
+      setNoticeModal({
+        title: "Design review updated",
+        message:
+          status === "approved"
+            ? `${order.id} is approved. The customer can now pay.`
+            : `${order.id}'s design status is now "${status.replace(/_/g, " ")}".`,
+        tone: status === "needs_revision" || status === "rejected" ? "warning" : "success",
+      });
+    } catch (err) {
+      console.error("Error updating design review:", err);
+      setNoticeModal({
+        title: "Could not update design review",
+        message: err.message || "Error updating design review",
+        tone: "danger",
+      });
+    } finally {
+      setReviewSubmittingStatus(null);
+    }
   };
 
   const approveOrderDesign = async (order) => {
@@ -1271,10 +1325,12 @@ function AdminOrders() {
                   >
                     DESIGN
                   </div>
-                  <span
+                                    <span
                     className={`dashpage-pill ${
                       detailOrder.proofApproved
                         ? "status-completed"
+                        : detailOrder.designReviewStatus === "needs_revision"
+                        ? "status-cancelled"
                         : "status-pending"
                     }`}
                     style={{ fontSize: 12 }}
@@ -1283,6 +1339,16 @@ function AdminOrders() {
                       <>
                         <FaCheckCircle style={{ marginRight: 5 }} />
                         Approved
+                      </>
+                    ) : detailOrder.designReviewStatus === "needs_revision" ? (
+                      <>
+                        <FaExclamationTriangle style={{ marginRight: 5 }} />
+                        Needs Revision
+                      </>
+                    ) : detailOrder.designReviewStatus === "under_review" ? (
+                      <>
+                        <FaClock style={{ marginRight: 5 }} />
+                        Under Review
                       </>
                     ) : (
                       <>
@@ -1340,26 +1406,80 @@ function AdminOrders() {
               </div>
             </div>
 
-            {!detailOrder.proofApproved &&
-              detailOrder.paymentStatus !== "paid" &&
+              {detailOrder.paymentStatus !== "paid" &&
               !["cancelled", "completed"].includes(detailOrder.status) && (
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
                     paddingBottom: "16px",
                     borderBottom: "1px solid #e2e8f0",
                     marginBottom: "16px",
                   }}
                 >
-                  <button
-                    type="button"
-                    className="dashaction-btn green"
-                    onClick={() => approveOrderDesign(detailOrder)}
-                  >
-                    <FaCheck size={12} />
-                    Approve Design
-                  </button>
+                  {detailOrder.designReviewStatus &&
+                    detailOrder.designReviewStatus !== "submitted" && (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#475569",
+                          marginBottom: 8,
+                        }}
+                      >
+                        Current status:{" "}
+                        <strong>
+                          {detailOrder.designReviewStatus.replace(/_/g, " ")}
+                        </strong>
+                        {detailOrder.designReviewNotes && (
+                          <> — "{detailOrder.designReviewNotes}"</>
+                        )}
+                      </div>
+                    )}
+                  <textarea
+                    placeholder="Feedback for the customer (optional for approval, recommended for revision requests)"
+                    value={reviewNotesDraft}
+                    onChange={(e) => setReviewNotesDraft(e.target.value)}
+                    rows={2}
+                    style={{
+                      width: "100%",
+                      fontSize: 13,
+                      padding: "8px 10px",
+                      borderRadius: 6,
+                      border: "1px solid #cbd5e1",
+                      marginBottom: 10,
+                      resize: "vertical",
+                      fontFamily: "inherit",
+                    }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                    <button
+                      type="button"
+                      className="dashaction-btn"
+                      disabled={reviewSubmittingStatus !== null}
+                      onClick={() => submitDesignReview(detailOrder, "under_review")}
+                    >
+                      <FaClock size={12} />
+                      {reviewSubmittingStatus === "under_review" ? "Saving…" : "Mark Under Review"}
+                    </button>
+                    <button
+                      type="button"
+                      className="dashaction-btn"
+                      style={{ color: "#b45309", borderColor: "#fde68a" }}
+                      disabled={reviewSubmittingStatus !== null}
+                      onClick={() => submitDesignReview(detailOrder, "needs_revision")}
+                    >
+                      Needs Revision
+                    </button>
+                    {!detailOrder.proofApproved && (
+                      <button
+                        type="button"
+                        className="dashaction-btn green"
+                        disabled={reviewSubmittingStatus !== null}
+                        onClick={() => submitDesignReview(detailOrder, "approved")}
+                      >
+                        <FaCheck size={12} />
+                        {reviewSubmittingStatus === "approved" ? "Saving…" : "Approve Design"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 

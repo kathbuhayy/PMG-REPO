@@ -76,3 +76,47 @@ export function parseFlatSize(sizeStr) {
 
   return null;
 }
+/**
+ * Parses the same size strings as parseFlatSize, but returns the REAL
+ * physical dimensions in inches - no /2 scaling, no 6.0 cap. Those two
+ * adjustments in parseFlatSize exist for fitting a 3D scene's proportions
+ * and would silently corrupt anything that needs actual inches (e.g.
+ * converting a product's admin-set bleed/safe-margin inches into an
+ * accurate on-canvas guide percentage).
+ */
+export function parseSizeInchesRaw(sizeStr) {
+  if (!sizeStr || typeof sizeStr !== "string") {
+    return null;
+  }
+
+  const cleanStr = sizeStr.trim().toLowerCase();
+
+  const paperRegex = /\b(a3|a4|a5|letter|legal)\b/;
+  const paperMatch = cleanStr.match(paperRegex);
+  if (paperMatch) {
+    const size = PAPER_SIZES[paperMatch[1]];
+    return { width: size.width, height: size.height };
+  }
+
+  const regex = /([\d.]+)\s*[x×*]\s*([\d.]+)\s*(in|inch|inches|cm|centimeter|centimeters|mm|millimeter|millimeters|")?/;
+  const match = cleanStr.match(regex);
+  if (!match) return null;
+
+  let w = parseFloat(match[1]);
+  let h = parseFloat(match[2]);
+  const unit = match[3] || "in";
+
+  if (isNaN(w) || isNaN(h) || w <= 0 || h <= 0) {
+    return null;
+  }
+
+  if (unit === "cm" || unit === "centimeter" || unit === "centimeters") {
+    w = w / 2.54;
+    h = h / 2.54;
+  } else if (unit === "mm" || unit === "millimeter" || unit === "millimeters") {
+    w = w / 25.4;
+    h = h / 25.4;
+  }
+
+  return { width: Number(w.toFixed(3)), height: Number(h.toFixed(3)) };
+}

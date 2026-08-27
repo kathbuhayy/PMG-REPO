@@ -1,3 +1,4 @@
+// src/hooks/useCustomizerUpload.js
 import { useState, useCallback } from "react";
 import { buildApiUrl } from "../config/api";
 import { saveGuestDesign } from "../utils/guestDesigns";
@@ -292,6 +293,107 @@ export function useCustomizerUpload(
     [gallery],
   );
 
+  // Resolves a single image URL to a permanent hosted URL (extracted
+  // from uploadUsedImages so both the legacy single-image-per-zone
+  // shape and the new multi-layer shape can share this logic).
+  const resolveImageUrl = useCallback(
+    async (imageUrl) => {
+      const userId = getUserId();
+      const isBlob = imageUrl.startsWith("blob:");
+      const isData = imageUrl.startsWith("data:");
+
+      if (isBlob || isData) {
+        const galleryItem = gallery.find(
+          (g) => g.url === imageUrl || g.originalBlobUrl === imageUrl,
+        );
+        let fileToUpload = galleryItem?.file;
+        if (fileToUpload && !(fileToUpload instanceof Blob)) fileToUpload = null;
+
+        if (!fileToUpload && isData) {
+          try {
+            const filename = galleryItem?.label
+              ? `${galleryItem.label}.png`
+              : `design-${Date.now()}.png`;
+            fileToUpload = dataURLtoFile(imageUrl, filename);
+          } catch (err) {
+            console.error("Failed to reconstruct file:", err);
+          }
+        }
+
+        if (fileToUpload) {
+          const formData = new FormData();
+          formData.append("file", fileToUpload);
+          const res = await fetch(buildApiUrl("/api/builder/upload"), {
+            method: "POST",
+            headers: userId ? { "X-User-Id": String(userId) } : {},
+            body: formData,
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.message || "Upload failed");
+          return data.url;
+        }
+        return imageUrl;
+      }
+
+      if (
+        userId &&
+        (imageUrl.includes("pollinations.ai") ||
+          imageUrl.includes("fal.run") ||
+          imageUrl.includes("fal.media"))
+      ) {
+        try {
+          const res = await fetch(buildApiUrl("/api/builder/upload-url"), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-User-Id": String(userId),
+            },
+            body: JSON.stringify({ imageUrl }),
+          });
+          const data = await res.json();
+          if (res.ok && data.url) return data.url;
+          console.warn("Supabase late upload failed (non-fatal):", data.message);
+        } catch (uploadErr) {
+          console.warn("Supabase late upload failed (non-fatal):", uploadErr.message);
+        }
+      }
+
+      return imageUrl;
+    },
+    [gallery],
+  );
+
+  // Multi-layer variant: walks every zone's layer stack and resolves
+  // every image-kind layer's imageUrl. Text layers pass through untouched.
+  const uploadUsedImagesInLayers = useCallback(
+    async (zoneLayers) => {
+      setUploading(true);
+      setUploadError("");
+      try {
+        const updated = {};
+        for (const [zoneId, layers] of Object.entries(zoneLayers)) {
+          const nextLayers = [];
+          for (const layer of layers) {
+            if (layer.kind === "image" && layer.imageUrl) {
+              const resolvedUrl = await resolveImageUrl(layer.imageUrl);
+              nextLayers.push({ ...layer, imageUrl: resolvedUrl });
+            } else {
+              nextLayers.push(layer);
+            }
+          }
+          updated[zoneId] = nextLayers;
+        }
+        return updated;
+      } catch (err) {
+        setUploadError(err.message || "Upload failed. Please try again.");
+        throw err;
+      } finally {
+        setUploading(false);
+      }
+    },
+    [resolveImageUrl],
+  );
+
   return {
     gallery,
     setGallery,
@@ -306,6 +408,6 @@ export function useCustomizerUpload(
     handleFileChange,
     handleGenerate,
     uploadUsedImages,
-    resolutionResults,
+    uploadUsedImagesInLayers,
   };
 }
