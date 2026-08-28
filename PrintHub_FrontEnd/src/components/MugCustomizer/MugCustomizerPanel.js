@@ -3,7 +3,7 @@ import TshirtCustomizerPanel from
   "../TshirtCustomizer/TshirtCustomizerPanel";
 import MugPreview3D from "./MugPreview3D";
 
-const MUG_GLB = "/models/mug.glb";
+const MUG_GLB = "/models/coffee_cup.glb";
 
 export default function MugCustomizerPanel(props) {
   return (

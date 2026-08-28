@@ -592,15 +592,9 @@ function AdminDashboard() {
       {
         label: "PRODUCTION",
         items: [
-          {
-            id: "designApprovals",
-            label: "Design Approvals",
-            icon: <FaClipboardCheck />,
-            badge: designApprovalCount || null,
-          },
+          { id: "designApprovals", label: "Design Approvals", icon: <FaClipboardCheck /> },
           { id: "productionQueue", label: "Production Queue", icon: <FaListOl /> },
           { id: "calendar", label: "Production Calendar", icon: <FaCalendarAlt /> },
-          { id: "designApprovals", label: "Design Approvals", icon: <FaClipboardCheck /> },
           { id: "paymentVerification", label: "Payment Verification", icon: <FaMoneyCheckAlt /> },
           { id: "printJobs", label: "Print Jobs", icon: <FaPrint /> },
           { id: "qualityCheck", label: "Quality Check", icon: <FaCheckDouble /> },

@@ -1546,7 +1546,7 @@ function AdminProducts({
                     <FaCheckCircle style={{ color: "#10b981" }} />
                   </span>
                 </button>
-                <button
+                {/* <button
                   type="button"
                   className={`modal-tab-btn ${editProductTab === "mockups" ? "active" : ""
                     }`}
@@ -1564,7 +1564,7 @@ function AdminProducts({
                   }}
                 >
                   Mockups
-                </button>
+                </button> */}
               </div>
 
               <form
