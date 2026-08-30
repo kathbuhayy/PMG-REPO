@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 :root {
   --accent: #455073;
   --accent-soft: rgba(88, 188, 196, 0.12);
@@ -33,6 +34,7 @@
   color: var(--text);
   display: flex;
   flex-direction: column;
+  font-family: 'Manrope', sans-serif;
 }
 
 .pd-breadcrumb {
@@ -2701,4 +2703,2767 @@ body.embed-mode .printhub-chatbot-btn {
   position: relative;
   z-index: 1001;
   pointer-events: auto !important;
+}
+/* ============================================================
+   PMG PRODUCT PAGE — FINAL VISUAL OVERRIDE
+   Matches the approved PMG product-detail layout
+   ============================================================ */
+
+   :root {
+    --pmg-green: #57e000;
+    --pmg-green-dark: #31b900;
+    --pmg-green-soft: #efffe8;
+    --pmg-dark: #071b14;
+    --pmg-text: #15191b;
+    --pmg-muted: #60676b;
+    --pmg-border: #d9dde0;
+    --pmg-white: #ffffff;
+  }
+  
+  
+  /* ============================================================
+     PAGE
+     ============================================================ */
+  
+  .pd-page {
+    max-width: none !important;
+    min-height: 100vh;
+    padding: 26px 5vw 70px !important;
+  
+    background:
+      radial-gradient(
+        circle at 12% 14%,
+        rgba(87, 224, 0, 0.11),
+        transparent 23%
+      ),
+      radial-gradient(
+        circle at 92% 58%,
+        rgba(87, 224, 0, 0.07),
+        transparent 24%
+      ),
+      linear-gradient(
+        180deg,
+        #ffffff 0%,
+        #fbfcfa 58%,
+        #ffffff 100%
+      ) !important;
+  
+    color: var(--pmg-text);
+  }
+  
+  
+  /* ============================================================
+     BACK BUTTON
+     ============================================================ */
+  
+  .pd-back-btn {
+    margin: 0 0 14px 0 !important;
+    padding: 8px 15px !important;
+  
+    border: 1px solid #dce1de !important;
+    border-radius: 999px !important;
+  
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #202526 !important;
+  
+    font-size: 13px !important;
+    font-weight: 600 !important;
+  
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.04);
+  }
+  
+  .pd-back-btn:hover {
+    background: var(--pmg-green-soft) !important;
+    border-color: var(--pmg-green) !important;
+    color: #1d6800 !important;
+    transform: translateX(-2px) !important;
+  }
+  
+  
+  /* ============================================================
+     BREADCRUMB
+     ============================================================ */
+  
+  .pd-breadcrumb {
+    max-width: 1400px !important;
+    width: 100%;
+    margin: 0 auto 18px !important;
+  
+    gap: 8px !important;
+  
+    font-size: 12px !important;
+    color: #6b7174 !important;
+  }
+  
+  .pd-breadcrumb span:hover {
+    color: var(--pmg-green-dark) !important;
+  }
+  
+  
+  /* ============================================================
+     MAIN TWO-COLUMN LAYOUT
+     ============================================================ */
+  
+  .pd-pmg-layout {
+    max-width: 1400px !important;
+    width: 100%;
+  
+    display: grid !important;
+    grid-template-columns:
+      minmax(0, 1.12fr)
+      minmax(390px, 0.88fr) !important;
+  
+    gap: 42px !important;
+  
+    margin: 0 auto !important;
+  
+    align-items: start !important;
+  }
+  
+  
+  /* ============================================================
+     LEFT COLUMN
+     ============================================================ */
+  
+  .pd-pmg-gallery-col {
+    position: sticky !important;
+    top: 28px !important;
+  
+    min-width: 0;
+  }
+  
+  .pd-pmg-gallery-col .pd-gallery {
+    display: grid !important;
+    grid-template-columns: 104px minmax(0, 1fr) !important;
+    gap: 15px !important;
+    align-items: start;
+  }
+  
+  
+  /* ============================================================
+     THUMBNAILS
+     ============================================================ */
+  
+  .pd-pmg-gallery-col .pd-thumbs {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  
+  .pd-pmg-gallery-col .pd-thumb {
+    width: 104px !important;
+    height: 104px !important;
+  
+    border: 1px solid #dfe3e1 !important;
+    border-radius: 13px !important;
+  
+    background: #ffffff !important;
+  
+    box-shadow: none !important;
+  
+    overflow: hidden;
+  
+    transition:
+      border-color 0.2s ease,
+      transform 0.2s ease,
+      box-shadow 0.2s ease !important;
+  }
+  
+  .pd-pmg-gallery-col .pd-thumb:hover {
+    border-color: #9bcf87 !important;
+    transform: translateY(-1px);
+  }
+  
+  .pd-pmg-gallery-col .pd-thumb.active {
+    border: 2px solid var(--pmg-green) !important;
+  
+    box-shadow:
+      0 0 0 2px rgba(87, 224, 0, 0.12) !important;
+  }
+  
+  .pd-pmg-gallery-col .pd-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  
+  
+  /* ============================================================
+     MAIN PRODUCT IMAGE
+     ============================================================ */
+  
+  .pd-pmg-gallery-col .pd-main-image {
+    position: relative;
+  
+    min-height: 585px !important;
+    height: 585px;
+  
+    border: 1px solid #e1e5e2 !important;
+    border-radius: 18px !important;
+  
+    background:
+      radial-gradient(
+        circle at 50% 52%,
+        rgba(87, 224, 0, 0.08),
+        transparent 47%
+      ),
+      linear-gradient(
+        145deg,
+        #ffffff,
+        #fafcf9
+      ) !important;
+  
+    box-shadow:
+      0 12px 30px rgba(15, 30, 23, 0.06) !important;
+  
+    transform: none !important;
+  }
+  
+  .pd-pmg-gallery-col .pd-main-image:hover {
+    transform: none !important;
+  
+    box-shadow:
+      0 16px 36px rgba(15, 30, 23, 0.09) !important;
+  }
+  
+  .pd-pmg-gallery-col .pd-preview-stage {
+    width: 100%;
+    height: 100%;
+    min-height: 0 !important;
+  }
+  
+  .pd-pmg-gallery-col .pd-preview-stage > img {
+    max-width: 86% !important;
+    max-height: 86% !important;
+  
+    object-fit: contain;
+  
+    filter: drop-shadow(
+      0 22px 28px rgba(0, 0, 0, 0.13)
+    );
+  
+    transition:
+      transform 0.35s ease,
+      filter 0.35s ease !important;
+  }
+  
+  
+  /* ============================================================
+     IMAGE LABEL
+     ============================================================ */
+  
+  .pd-preview-top-label {
+    position: absolute;
+  
+    top: 18px;
+    left: 18px;
+  
+    z-index: 10;
+  
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  
+    padding: 8px 13px;
+  
+    border-radius: 999px;
+    border: 1px solid #e0e4e1;
+  
+    background: rgba(255, 255, 255, 0.92);
+  
+    color: #2b3032;
+  
+    font-size: 12px;
+    font-weight: 600;
+  
+    box-shadow:
+      0 5px 15px rgba(0, 0, 0, 0.05);
+  }
+  
+  .pd-preview-top-label span {
+    font-size: 12px;
+    color: #4f5759;
+  }
+  
+  
+  /* ============================================================
+     FULLSCREEN BUTTON
+     ============================================================ */
+  
+  .pd-image-expand-btn {
+    position: absolute;
+  
+    top: 18px;
+    right: 18px;
+  
+    z-index: 10;
+  
+    width: 43px;
+    height: 43px;
+  
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  
+    border: 1px solid #dfe4e1;
+    border-radius: 50%;
+  
+    background: rgba(255, 255, 255, 0.92);
+  
+    color: #2d3335;
+  
+    font-size: 21px;
+  
+    cursor: pointer;
+  
+    box-shadow:
+      0 5px 15px rgba(0, 0, 0, 0.06);
+  
+    transition:
+      transform 0.2s ease,
+      background 0.2s ease;
+  }
+  
+  .pd-image-expand-btn:hover {
+    background: var(--pmg-green-soft);
+    border-color: var(--pmg-green);
+    transform: scale(1.04);
+  }
+  
+  
+  /* Hide old preview status */
+  
+  .pd-pmg-gallery-col .pd-preview-status {
+    display: none !important;
+  }
+  
+  
+  /* ============================================================
+     RIGHT COLUMN
+     ============================================================ */
+  
+  .pd-pmg-info-col {
+    position: relative !important;
+  
+    display: flex !important;
+    flex-direction: column !important;
+  
+    gap: 0 !important;
+  
+    padding: 0 !important;
+  
+    background: transparent !important;
+  
+    border-radius: 0 !important;
+  }
+  
+  
+  /* ============================================================
+     PRODUCT HEADER
+     ============================================================ */
+  
+  .pd-pmg-product-header {
+    position: relative;
+  
+    padding-bottom: 18px;
+  
+    border-bottom: 1px solid #e1e5e2;
+  }
+  
+  .pd-pmg-product-header h1 {
+    margin: 0 0 8px !important;
+  
+    color: #111516 !important;
+  
+    font-size: clamp(42px, 4vw, 56px) !important;
+  
+    font-weight: 800 !important;
+  
+    line-height: 1 !important;
+  
+    letter-spacing: -1.5px;
+  }
+  
+  
+  /* ============================================================
+     RATING
+     ============================================================ */
+  
+  .pd-pmg-rating {
+    position: absolute;
+  
+    top: 0;
+    right: 0;
+  
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  
+    padding: 7px 13px;
+  
+    border: 1px solid #dfe2df;
+    border-radius: 999px;
+  
+    background: #ffffff;
+  
+    font-size: 13px;
+  
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.04);
+  }
+  
+  .pd-pmg-rating span {
+    color: #f8b400;
+    font-size: 18px;
+  }
+  
+  
+  /* ============================================================
+     PRINT BADGE
+     ============================================================ */
+  
+  .pd-pmg-print-badge {
+    display: inline-flex;
+  
+    width: fit-content;
+  
+    margin-bottom: 11px;
+  
+    padding: 5px 12px;
+  
+    border-radius: 999px;
+  
+    background: #eafbdd;
+  
+    color: #2c8a0b;
+  
+    font-size: 12px;
+    font-weight: 600;
+  }
+  
+  .pd-pmg-plain-badge {
+    background: #f0f1f1;
+    color: #555b5d;
+  }
+  
+  
+  /* ============================================================
+     DESCRIPTION
+     ============================================================ */
+  
+  .pd-pmg-product-header .pd-description {
+    margin: 0 0 8px !important;
+  
+    color: #3f4648 !important;
+  
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+  
+    max-width: 650px;
+  }
+  
+  .pd-pmg-bulk-link {
+    margin: 0 !important;
+  
+    color: #353b3d;
+  
+    font-size: 13px;
+  }
+  
+  .pd-pmg-bulk-link button {
+    padding: 0;
+  
+    border: none;
+  
+    background: none;
+  
+    color: #24292a;
+  
+    font-weight: 700;
+  
+    text-decoration: underline;
+  
+    cursor: pointer;
+  }
+  
+  
+  /* Hide old perk pills */
+  
+  .pd-pmg-info-col .pd-perk-badges,
+  .pd-pmg-info-col .pd-info-pills {
+    display: none !important;
+  }
+  
+  
+  /* ============================================================
+     CONFIGURATOR
+     ============================================================ */
+  
+  .pd-pmg-configurator {
+    padding-top: 17px;
+  }
+  
+  .pd-pmg-option-group {
+    display: flex;
+  
+    flex-direction: column;
+  
+    gap: 8px;
+  
+    margin-bottom: 17px;
+  }
+  
+  .pd-pmg-option-group > label,
+  .pd-pmg-option-heading > span {
+    color: #171b1c;
+  
+    font-size: 13px;
+  
+    font-weight: 800;
+  
+    letter-spacing: 0.35px;
+  }
+  
+  
+  /* ============================================================
+     SIZE
+     ============================================================ */
+  
+  .pd-pmg-option-heading {
+    display: flex;
+  
+    align-items: center;
+    justify-content: space-between;
+  
+    margin-bottom: 2px;
+  }
+  
+  .pd-pmg-sizing-btn {
+    border: none;
+  
+    background: transparent;
+  
+    color: #49b000;
+  
+    font-size: 12px;
+    font-weight: 600;
+  
+    cursor: pointer;
+  }
+  
+  .pd-pmg-size-grid {
+    display: grid;
+  
+    grid-template-columns:
+      repeat(6, minmax(0, 1fr));
+  
+    gap: 9px;
+  }
+  
+  .pd-pmg-size-btn {
+    min-height: 43px;
+  
+    border: 1px solid #ccd2cf;
+    border-radius: 9px;
+  
+    background: #ffffff;
+  
+    color: #24292a;
+  
+    font-size: 13px;
+    font-weight: 700;
+  
+    cursor: pointer;
+  
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.15s ease,
+      box-shadow 0.2s ease;
+  }
+  
+  .pd-pmg-size-btn:hover {
+    border-color: #8fd66e;
+  
+    transform: translateY(-1px);
+  }
+  
+  .pd-pmg-size-btn.active {
+    border-color: var(--pmg-green);
+  
+    background: var(--pmg-green);
+  
+    color: #101c0b;
+  
+    box-shadow:
+      0 5px 14px rgba(87, 224, 0, 0.25);
+  }
+  
+  
+  /* ============================================================
+     SELECTS
+     ============================================================ */
+  
+  .pd-pmg-option-group select {
+    width: 100%;
+  
+    min-height: 43px;
+  
+    padding: 0 14px;
+  
+    border: 1px solid #ccd2cf;
+    border-radius: 9px;
+  
+    background: #ffffff;
+  
+    color: #252a2c;
+  
+    font-size: 13px;
+    font-weight: 500;
+  
+    outline: none;
+  
+    cursor: pointer;
+  
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.025);
+  
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  
+  .pd-pmg-option-group select:hover {
+    border-color: #9ca5a1;
+  }
+  
+  .pd-pmg-option-group select:focus {
+    border-color: var(--pmg-green);
+  
+    box-shadow:
+      0 0 0 3px rgba(87, 224, 0, 0.12);
+  }
+  
+  
+  /* ============================================================
+     STOCK
+     ============================================================ */
+  
+  .pd-pmg-stock {
+    margin: -2px 0 12px;
+  
+    color: #31a300;
+  
+    font-size: 12px;
+    font-weight: 600;
+  }
+  
+  .pd-pmg-stock-out {
+    color: #d22f2f;
+  }
+  
+  
+  /* ============================================================
+     QUANTITY
+     ============================================================ */
+  
+  .pd-pmg-quantity-row {
+    display: flex;
+  
+    align-items: center;
+    justify-content: space-between;
+  
+    gap: 12px;
+  
+    margin-bottom: 14px;
+  }
+  
+  .pd-pmg-quantity-row > label {
+    color: #171b1c;
+  
+    font-size: 13px;
+  
+    font-weight: 800;
+  }
+  
+  .pd-pmg-quantity-control {
+    display: flex;
+  
+    align-items: center;
+  
+    overflow: hidden;
+  
+    border: 1px solid #ccd2cf;
+    border-radius: 9px;
+  
+    background: #ffffff;
+  }
+  
+  .pd-pmg-quantity-control button {
+    width: 40px;
+    height: 38px;
+  
+    border: none;
+  
+    background: #ffffff;
+  
+    color: #313638;
+  
+    font-size: 19px;
+  
+    cursor: pointer;
+  }
+  
+  .pd-pmg-quantity-control button:hover {
+    background: #f0f2f1;
+  }
+  
+  .pd-pmg-quantity-control input {
+    width: 48px;
+    height: 38px;
+  
+    border: none;
+    border-left: 1px solid #e1e4e2;
+    border-right: 1px solid #e1e4e2;
+  
+    outline: none;
+  
+    text-align: center;
+  
+    font-size: 14px;
+    font-weight: 700;
+  }
+  
+  
+  /* ============================================================
+     RUSH ORDER
+     ============================================================ */
+  
+  .pd-pmg-rush {
+    width: 100%;
+  
+    margin-bottom: 13px;
+  
+    padding: 10px 14px;
+  
+    border: 1px solid #d4d9d6;
+    border-radius: 9px;
+  
+    background: #fafbfa;
+  
+    color: #424849;
+  
+    font-size: 12px;
+    font-weight: 600;
+  
+    cursor: pointer;
+  
+    transition: all 0.2s ease;
+  }
+  
+  .pd-pmg-rush:hover {
+    border-color: #f0a25a;
+  }
+  
+  .pd-pmg-rush.active {
+    border-color: #ea7a18;
+  
+    background: rgba(234, 122, 24, 0.09);
+  
+    color: #c35e08;
+  }
+  
+  
+  /* ============================================================
+     CUSTOMIZE CARD
+     ============================================================ */
+  
+  .pd-pmg-customize-card {
+    position: relative;
+  
+    display: grid;
+  
+    grid-template-columns: 42px 1fr;
+  
+    gap: 10px;
+  
+    align-items: center;
+  
+    margin: 8px 0 15px;
+  
+    padding: 14px 15px;
+  
+    border-radius: 13px;
+  
+    background:
+      linear-gradient(
+        135deg,
+        #efffe7,
+        #e8f9df
+      );
+  
+    border: 1px solid #d9f1cd;
+  }
+  
+  .pd-pmg-customize-icon {
+    width: 37px;
+    height: 37px;
+  
+    display: flex;
+  
+    align-items: center;
+    justify-content: center;
+  
+    color: #55b900;
+  
+    font-size: 25px;
+  }
+  
+  .pd-pmg-customize-card strong {
+    display: block;
+  
+    color: #1d2620;
+  
+    font-size: 14px;
+  }
+  
+  .pd-pmg-customize-card p {
+    margin: 3px 0 0;
+  
+    color: #4d5550;
+  
+    font-size: 12px;
+  }
+  
+  .pd-pmg-customize-card button {
+    grid-column: 2;
+  
+    width: 205px;
+    max-width: 100%;
+  
+    margin-top: 4px;
+  
+    padding: 9px 15px;
+  
+    border: none;
+    border-radius: 8px;
+  
+    background: #10251d;
+  
+    color: #ffffff;
+  
+    font-size: 12px;
+    font-weight: 700;
+  
+    cursor: pointer;
+  
+    transition:
+      transform 0.2s ease,
+      background 0.2s ease;
+  }
+  
+  .pd-pmg-customize-card button:hover {
+    background: #17372b;
+  
+    transform: translateY(-1px);
+  }
+  
+  
+  /* ============================================================
+     TOTAL CARD
+     ============================================================ */
+  
+  .pd-pmg-total-card {
+    overflow: hidden;
+  
+    border: 1px solid #d5dad7;
+    border-radius: 13px;
+  
+    background: #ffffff;
+  
+    box-shadow:
+      0 6px 18px rgba(0, 0, 0, 0.035);
+  }
+  
+  .pd-pmg-total-heading {
+    display: flex;
+  
+    align-items: center;
+    justify-content: space-between;
+  
+    padding: 13px 15px;
+  
+    border-bottom: 1px solid #e3e6e4;
+  }
+  
+  .pd-pmg-total-heading span {
+    color: #252b2c;
+  
+    font-size: 13px;
+    font-weight: 800;
+  }
+  
+  .pd-pmg-total-heading strong {
+    color: #141819;
+  
+    font-size: 20px;
+    font-weight: 800;
+  }
+  
+  .pd-pmg-total-details {
+    display: grid;
+  
+    gap: 8px;
+  
+    padding: 13px 15px 4px;
+  }
+  
+  .pd-pmg-total-details div {
+    display: grid;
+  
+    grid-template-columns: 100px 1fr;
+  
+    gap: 10px;
+  
+    font-size: 11px;
+  }
+  
+  .pd-pmg-total-details span {
+    color: #858b8d;
+  }
+  
+  .pd-pmg-total-details strong {
+    color: #252a2c;
+  
+    font-weight: 600;
+  }
+  
+  
+  /* ============================================================
+     ADD TO CART
+     ============================================================ */
+  
+  .pd-pmg-cart-btn {
+    width: calc(100% - 30px);
+  
+    margin: 11px 15px 15px;
+  
+    min-height: 42px;
+  
+    border: none;
+    border-radius: 9px;
+  
+    background:
+      linear-gradient(
+        90deg,
+        #52d900,
+        #62e800
+      );
+  
+    color: #102000;
+  
+    font-size: 13px;
+    font-weight: 800;
+  
+    cursor: pointer;
+  
+    box-shadow:
+      0 6px 15px rgba(87, 224, 0, 0.22);
+  
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  
+  .pd-pmg-cart-btn:hover {
+    transform: translateY(-1px);
+  
+    box-shadow:
+      0 9px 20px rgba(87, 224, 0, 0.28);
+  }
+  
+  
+  /* Hide old order card */
+  
+  .pd-pmg-info-col .pd-order-card {
+    display: none !important;
+  }
+  
+  
+  /* ============================================================
+     PRODUCT DETAILS
+     ============================================================ */
+  
+  .pd-pmg-details-card {
+    margin-top: 15px;
+  
+    border: 1px solid #d8ddda;
+    border-radius: 13px;
+  
+    background: #ffffff;
+  
+    overflow: hidden;
+  }
+  
+  .pd-pmg-details-header {
+    width: 100%;
+  
+    display: flex;
+  
+    align-items: center;
+    justify-content: space-between;
+  
+    padding: 14px 17px;
+  
+    border: none;
+  
+    background: #ffffff;
+  
+    color: #191e20;
+  
+    font-size: 12px;
+    font-weight: 800;
+  
+    cursor: pointer;
+  
+    text-align: left;
+  }
+  
+  .pd-pmg-details-header > span:first-child {
+    display: flex;
+  
+    align-items: center;
+  
+    gap: 9px;
+  }
+  
+  .pd-pmg-details-icon {
+    width: 23px;
+    height: 23px;
+  
+    display: flex;
+  
+    align-items: center;
+    justify-content: center;
+  
+    border: 1px solid #cfd5d1;
+    border-radius: 6px;
+  
+    font-size: 11px;
+  }
+  
+  .pd-pmg-details-arrow {
+    font-size: 21px;
+    color: #303638;
+  }
+  
+  .pd-pmg-details-content {
+    padding: 2px 17px 16px;
+  
+    border-top: 1px solid #e6e9e7;
+  }
+  
+  .pd-pmg-details-content > div {
+    display: grid;
+  
+    grid-template-columns: 125px 1fr;
+  
+    gap: 12px;
+  
+    padding: 3px 0;
+  
+    font-size: 12px;
+  
+    line-height: 1.4;
+  }
+  
+  .pd-pmg-details-content strong {
+    color: #252a2c;
+  }
+  
+  .pd-pmg-details-content span {
+    color: #4d5557;
+  }
+  
+  
+  /* ============================================================
+     TEMPLATE ACCORDION
+     ============================================================ */
+  
+  .pd-pmg-simple-accordion {
+    margin-top: 10px;
+  
+    overflow: hidden;
+  
+    border: 1px solid #d8ddda;
+    border-radius: 11px;
+  
+    background: #ffffff;
+  }
+  
+  .pd-pmg-simple-accordion > button {
+    width: 100%;
+  
+    display: flex;
+  
+    align-items: center;
+    justify-content: space-between;
+  
+    padding: 13px 16px;
+  
+    border: none;
+  
+    background: #ffffff;
+  
+    color: #171c1e;
+  
+    font-size: 12px;
+    font-weight: 800;
+  
+    cursor: pointer;
+  }
+  
+  .pd-pmg-template-content {
+    padding: 12px 16px;
+  
+    border-top: 1px solid #e5e8e6;
+  
+    color: #555c5e;
+  
+    font-size: 12px;
+  }
+  
+  .pd-pmg-template-content p {
+    margin: 0 0 6px;
+  }
+  
+  .pd-pmg-template-content strong {
+    display: inline-block;
+  
+    padding: 7px 12px;
+  
+    border-radius: 7px;
+  
+    background: #f1f3f2;
+  
+    color: #24292a;
+  }
+  
+  
+  /* ============================================================
+     SUCCESS
+     ============================================================ */
+  
+  .pd-pmg-info-col .pd-success-message {
+    margin: 0 15px 10px;
+  
+    border-radius: 7px;
+  
+    font-size: 12px;
+  }
+  
+  
+  /* ============================================================
+     MOBILE
+     ============================================================ */
+  
+  @media (max-width: 1024px) {
+  
+    .pd-pmg-layout {
+      grid-template-columns: 1fr !important;
+      gap: 28px !important;
+    }
+  
+    .pd-pmg-gallery-col {
+      position: static !important;
+    }
+  
+    .pd-pmg-info-col {
+      width: 100%;
+    }
+  
+  }
+  
+  
+  @media (max-width: 768px) {
+  
+    .pd-page {
+      padding:
+        72px 14px
+        calc(95px + env(safe-area-inset-bottom, 0px))
+        !important;
+    }
+  
+    .pd-pmg-layout {
+      display: block !important;
+    }
+  
+    .pd-pmg-gallery-col .pd-gallery {
+      display: block !important;
+    }
+  
+    .pd-pmg-gallery-col .pd-thumbs {
+      display: none !important;
+    }
+  
+    .pd-pmg-gallery-col .pd-main-image {
+      display: none !important;
+    }
+  
+    .pd-img-reel {
+      display: flex !important;
+  
+      overflow-x: auto;
+  
+      scroll-snap-type: x mandatory;
+  
+      border-radius: 15px;
+    }
+  
+    .pd-img-slide {
+      flex: 0 0 100%;
+  
+      min-height: 350px !important;
+  
+      display: flex;
+  
+      align-items: center;
+      justify-content: center;
+  
+      scroll-snap-align: start;
+  
+      border: 1px solid #e0e4e1;
+  
+      border-radius: 15px;
+  
+      background:
+        radial-gradient(
+          circle,
+          rgba(87, 224, 0, 0.07),
+          transparent 55%
+        ),
+        #ffffff;
+    }
+  
+    .pd-img-slide img {
+      max-width: 90%;
+      max-height: 330px;
+      object-fit: contain;
+    }
+  
+    .pd-pmg-product-header {
+      margin-top: 22px;
+    }
+  
+    .pd-pmg-product-header h1 {
+      padding-right: 70px;
+  
+      font-size: 38px !important;
+    }
+  
+    .pd-pmg-rating {
+      top: 0;
+      right: 0;
+    }
+  
+    .pd-pmg-size-grid {
+      grid-template-columns:
+        repeat(3, 1fr);
+    }
+  
+    .pd-pmg-customize-card {
+      grid-template-columns: 38px 1fr;
+    }
+  
+    .pd-pmg-customize-card button {
+      width: 100%;
+    }
+  
+    .pd-pmg-details-content > div {
+      grid-template-columns: 105px 1fr;
+    }
+  
+    .pd-sticky-cta {
+      display: flex !important;
+  
+      position: fixed;
+  
+      bottom:
+        env(safe-area-inset-bottom, 0px);
+  
+      left: 0;
+      right: 0;
+  
+      z-index: 1500;
+  
+      padding: 10px 14px;
+  
+      background: rgba(255, 255, 255, 0.96);
+  
+      backdrop-filter: blur(12px);
+  
+      border-top: 1px solid #e0e4e1;
+  
+      box-shadow:
+        0 -6px 20px rgba(0, 0, 0, 0.08);
+    }
+  
+    .pd-sticky-btn {
+      background: var(--pmg-green) !important;
+  
+      color: #122000 !important;
+  
+      border-radius: 10px !important;
+  
+      font-weight: 800 !important;
+    }
+  
+  }
+  
+  
+  @media (max-width: 480px) {
+  
+    .pd-page {
+      padding-left: 11px !important;
+      padding-right: 11px !important;
+    }
+  
+    .pd-pmg-product-header h1 {
+      font-size: 34px !important;
+    }
+  
+    .pd-pmg-size-grid {
+      gap: 7px;
+    }
+  
+    .pd-pmg-size-btn {
+      min-height: 40px;
+    }
+  
+    .pd-pmg-total-heading strong {
+      font-size: 18px;
+    }
+  
+  }
+  /* ============================================================
+   PMG — MOVE PRODUCT THUMBNAILS BELOW MAIN PREVIEW
+   ============================================================ */
+
+.pd-pmg-gallery-col .pd-gallery {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 14px !important;
+}
+
+/* Large preview first */
+.pd-pmg-gallery-col .pd-main-image {
+  order: 1 !important;
+}
+
+/* Thumbnail moves underneath */
+.pd-pmg-gallery-col .pd-thumbs {
+  order: 2 !important;
+
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+
+  gap: 12px !important;
+
+  width: 100% !important;
+
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+
+  padding: 2px 2px 6px !important;
+
+  scrollbar-width: none;
+}
+
+.pd-pmg-gallery-col .pd-thumbs::-webkit-scrollbar {
+  display: none;
+}
+
+.pd-pmg-gallery-col .pd-thumb {
+  flex: 0 0 86px !important;
+
+  width: 86px !important;
+  height: 86px !important;
+
+  border-radius: 12px !important;
+}
+
+/* Keep mobile reel hidden on desktop */
+@media (min-width: 769px) {
+  .pd-pmg-gallery-col .pd-img-reel,
+  .pd-pmg-gallery-col .pd-img-dots {
+    display: none !important;
+  }
+}
+/* ============================================================
+   PMG — LARGER CUSTOMIZE DESIGN CARD
+   ============================================================ */
+
+   .pd-pmg-customize-card {
+    min-height: 150px !important;
+    padding: 26px 30px !important;
+    border-radius: 18px !important;
+  }
+  
+  .pd-pmg-customize-card h3 {
+    font-size: 21px !important;
+    margin-bottom: 7px !important;
+  }
+  
+  .pd-pmg-customize-card p {
+    font-size: 15px !important;
+    line-height: 1.5 !important;
+  }
+  
+  .pd-pmg-customize-card button {
+    min-height: 52px !important;
+    font-size: 15px !important;
+    padding: 12px 26px !important;
+  }
+  /* ============================================================
+   PMG NAVIGATION ROW
+   Back button + Breadcrumb on the same level
+   ============================================================ */
+
+.pd-navigation-row {
+  width: 100%;
+  max-width: 1400px;
+
+  margin: 0 auto 22px;
+
+  display: flex;
+  align-items: center;
+
+  gap: 54px;
+}
+
+
+/* ============================================================
+   BACK BUTTON
+   ============================================================ */
+
+.pd-navigation-row .pd-back-btn {
+  flex: 0 0 auto;
+
+  margin: 0 !important;
+
+  padding: 10px 20px !important;
+
+  border: 1px solid #dce3df !important;
+  border-radius: 999px !important;
+
+  background: #ffffff !important;
+
+  color: #26302b !important;
+
+  font-size: 14px !important;
+  font-weight: 600 !important;
+
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.04);
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.pd-navigation-row .pd-back-btn:hover {
+  background: #f3faef !important;
+
+  border-color: #72d52b !important;
+
+  color: #318000 !important;
+
+  transform: translateX(-3px) !important;
+}
+
+
+/* ============================================================
+   BREADCRUMB
+   ============================================================ */
+
+.pd-navigation-row .pd-breadcrumb {
+  flex: 1;
+
+  width: auto;
+
+  max-width: none;
+
+  margin: 0 !important;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+
+  flex-wrap: wrap;
+
+  font-size: 15px;
+
+  line-height: 1.4;
+
+  color: #707875;
+}
+
+.pd-navigation-row .pd-breadcrumb span {
+  cursor: pointer;
+
+  transition:
+    color 0.2s ease;
+}
+
+.pd-navigation-row .pd-breadcrumb span:hover {
+  color: #55a91d;
+}
+
+.pd-navigation-row .pd-breadcrumb-current {
+  color: #4d5752;
+
+  font-weight: 500;
+
+  cursor: default !important;
+}
+
+
+/* ============================================================
+   PMG REQUEST A QUOTE SECTION
+   ============================================================ */
+
+.pd-quote-section {
+  grid-column: 1 / -1;
+
+  margin-top: 12px;
+
+  padding: 32px;
+
+  border:
+    1px solid
+    #dce8dc;
+
+  border-radius: 20px;
+
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(157, 255, 0, 0.10),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 0% 100%,
+      rgba(157, 255, 0, 0.06),
+      transparent 25%
+    ),
+    linear-gradient(
+      145deg,
+      #ffffff 0%,
+      #fbfef9 55%,
+      #f5faF2 100%
+    );
+
+  box-shadow:
+    0 12px 35px
+    rgba(44, 76, 48, 0.07);
+}
+
+
+/* ============================================================
+   QUOTE TITLE
+   ============================================================ */
+
+.pd-quote-title {
+  margin: 0 0 8px;
+
+  color: #27322d;
+
+  font-size: 25px;
+
+  font-weight: 800;
+
+  letter-spacing: -0.02em;
+}
+
+.pd-quote-title::after {
+  content: "";
+
+  display: block;
+
+  width: 42px;
+
+  height: 3px;
+
+  margin-top: 9px;
+
+  border-radius: 999px;
+
+  background: #7ed321;
+}
+
+
+/* ============================================================
+   QUOTE DESCRIPTION
+   ============================================================ */
+
+.pd-quote-desc {
+  max-width: 900px;
+
+  margin: 14px 0 22px;
+
+  color: #68726d;
+
+  font-size: 14px;
+
+  line-height: 1.65;
+}
+
+
+/* ============================================================
+   QUOTE FORM BOX
+   ============================================================ */
+
+.pd-quote-box {
+  max-width: 100%;
+
+  padding: 25px;
+
+  border:
+    1px solid
+    #dfe7e1;
+
+  border-radius: 16px;
+
+  background:
+    rgba(255, 255, 255, 0.92);
+
+  box-shadow:
+    0 6px 22px
+    rgba(35, 56, 42, 0.045);
+}
+
+
+/* ============================================================
+   QUOTE INPUTS
+   ============================================================ */
+
+.pd-quote-row input,
+.pd-quote-row select,
+.pd-quote-row textarea,
+.pd-quote-readonly {
+  background: #ffffff;
+
+  border:
+    1px solid
+    #d1dbd4;
+
+  color: #303a35;
+
+  border-radius: 11px;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.pd-quote-row input:focus,
+.pd-quote-row select:focus,
+.pd-quote-row textarea:focus {
+  outline: none;
+
+  border-color: #78cf35;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 0 3px
+    rgba(126, 211, 33, 0.12);
+}
+
+
+/* ============================================================
+   QUOTE PLACEHOLDERS
+   ============================================================ */
+
+.pd-quote-row input::placeholder,
+.pd-quote-row textarea::placeholder {
+  color: #929a96;
+
+  opacity: 1;
+}
+
+
+/* ============================================================
+   QUOTE LABELS
+   ============================================================ */
+
+.pd-quote-row label {
+  color: #3c4641;
+
+  font-weight: 600;
+}
+
+
+/* ============================================================
+   READONLY PRODUCT FIELD
+   ============================================================ */
+
+.pd-quote-readonly {
+  display: flex;
+
+  align-items: center;
+
+  min-height: 48px;
+
+  padding: 0 16px;
+
+  background: #f5f8f6;
+
+  color: #3d4742;
+
+  border-color: #dce4de;
+
+  font-weight: 600;
+}
+
+
+/* ============================================================
+   QUOTE BUTTON AREA
+   ============================================================ */
+
+.pd-quote-actions {
+  margin-top: 28px;
+
+  margin-left: 204px;
+}
+
+
+/* ============================================================
+   BUTTON ROW
+   ============================================================ */
+
+.pd-quote-button-row {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  gap: 12px;
+}
+
+
+/* ============================================================
+   REQUEST QUOTE BUTTON
+   ============================================================ */
+
+.pd-quote-btn {
+  min-width: 220px;
+
+  min-height: 52px;
+
+  padding: 14px 28px;
+
+  border: none;
+
+  border-radius: 12px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #9dff00,
+      #7ee000
+    );
+
+  color: #16200f;
+
+  font-size: 15px;
+
+  font-weight: 800;
+
+  letter-spacing: 0.01em;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 8px 22px
+    rgba(126, 211, 33, 0.20);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.pd-quote-btn:hover:not(:disabled) {
+  background:
+    linear-gradient(
+      135deg,
+      #aaff1a,
+      #8be900
+    );
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 12px 28px
+    rgba(126, 211, 33, 0.27);
+}
+
+.pd-quote-btn:disabled {
+  opacity: 0.6;
+
+  cursor: not-allowed;
+}
+
+
+/* ============================================================
+   CANCEL BUTTON
+   ============================================================ */
+
+.pd-quote-cancel-btn {
+  min-width: 140px;
+
+  min-height: 52px;
+
+  padding: 14px 25px;
+
+  border:
+    1px solid
+    #cfd8d2;
+
+  border-radius: 12px;
+
+  background: #ffffff;
+
+  color: #56615b;
+
+  font-family: inherit;
+
+  font-size: 15px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.pd-quote-cancel-btn:hover:not(:disabled) {
+  background: #f5f7f6;
+
+  border-color: #aeb9b2;
+
+  color: #303a35;
+
+  transform: translateY(-2px);
+}
+
+.pd-quote-cancel-btn:disabled {
+  opacity: 0.5;
+
+  cursor: not-allowed;
+}
+
+
+/* ============================================================
+   SUCCESS / ERROR
+   ============================================================ */
+
+.pd-quote-success {
+  margin-bottom: 14px;
+
+  border-radius: 10px;
+}
+
+.pd-quote-error {
+  margin-bottom: 14px;
+
+  border-radius: 10px;
+}
+
+
+/* ============================================================
+   TABLET
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .pd-navigation-row {
+    gap: 25px;
+  }
+
+  .pd-navigation-row .pd-breadcrumb {
+    font-size: 14px;
+  }
+
+  .pd-quote-section {
+    padding: 25px;
+  }
+
+  .pd-quote-actions {
+    margin-left: 0;
+  }
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .pd-navigation-row {
+    align-items: flex-start;
+
+    gap: 14px;
+
+    flex-direction: column;
+
+    margin-bottom: 18px;
+  }
+
+  .pd-navigation-row .pd-back-btn {
+    padding: 9px 17px !important;
+  }
+
+  .pd-navigation-row .pd-breadcrumb {
+    width: 100%;
+
+    font-size: 13px;
+
+    gap: 7px;
+  }
+
+  .pd-quote-section {
+    padding: 20px 16px;
+
+    border-radius: 16px;
+  }
+
+  .pd-quote-title {
+    font-size: 22px;
+  }
+
+  .pd-quote-desc {
+    font-size: 13px;
+  }
+
+  .pd-quote-box {
+    padding: 16px;
+  }
+
+  .pd-quote-actions {
+    width: 100%;
+
+    margin-left: 0;
+
+    margin-top: 22px;
+  }
+
+  .pd-quote-button-row {
+    width: 100%;
+
+    flex-direction: column-reverse;
+
+    gap: 9px;
+  }
+
+  .pd-quote-btn,
+  .pd-quote-cancel-btn {
+    width: 100%;
+
+    min-width: 0;
+  }
+}
+/* ============================================================
+   PMG REQUEST A QUOTE — FINAL ALIGNMENT
+   ============================================================ */
+
+   .pd-quote-section {
+    grid-column: 1 / -1;
+  
+    width: 100%;
+  
+    margin-top: 12px;
+  
+    padding: 32px;
+  
+    border: 1px solid #dce8dc;
+  
+    border-radius: 20px;
+  
+    background:
+      radial-gradient(
+        circle at 100% 0%,
+        rgba(157, 255, 0, 0.10),
+        transparent 28%
+      ),
+      radial-gradient(
+        circle at 0% 100%,
+        rgba(157, 255, 0, 0.06),
+        transparent 25%
+      ),
+      linear-gradient(
+        145deg,
+        #ffffff 0%,
+        #fbfef9 55%,
+        #f5faf2 100%
+      );
+  
+    box-shadow:
+      0 12px 35px
+      rgba(44, 76, 48, 0.07);
+  }
+  
+  
+  /* ============================================================
+     QUOTE TITLE
+     ============================================================ */
+  
+  .pd-quote-title {
+    margin: 0 0 8px;
+  
+    color: #27322d;
+  
+    font-size: 25px;
+  
+    font-weight: 800;
+  
+    letter-spacing: -0.02em;
+  }
+  
+  .pd-quote-title::after {
+    content: "";
+  
+    display: block;
+  
+    width: 42px;
+  
+    height: 3px;
+  
+    margin-top: 9px;
+  
+    border-radius: 999px;
+  
+    background: #7ed321;
+  }
+  
+  
+  /* ============================================================
+     QUOTE DESCRIPTION
+     ============================================================ */
+  
+  .pd-quote-desc {
+    max-width: 900px;
+  
+    margin: 14px 0 22px;
+  
+    color: #68726d;
+  
+    font-size: 14px;
+  
+    line-height: 1.65;
+  }
+  
+  
+  /* ============================================================
+     QUOTE FORM BOX
+     ============================================================ */
+  
+  .pd-quote-box {
+    width: 100%;
+  
+    max-width: 100%;
+  
+    padding: 25px;
+  
+    border: 1px solid #dfe7e1;
+  
+    border-radius: 16px;
+  
+    background: #ffffff;
+  
+    box-shadow:
+      0 6px 22px
+      rgba(35, 56, 42, 0.045);
+  }
+  
+  
+  /* ============================================================
+     QUOTE ROW
+     ============================================================ */
+  
+  .pd-quote-row {
+    display: grid;
+  
+    grid-template-columns: 130px minmax(0, 1fr);
+  
+    align-items: center;
+  
+    column-gap: 18px;
+  
+    width: 100%;
+  
+    margin-bottom: 16px;
+  }
+  
+  
+  /* ============================================================
+     LABELS — LEFT ALIGNED
+     ============================================================ */
+  
+  .pd-quote-row label {
+    width: 100%;
+  
+    margin: 0;
+  
+    padding: 0;
+  
+    color: #3c4641;
+  
+    font-size: 15px;
+  
+    font-weight: 600;
+  
+    text-align: left;
+  
+    white-space: nowrap;
+  }
+  
+  
+  /* ============================================================
+     INPUTS
+     ============================================================ */
+  
+  .pd-quote-row input,
+  .pd-quote-row select,
+  .pd-quote-row textarea,
+  .pd-quote-readonly {
+    width: 100%;
+  
+    box-sizing: border-box;
+  
+    background: #ffffff;
+  
+    border: 1px solid #d1dbd4;
+  
+    border-radius: 11px;
+  
+    color: #303a35;
+  
+    font-family: inherit;
+  
+    font-size: 15px;
+  
+    outline: none;
+  
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease,
+      background 0.2s ease;
+  }
+  
+  
+  /* ============================================================
+     INPUT HEIGHT
+     ============================================================ */
+  
+  .pd-quote-row input,
+  .pd-quote-row select,
+  .pd-quote-readonly {
+    height: 52px;
+  
+    min-height: 52px;
+  
+    padding: 0 16px;
+  }
+  
+  
+  /* ============================================================
+     TEXTAREA
+     ============================================================ */
+  
+  .pd-quote-row textarea {
+    min-height: 145px;
+  
+    padding: 14px 16px;
+  
+    resize: vertical;
+  
+    line-height: 1.5;
+  }
+  
+  
+  /* ============================================================
+     PLACEHOLDER
+     ============================================================ */
+  
+  .pd-quote-row input::placeholder,
+  .pd-quote-row textarea::placeholder {
+    color: #929a96;
+  
+    opacity: 1;
+  }
+  
+  
+  /* ============================================================
+     FOCUS
+     ============================================================ */
+  
+  .pd-quote-row input:focus,
+  .pd-quote-row select:focus,
+  .pd-quote-row textarea:focus {
+    border-color: #78cf35;
+  
+    background: #ffffff;
+  
+    box-shadow:
+      0 0 0 3px
+      rgba(126, 211, 33, 0.12);
+  }
+  
+  
+  /* ============================================================
+     READ ONLY PRODUCT
+     ============================================================ */
+  
+  .pd-quote-readonly {
+    display: flex;
+  
+    align-items: center;
+  
+    background: #f5f8f6;
+  
+    color: #3d4742;
+  
+    border-color: #dce4de;
+  
+    font-weight: 600;
+  }
+  
+  
+  /* ============================================================
+     QUOTE ACTIONS
+     IMPORTANT:
+     Removed the old 204px LEFT MARGIN
+     ============================================================ */
+  
+  .pd-quote-actions {
+    width: 100%;
+  
+    margin-top: 28px;
+  
+    margin-left: 0 !important;
+  
+    display: flex;
+  
+    flex-direction: column;
+  
+    align-items: center;
+  }
+  
+  
+  /* ============================================================
+     BUTTON ROW
+     ============================================================ */
+  
+  .pd-quote-button-row {
+    width: 100%;
+  
+    display: flex;
+  
+    align-items: center;
+  
+    justify-content: center;
+  
+    gap: 14px;
+  }
+  
+  
+  /* ============================================================
+     REQUEST QUOTE
+     ============================================================ */
+  
+  .pd-quote-btn {
+    min-width: 220px;
+  
+    min-height: 52px;
+  
+    height: 52px;
+  
+    padding: 14px 28px;
+  
+    border: none;
+  
+    border-radius: 12px;
+  
+    background:
+      linear-gradient(
+        135deg,
+        #9dff00,
+        #7ee000
+      );
+  
+    color: #16200f;
+  
+    font-family: inherit;
+  
+    font-size: 15px;
+  
+    font-weight: 800;
+  
+    letter-spacing: 0.01em;
+  
+    cursor: pointer;
+  
+    box-shadow:
+      0 8px 22px
+      rgba(126, 211, 33, 0.20);
+  
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease,
+      background 0.2s ease;
+  }
+  
+  .pd-quote-btn:hover:not(:disabled) {
+    background:
+      linear-gradient(
+        135deg,
+        #aaff1a,
+        #8be900
+      );
+  
+    transform: translateY(-2px);
+  
+    box-shadow:
+      0 12px 28px
+      rgba(126, 211, 33, 0.27);
+  }
+  
+  .pd-quote-btn:disabled {
+    opacity: 0.6;
+  
+    cursor: not-allowed;
+  }
+  
+  
+  /* ============================================================
+     CANCEL
+     ============================================================ */
+  
+  .pd-quote-cancel-btn {
+    min-width: 140px;
+  
+    min-height: 52px;
+  
+    height: 52px;
+  
+    padding: 14px 25px;
+  
+    border: 1px solid #cfd8d2;
+  
+    border-radius: 12px;
+  
+    background: #ffffff;
+  
+    color: #56615b;
+  
+    font-family: inherit;
+  
+    font-size: 15px;
+  
+    font-weight: 700;
+  
+    cursor: pointer;
+  
+    transition:
+      background 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      transform 0.2s ease;
+  }
+  
+  .pd-quote-cancel-btn:hover:not(:disabled) {
+    background: #f5f7f6;
+  
+    border-color: #aeb9b2;
+  
+    color: #303a35;
+  
+    transform: translateY(-2px);
+  }
+  
+  .pd-quote-cancel-btn:disabled {
+    opacity: 0.5;
+  
+    cursor: not-allowed;
+  }
+  
+  
+  /* ============================================================
+     SUCCESS / ERROR
+     ============================================================ */
+  
+  .pd-quote-success,
+  .pd-quote-error {
+    width: 100%;
+  
+    margin-bottom: 14px;
+  
+    border-radius: 10px;
+  }
+  
+  
+  /* ============================================================
+     TABLET
+     ============================================================ */
+  
+  @media (max-width: 900px) {
+  
+    .pd-quote-section {
+      padding: 25px;
+    }
+  
+    .pd-quote-row {
+      grid-template-columns: 120px minmax(0, 1fr);
+  
+      column-gap: 14px;
+    }
+  
+    .pd-quote-actions {
+      margin-left: 0 !important;
+    }
+  }
+  
+  
+  /* ============================================================
+     MOBILE
+     ============================================================ */
+  
+  @media (max-width: 768px) {
+  
+    .pd-quote-section {
+      padding: 20px 16px;
+  
+      border-radius: 16px;
+    }
+  
+    .pd-quote-title {
+      font-size: 22px;
+    }
+  
+    .pd-quote-desc {
+      font-size: 13px;
+    }
+  
+    .pd-quote-box {
+      padding: 16px;
+    }
+  
+  
+    /* Labels stay on the left,
+       inputs underneath them */
+  
+    .pd-quote-row {
+      display: flex;
+  
+      flex-direction: column;
+  
+      align-items: stretch;
+  
+      gap: 7px;
+  
+      margin-bottom: 15px;
+    }
+  
+    .pd-quote-row label {
+      text-align: left;
+  
+      font-size: 14px;
+    }
+  
+  
+    .pd-quote-actions {
+      width: 100%;
+  
+      margin-left: 0 !important;
+  
+      margin-top: 22px;
+    }
+  
+  
+    /* Buttons remain centered and same width */
+  
+    .pd-quote-button-row {
+      width: 100%;
+  
+      display: flex;
+  
+      flex-direction: row;
+  
+      align-items: center;
+  
+      justify-content: center;
+  
+      gap: 10px;
+    }
+  
+    .pd-quote-btn,
+    .pd-quote-cancel-btn {
+      flex: 1;
+  
+      width: auto;
+  
+      min-width: 0;
+  
+      min-height: 50px;
+  
+      height: 50px;
+  
+      padding: 12px 15px;
+  
+      font-size: 14px;
+    }
+  }
+  
+  /* ============================================================
+     SMALL MOBILE
+     ============================================================ */
+  
+  @media (max-width: 480px) {
+  
+    .pd-quote-button-row {
+      flex-direction: column;
+  
+      align-items: stretch;
+    }
+  
+    .pd-quote-btn,
+    .pd-quote-cancel-btn {
+      width: 100%;
+  
+      flex: none;
+    }
+  }
+  /* ============================================================
+   PMG REQUEST A QUOTE — SMALLER + TIGHTER ALIGNMENT
+   ============================================================ */
+
+/* Make the entire quote section more compact */
+.pd-quote-section {
+  padding: 26px !important;
+}
+
+
+/* Make the form box smaller */
+.pd-quote-box {
+  padding: 20px !important;
+}
+
+
+/* Reduce the gap between LABEL and TEXTBOX */
+.pd-quote-row {
+  grid-template-columns: 130px minmax(0, 1fr) !important;
+
+  column-gap: 8px !important;
+
+  margin-bottom: 13px !important;
+}
+
+
+/* Keep labels aligned to the left */
+.pd-quote-row label {
+  text-align: left !important;
+
+  font-size: 15px;
+
+  padding: 0 !important;
+}
+
+
+/* Slightly reduce input height */
+.pd-quote-row input,
+.pd-quote-row select,
+.pd-quote-readonly {
+  height: 46px !important;
+
+  min-height: 46px !important;
+
+  padding:
+    0
+    14px !important;
+}
+
+
+/* Smaller textarea */
+.pd-quote-row textarea {
+  min-height: 116px !important;
+
+  padding:
+    12px
+    14px !important;
+}
+
+
+/* Bring description closer to the title */
+.pd-quote-title {
+  margin-bottom: 5px !important;
+
+  font-size: 22px !important;
+}
+
+
+.pd-quote-title::after {
+  margin-top: 7px !important;
+}
+
+
+.pd-quote-desc {
+  margin:
+    10px
+    0
+    17px !important;
+
+  line-height: 1.55 !important;
+}
+
+
+/* Reduce space before buttons */
+.pd-quote-actions {
+  margin-top: 20px !important;
+
+  margin-left: 0 !important;
+}
+
+
+/* Slightly smaller buttons */
+.pd-quote-btn {
+  min-width: 200px !important;
+
+  min-height: 46px !important;
+
+  height: 46px !important;
+
+  padding:
+    12px
+    24px !important;
+}
+
+
+.pd-quote-cancel-btn {
+  min-width: 130px !important;
+
+  min-height: 46px !important;
+
+  height: 46px !important;
+
+  padding:
+    12px
+    22px !important;
+}
+
+
+/* ============================================================
+   TABLET
+   ============================================================ */
+
+@media (max-width: 900px) {
+
+  .pd-quote-section {
+    padding: 21px !important;
+  }
+
+  .pd-quote-box {
+    padding: 18px !important;
+  }
+
+  .pd-quote-row {
+    grid-template-columns:
+      115px
+      minmax(0, 1fr) !important;
+
+    column-gap: 7px !important;
+  }
+}
+
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 768px) {
+
+  .pd-quote-section {
+    padding:
+      18px
+      14px !important;
+
+    border-radius: 16px;
+  }
+
+  .pd-quote-box {
+    padding: 14px !important;
+  }
+
+  .pd-quote-row {
+    grid-template-columns:
+      1fr !important;
+
+    row-gap: 6px !important;
+
+    column-gap: 0 !important;
+
+    margin-bottom: 13px !important;
+  }
+
+  .pd-quote-row label {
+    font-size: 14px;
+
+    margin-bottom: 0 !important;
+  }
+
+  .pd-quote-row input,
+  .pd-quote-row select,
+  .pd-quote-readonly {
+    height: 44px !important;
+
+    min-height: 44px !important;
+  }
+
+  .pd-quote-row textarea {
+    min-height: 105px !important;
+  }
+
+  .pd-quote-title {
+    font-size: 20px !important;
+  }
+
+  .pd-quote-desc {
+    margin-bottom: 14px !important;
+  }
+
+  .pd-quote-button-row {
+    gap: 8px !important;
+  }
+
+  .pd-quote-btn,
+  .pd-quote-cancel-btn {
+    width: 100% !important;
+
+    min-width: 0 !important;
+
+    height: 44px !important;
+
+    min-height: 44px !important;
+  }
 }
