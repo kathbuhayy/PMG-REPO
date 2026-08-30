@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { FaEdit, FaKey } from "react-icons/fa";
 import "./Admin-profile.css";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
 import { buildApiUrl } from "../config/api";
@@ -544,7 +543,7 @@ function AdminProfile() {
             onClick={handleEdit}
             disabled={isEditing}
           >
-            <FaEdit /> Edit
+            Edit
           </button>
 
           <button
@@ -552,7 +551,7 @@ function AdminProfile() {
             onClick={handleSave}
             disabled={!isEditing}
           >
-            ✓ Save
+            Save
           </button>
 
           <button
@@ -560,7 +559,6 @@ function AdminProfile() {
             onClick={requestPasswordOtp}
             disabled={otpSending}
           >
-            <FaKey />
             {otpSending ? "Sending code..." : "Change Password"}
           </button>
         </div>
