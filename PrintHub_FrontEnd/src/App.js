@@ -272,6 +272,16 @@ function AppRoutes() {
               }
             />
             <Route
+              path="/admin/profile/edit"
+              element={
+                <WebOnly>
+                  <ProtectedAdminRoute>
+                    <AdminDashboard />
+                  </ProtectedAdminRoute>
+                </WebOnly>
+              }
+            />
+            <Route
               path="/admin/:tab"
               element={
                 <WebOnly>

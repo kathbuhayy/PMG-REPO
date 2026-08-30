@@ -118,6 +118,21 @@
   cursor: not-allowed;
 }
 
+.field-invalid input,
+.field-invalid select {
+  border-color: #ef4444;
+}
+
+.field-invalid input:focus,
+.field-invalid select:focus {
+  border-color: #ef4444;
+}
+
+.field-error-text {
+  color: #ef4444;
+  font-size: 12px;
+}
+
 /* Actions */
 .primary-action {
   padding: 10px 20px;
@@ -215,6 +230,34 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.profile-avatar-wrapper {
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+
+.profile-avatar-edit-btn {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s ease;
+}
+
+.profile-avatar-edit-btn:hover {
+  background: #1d4ed8;
 }
 
 .profile-msg {

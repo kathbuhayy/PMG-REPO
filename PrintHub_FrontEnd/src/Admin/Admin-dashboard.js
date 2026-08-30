@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import "./Admin-dashboard.css";
 import AdminProductionCalendar from "./AdminProductionCalendar";
-import AdminProfile from "./Admin-profile";
+import AdminProfile from "./AdminProfile";
+import EditAdminProfile from "./EditAdminProfile";
 import AdminManageAccounts from "./Admin-manageacc";
 import AdminOrders from "./AdminOrders";
 import AdminInquiries from "./AdminInquiries";
@@ -162,12 +163,15 @@ function AdminDashboard() {
   };
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { tab } = useParams();
+  const location = useLocation();
+  const isProfileEditRoute = location.pathname === "/admin/profile/edit";
   const activeItem = useMemo(() => {
+    if (isProfileEditRoute) return "profile";
     if (!tab) return "dashboard";
     if (tab === "manageaccount") return "customers";
     if (tab === "inquiries") return "quotations";
     return tab;
-  }, [tab]);
+  }, [tab, isProfileEditRoute]);
 
   // ✅ Mobile sidebar drawer
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -2674,7 +2678,8 @@ function AdminDashboard() {
           {activeItem === "qualityCheck" && <StageQueuePage stage="QUALITY_ASSURANCE" title="Quality Check" />}
           {activeItem === "packaging" && <StageQueuePage stage="PACKAGING_READY" title="Packaging" />}
 
-          {activeItem === "profile" && <AdminProfile />}
+          {activeItem === "profile" &&
+            (isProfileEditRoute ? <EditAdminProfile /> : <AdminProfile />)}
           {activeItem === "customers" && role !== "staff" && (
             <AdminManageAccounts scope="customers" />
           )}

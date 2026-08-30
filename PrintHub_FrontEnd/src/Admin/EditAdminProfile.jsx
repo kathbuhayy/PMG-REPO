@@ -1,11 +1,47 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import "./Admin-profile.css";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
+import { FaPen } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import AlertModal from "../components/AlertModal";
 import { adminFetch } from "../utils/adminFetch";
 
-function AdminProfile() {
+// Allows letters, spaces, dot, dash
+const nameRegex = /^[A-Za-z.\-\s]+$/;
+const isValidName = (value) => {
+  const v = String(value || "").trim();
+  if (!v) return false;
+  return nameRegex.test(v);
+};
+
+const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+// 09XXXXXXXXX or +639XXXXXXXXX
+const phRegex = /^(09\d{9}|\+639\d{9})$/;
+
+const isAtLeast18 = (dateStr) => {
+  if (!dateStr) return false;
+  const dob = new Date(dateStr);
+  if (isNaN(dob.getTime())) return false;
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age >= 18;
+};
+
+// Normalize 09XXXXXXXXX -> +639XXXXXXXXX for storage
+const normalizePhone = (value) => {
+  const v = (value || "").trim();
+  if (/^09\d{9}$/.test(v)) return "+63" + v.slice(1);
+  return v;
+};
+
+function EditAdminProfile() {
+  const navigate = useNavigate();
 
   const [admin, setAdmin] = useState({
     firstName: "",
@@ -14,9 +50,11 @@ function AdminProfile() {
     role: "",
     birthday: "",
     gender: "",
-    phone: "+63", // ✅ +63 pre-filled
+    phone: "",
     avatar_url: "",
   });
+
+  const [errors, setErrors] = useState({});
 
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -26,9 +64,7 @@ function AdminProfile() {
     setAlertOpen(true);
   };
 
-  const [isEditing, setIsEditing] = useState(false);
-
-  // ✅ Change password modal state
+  // Change password modal state
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -40,12 +76,10 @@ function AdminProfile() {
   const [otpError, setOtpError] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
-  // ✅ eye toggles for change password modal
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
-  // ✅ criteria for change password modal (same rules)
   const [cpCriteria, setCpCriteria] = useState({
     uppercase: false,
     number: false,
@@ -53,19 +87,7 @@ function AdminProfile() {
     length: false,
   });
 
-  // ✅ ADDED: Inline name validation message (replaces alert for name only)
-  const [nameError, setNameError] = useState("");
-
-  // ✅ ADDED: name validation (not empty, no special characters)
-  // Allows letters, spaces, dot, dash
-  const nameRegex = /^[A-Za-z.\-\s]+$/;
-  const isValidName = (value) => {
-    const v = String(value || "").trim();
-    if (!v) return false;
-    return nameRegex.test(v);
-  };
-
-  // ✅ Load profile from DB
+  // Load profile from DB
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (!stored) return;
@@ -96,8 +118,7 @@ function AdminProfile() {
           role: user.role || "",
           birthday: data.birthday || "",
           gender: data.gender || "",
-          phone:
-            data.phone && String(data.phone).trim() !== "" ? data.phone : "+63", // ✅ fallback to +63
+          phone: data.phone && String(data.phone).trim() !== "" ? data.phone : "",
           avatar_url: data.avatar_url || "",
         });
       })
@@ -109,15 +130,57 @@ function AdminProfile() {
 
   const handleChange = (e) => {
     setAdmin({ ...admin, [e.target.name]: e.target.value });
+    setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
   };
 
-  const handleEdit = () => {
-    setIsEditing(true);
-    // ✅ ADDED: clear name error when editing
-    setNameError("");
+  const validate = () => {
+    const newErrors = {};
+
+    if (!isValidName(admin.firstName)) {
+      newErrors.firstName =
+        "First name is required and must not contain special characters.";
+    }
+    if (!isValidName(admin.lastName)) {
+      newErrors.lastName =
+        "Last name is required and must not contain special characters.";
+    }
+
+    const emailTrim = (admin.email || "").trim();
+    if (!emailTrim) {
+      newErrors.email = "Email is required.";
+    } else if (!emailRegex.test(emailTrim)) {
+      newErrors.email = "Enter a valid email address (e.g. user@domain.com).";
+    }
+
+    const phoneTrim = (admin.phone || "").trim();
+    if (!phoneTrim) {
+      newErrors.phone = "Phone number is required.";
+    } else if (!phRegex.test(phoneTrim)) {
+      newErrors.phone =
+        "Enter a valid PH mobile number (09XXXXXXXXX or +639XXXXXXXXX).";
+    }
+
+    if (!admin.gender) {
+      newErrors.gender = "Please select a gender.";
+    }
+
+    if (!admin.birthday) {
+      newErrors.birthday = "Birthday is required.";
+    } else if (!isAtLeast18(admin.birthday)) {
+      newErrors.birthday = "You must be at least 18 years old.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleSave = async () => {
+  const handleCancel = () => {
+    navigate("/admin/profile");
+  };
+
+  const handleSaveChanges = async () => {
+    if (!validate()) return;
+
     const stored = localStorage.getItem("user");
     if (!stored) {
       showAlert("No logged-in user found.");
@@ -137,27 +200,7 @@ function AdminProfile() {
       return;
     }
 
-    // ✅ ADDED: First/Last name validation (NO alerts — shows inline message)
-    setNameError("");
-    if (!isValidName(admin.firstName) || !isValidName(admin.lastName)) {
-      setNameError("Name is required and must not contain special character.");
-      return;
-    }
-
-    // ✅ Philippines phone validation
-    // Allowed:
-    // - "+63" only (treated as empty/not provided)
-    // - "+639XXXXXXXXX" (PH mobile)
-    const phoneTrim = (admin.phone || "").trim();
-    if (phoneTrim !== "" && phoneTrim !== "+63") {
-      const phoneRegex = /^\+639\d{9}$/;
-      if (!phoneRegex.test(phoneTrim)) {
-        showAlert(
-          "Phone must be a Philippine mobile number: +639 followed by 9 digits",
-        );
-        return;
-      }
-    }
+    const normalizedPhone = normalizePhone(admin.phone);
 
     try {
       const res = await adminFetch(buildApiUrl(`/api/user-profile/${user.id}`), {
@@ -165,15 +208,10 @@ function AdminProfile() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: `${admin.firstName} ${admin.lastName}`.trim(),
-
-          // ✅ ADDED ONLY: send email so server can update it
           email: admin.email,
-
           birthday: admin.birthday,
           gender: admin.gender,
-
-          // ✅ if only "+63", send empty so backend treats as not provided
-          phone: phoneTrim === "+63" ? "" : phoneTrim,
+          phone: normalizedPhone,
           address: "",
         }),
       });
@@ -194,18 +232,14 @@ function AdminProfile() {
       }
       window.dispatchEvent(new Event("profileUpdated"));
 
-      setIsEditing(false);
-      // ✅ ADDED: clear name error on successful save
-      setNameError("");
-
-      showAlert("Profile Updated Successfully!");
+      navigate("/admin/profile");
     } catch (err) {
       console.error(err);
       showAlert(err.message || "Error updating profile");
     }
   };
 
-  // ✅ update criteria as user types new password
+  // update criteria as user types new password
   const handleCpNewPasswordChange = (e) => {
     const value = e.target.value;
     setNewPassword(value);
@@ -230,7 +264,7 @@ function AdminProfile() {
     </p>
   );
 
-  // ✅ Step 1: request OTP, then open the OTP entry modal
+  // Step 1: request OTP, then open the OTP entry modal
   const requestPasswordOtp = async () => {
     setOtpError("");
     setOtpCode("");
@@ -276,7 +310,7 @@ function AdminProfile() {
     }
   };
 
-  // ✅ Step 2: verify OTP, then open the actual Change Password modal
+  // Step 2: verify OTP, then open the actual Change Password modal
   const verifyPasswordOtp = async (e) => {
     e.preventDefault();
     setOtpError("");
@@ -314,7 +348,7 @@ function AdminProfile() {
       setOtpLoading(false);
       setShowOtpModal(false);
       setOtpCode("");
-      openChangePassword(); // ✅ only now open the real modal
+      openChangePassword();
     } catch (err) {
       setOtpLoading(false);
       setOtpError(err.message || "Error verifying code");
@@ -346,110 +380,13 @@ function AdminProfile() {
     });
   };
 
-  // Avatar upload state + handlers
-  const [adminAvatarUploading, setAdminAvatarUploading] = useState(false);
-  const [adminAvatarError, setAdminAvatarError] = useState("");
-  const [adminAvatarPreview, setAdminAvatarPreview] = useState("");
-
-  useEffect(() => {
-    setAdminAvatarPreview(admin.avatar_url || "");
-  }, [admin.avatar_url]);
-
-  const handleAdminAvatarClick = () => {
-    const inp = document.getElementById("admin-avatar-input");
-    if (inp) inp.click();
-  };
-
-  const handleAdminAvatarUpload = async (e) => {
-    const file = e.target.files?.[0];
-    setAdminAvatarError("");
-    if (!file) return;
-
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!allowed.includes(file.type)) {
-      setAdminAvatarError("Only JPEG, PNG, WebP and GIF are allowed");
-      e.target.value = "";
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) {
-      setAdminAvatarError("Image must be 2MB or smaller.");
-      e.target.value = "";
-      return;
-    }
-
-    setAdminAvatarUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-
-      const stored =
-        localStorage.getItem("adminUser") || localStorage.getItem("user");
-      const userId = stored ? JSON.parse(stored).id : null;
-
-      const res = await adminFetch(buildApiUrl("/api/user/avatar-upload"), {
-        method: "POST",
-        body: fd,
-        headers: { "x-user-id": userId || "" },
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Upload failed");
-
-      setAdminAvatarPreview(data.url || "");
-      setAdmin((prev) => ({ ...prev, avatar_url: data.url || "" }));
-
-      // Save to profile (best-effort)
-      if (userId) {
-        try {
-          const profileRes = await adminFetch(
-            buildApiUrl(`/api/user-profile/${userId}`),
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ avatar_url: data.url }),
-            },
-          );
-          if (!profileRes.ok) {
-            const profileData = await profileRes.json().catch(() => ({}));
-            throw new Error(profileData?.message || "Failed to save avatar");
-          }
-        } catch (err) {
-          throw err;
-        }
-      }
-
-      try {
-        const storedUser = JSON.parse(
-          localStorage.getItem("user") ||
-          localStorage.getItem("adminUser") ||
-          "{}",
-        );
-        const updatedUser = { ...storedUser, avatar_url: data.url };
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        if (localStorage.getItem("adminUser")) {
-          localStorage.setItem("adminUser", JSON.stringify(updatedUser));
-        }
-      } catch {
-        /* ignore localStorage sync errors */
-      }
-      window.dispatchEvent(new Event("profileUpdated"));
-    } catch (err) {
-      console.error(err);
-      setAdminAvatarError(err.message || "Upload failed");
-    } finally {
-      setAdminAvatarUploading(false);
-      e.target.value = "";
-    }
-  };
-
   const closeChangePassword = () => {
     setShowChangePassword(false);
     setChangePassError("");
     setChangePassSuccess("");
   };
 
-  // ✅ Submit change password
+  // Submit change password
   const handleChangePassword = async (e) => {
     e.preventDefault();
     setChangePassError("");
@@ -527,33 +464,113 @@ function AdminProfile() {
     }
   };
 
+  // Avatar upload state + handlers
+  const [adminAvatarUploading, setAdminAvatarUploading] = useState(false);
+  const [adminAvatarError, setAdminAvatarError] = useState("");
+  const [adminAvatarPreview, setAdminAvatarPreview] = useState("");
+
+  useEffect(() => {
+    setAdminAvatarPreview(admin.avatar_url || "");
+  }, [admin.avatar_url]);
+
+  const handleAdminAvatarClick = () => {
+    const inp = document.getElementById("admin-avatar-input");
+    if (inp) inp.click();
+  };
+
+  const handleAdminAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    setAdminAvatarError("");
+    if (!file) return;
+
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      setAdminAvatarError("Only JPEG, PNG, WebP and GIF are allowed");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setAdminAvatarError("Image must be 2MB or smaller.");
+      e.target.value = "";
+      return;
+    }
+
+    setAdminAvatarUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+
+      const stored =
+        localStorage.getItem("adminUser") || localStorage.getItem("user");
+      const userId = stored ? JSON.parse(stored).id : null;
+
+      const res = await adminFetch(buildApiUrl("/api/user/avatar-upload"), {
+        method: "POST",
+        body: fd,
+        headers: { "x-user-id": userId || "" },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Upload failed");
+
+      setAdminAvatarPreview(data.url || "");
+      setAdmin((prev) => ({ ...prev, avatar_url: data.url || "" }));
+
+      if (userId) {
+        try {
+          const profileRes = await adminFetch(
+            buildApiUrl(`/api/user-profile/${userId}`),
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ avatar_url: data.url }),
+            },
+          );
+          if (!profileRes.ok) {
+            const profileData = await profileRes.json().catch(() => ({}));
+            throw new Error(profileData?.message || "Failed to save avatar");
+          }
+        } catch (err) {
+          throw err;
+        }
+      }
+
+      try {
+        const storedUser = JSON.parse(
+          localStorage.getItem("user") ||
+          localStorage.getItem("adminUser") ||
+          "{}",
+        );
+        const updatedUser = { ...storedUser, avatar_url: data.url };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        if (localStorage.getItem("adminUser")) {
+          localStorage.setItem("adminUser", JSON.stringify(updatedUser));
+        }
+      } catch {
+        /* ignore localStorage sync errors */
+      }
+      window.dispatchEvent(new Event("profileUpdated"));
+    } catch (err) {
+      console.error(err);
+      setAdminAvatarError(err.message || "Upload failed");
+    } finally {
+      setAdminAvatarUploading(false);
+      e.target.value = "";
+    }
+  };
+
   return (
     <div className="page-shell">
       <div className="section-hero">
         <div className="section-hero-left">
           <div className="section-kicker">Account</div>
-          <h2 className="section-title">Admin Profile</h2>
+          <h2 className="section-title">Edit Admin Profile</h2>
           <p className="section-desc">
-            Manage your personal information and account settings.
+            Update your personal information and account settings.
           </p>
         </div>
         <div className="section-hero-right">
-          <button
-            className="primary-action"
-            onClick={handleEdit}
-            disabled={isEditing}
-          >
-            Edit
-          </button>
-
-          <button
-            className="primary-action"
-            onClick={handleSave}
-            disabled={!isEditing}
-          >
-            Save
-          </button>
-
           <button
             className="secondary-action"
             onClick={requestPasswordOtp}
@@ -561,34 +578,52 @@ function AdminProfile() {
           >
             {otpSending ? "Sending code..." : "Change Password"}
           </button>
+
+          <button className="secondary-action" onClick={handleCancel}>
+            Cancel
+          </button>
+
+          <button className="primary-action" onClick={handleSaveChanges}>
+            Save Changes
+          </button>
         </div>
       </div>
 
-      {nameError && (
-        <div className="profile-msg profile-msg-error">{nameError}</div>
-      )}
-
       <div className="settings-card">
         <div className="profile-avatar-row">
-          <div
-            className="profile-avatar"
-            onClick={isEditing ? handleAdminAvatarClick : undefined}
-            role={isEditing ? "button" : undefined}
-            aria-label="Change avatar"
-          >
-            {adminAvatarPreview ? (
-              <img src={adminAvatarPreview} alt="avatar" />
-            ) : (
-              "AD"
-            )}
+          <div className="profile-avatar-wrapper">
+            <div
+              className="profile-avatar"
+              onClick={handleAdminAvatarClick}
+              role="button"
+              aria-label="Change avatar"
+            >
+              {adminAvatarPreview ? (
+                <img src={adminAvatarPreview} alt="avatar" />
+              ) : (
+                "AD"
+              )}
 
-            <input
-              id="admin-avatar-input"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={handleAdminAvatarUpload}
-              style={{ display: "none" }}
-            />
+              <input
+                id="admin-avatar-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleAdminAvatarUpload}
+                style={{ display: "none" }}
+              />
+            </div>
+
+            <button
+              type="button"
+              className="profile-avatar-edit-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAdminAvatarClick();
+              }}
+              aria-label="Change profile photo"
+            >
+              <FaPen size={12} />
+            </button>
           </div>
 
           {adminAvatarUploading && (
@@ -600,92 +635,85 @@ function AdminProfile() {
             </div>
           )}
         </div>
+
         <div className="form-grid">
-          <div className="field">
+          <div className={`field${errors.firstName ? " field-invalid" : ""}`}>
             <label>First Name</label>
             <input
               type="text"
               name="firstName"
               value={admin.firstName}
               onChange={handleChange}
-              disabled={!isEditing}
             />
+            {errors.firstName && (
+              <span className="field-error-text">{errors.firstName}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.lastName ? " field-invalid" : ""}`}>
             <label>Last Name</label>
             <input
               type="text"
               name="lastName"
               value={admin.lastName}
               onChange={handleChange}
-              disabled={!isEditing}
             />
+            {errors.lastName && (
+              <span className="field-error-text">{errors.lastName}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.email ? " field-invalid" : ""}`}>
             <label>Email</label>
             <input
               type="email"
               name="email"
               value={admin.email}
               onChange={handleChange}
-              disabled={!isEditing}
             />
+            {errors.email && (
+              <span className="field-error-text">{errors.email}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.phone ? " field-invalid" : ""}`}>
             <label>Phone Number</label>
             <input
               type="text"
               name="phone"
               value={admin.phone}
-              disabled={!isEditing}
-              placeholder="+639XXXXXXXXX"
-              inputMode="numeric"
-              maxLength={13}
-              onChange={(e) => {
-                let value = e.target.value || "";
-
-                // Always keep +63
-                if (!value.startsWith("+63")) value = "+63";
-
-                // Only allow digits after +63
-                const restDigits = value.slice(3).replace(/\D/g, "");
-
-                // Build final value
-                const next = "+63" + restDigits;
-
-                setAdmin({ ...admin, phone: next });
-              }}
+              placeholder="09XXXXXXXXX or +639XXXXXXXXX"
+              onChange={handleChange}
             />
+            {errors.phone && (
+              <span className="field-error-text">{errors.phone}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.gender ? " field-invalid" : ""}`}>
             <label>Gender</label>
-            <select
-              name="gender"
-              value={admin.gender}
-              onChange={handleChange}
-              disabled={!isEditing}
-            >
+            <select name="gender" value={admin.gender} onChange={handleChange}>
               <option value="">Select...</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
               <option value="prefer not to say">Prefer not to say</option>
             </select>
+            {errors.gender && (
+              <span className="field-error-text">{errors.gender}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.birthday ? " field-invalid" : ""}`}>
             <label>Birthday</label>
             <input
               type="date"
               name="birthday"
               value={admin.birthday}
               onChange={handleChange}
-              disabled={!isEditing}
-              max="2010-12-31"
             />
+            {errors.birthday && (
+              <span className="field-error-text">{errors.birthday}</span>
+            )}
           </div>
         </div>
       </div>
@@ -727,7 +755,6 @@ function AdminProfile() {
         </div>
       )}
 
-      {/* ✅ Change Password Modal */}
       {showChangePassword && (
         <div className="cp-modal-overlay" onClick={closeChangePassword}>
           <div className="cp-modal" onClick={(e) => e.stopPropagation()}>
@@ -834,13 +861,13 @@ function AdminProfile() {
         </div>
       )}
 
-      <AlertModal 
-        isOpen={alertOpen} 
-        message={alertMessage} 
-        onClose={() => setAlertOpen(false)} 
+      <AlertModal
+        isOpen={alertOpen}
+        message={alertMessage}
+        onClose={() => setAlertOpen(false)}
       />
     </div>
   );
 }
 
-export default AdminProfile;
+export default EditAdminProfile;
