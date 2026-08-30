@@ -1,14 +1,12 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import "./Admin-manageacc.css";
 import {
-  FaEdit,
   FaTrash,
   FaSearch,
   FaPlus,
   FaTimes,
   FaInfoCircle,
-  FaTrashRestore,
-  FaUserCog
+  FaTrashRestore
 } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
@@ -684,7 +682,6 @@ const permanentlyDeleteUser = async (u) => {
                       onClick={() => handleEdit(u)}
                       title="Edit user"
                     >
-                      <FaEdit size={12} />
                       Edit
                     </button>
                     {(u.role === "staff" || u.role === "admin") && (
@@ -694,26 +691,27 @@ const permanentlyDeleteUser = async (u) => {
                         onClick={() => openRolesModal(u)}
                         title="Manage job roles"
                       >
-                        <FaUserCog size={12} />
                         Roles
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className={`manageacc-btn-delete ${
-                        isSelf(u) ? "disabled" : ""
-                      }`}
-                      title={
-                        isSelf(u)
-                          ? "You can't delete your own account"
-                          : "Delete"
-                      }
-                      onClick={() => !isSelf(u) && handleDelete(u)}
-                      disabled={isSelf(u)}
-                    >
-                      <FaTrash size={12} />
-                      Delete
-                    </button>
+                    {(u.role || "").toLowerCase() !== "admin" && (
+                      <button
+                        type="button"
+                        className={`manageacc-btn-delete ${
+                          isSelf(u) ? "disabled" : ""
+                        }`}
+                        title={
+                          isSelf(u)
+                            ? "You can't delete your own account"
+                            : "Delete"
+                        }
+                        onClick={() => !isSelf(u) && handleDelete(u)}
+                        disabled={isSelf(u)}
+                      >
+                        <FaTrash size={12} />
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
