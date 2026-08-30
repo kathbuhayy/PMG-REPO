@@ -9,19 +9,20 @@ import {
   FaFileInvoiceDollar,
   FaBars,
   FaTimes,
-  FaHome,
-  FaCubes,
 } from "react-icons/fa";
 import { useCart } from "../hooks/useCart";
 import "./Header.css";
 import { buildApiUrl } from "../config/api";
-import pmgNavLogo from "../assets/brand/pmg-printing-house.png";
+import pmgNavLogo from "../assets/brand/pmg-logo-nav.png";
 
 function Header() {
   const navigate = useNavigate();
   const location = useLocation();
+
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
   const dropdownRef = useRef(null);
   const { cartItems } = useCart();
 
@@ -34,9 +35,12 @@ function Header() {
   const getCustomerUser = () => {
     try {
       const stored = localStorage.getItem("user");
+
       if (!stored) return null;
+
       const parsed = JSON.parse(stored);
       const role = String(parsed?.role || "").toLowerCase();
+
       if (
         !parsed?.id ||
         role === "admin" ||
@@ -45,21 +49,25 @@ function Header() {
       ) {
         return null;
       }
+
       return parsed;
     } catch {
       return null;
     }
   };
 
-  // Get logged-in customer from localStorage. Admin/staff sessions should not
-  // appear as customer accounts on product pages.
+  // Get logged-in customer.
   const isLoggedIn = getCustomerUser();
 
-  // Calculate total cart items count with useMemo to ensure updates
+  // Calculate total cart quantity.
   const cartCount = useMemo(
     () => cartItems.reduce((acc, item) => acc + item.qty, 0),
-    [cartItems],
+    [cartItems]
   );
+
+  /* =========================================================
+     LOAD USER PROFILE
+     ========================================================= */
 
   useEffect(() => {
     const u = getCustomerUser();
@@ -101,7 +109,6 @@ function Header() {
 
     fetchUserProfile();
 
-    // Listen for profile picture updates
     const handleProfileUpdate = () => {
       fetchUserProfile();
     };
@@ -113,25 +120,62 @@ function Header() {
     };
   }, []);
 
+  /* =========================================================
+     NAVBAR SCROLL EFFECT
+     ========================================================= */
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  /* =========================================================
+     CLOSE MENUS WHEN CLICKING OUTSIDE
+     ========================================================= */
+
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target)
+      ) {
         setIsProfileOpen(false);
         setIsMobileMenuOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+    };
   }, []);
 
-
+  /* =========================================================
+     ACTIONS
+     ========================================================= */
 
   const handleLogout = () => {
     localStorage.clear();
     sessionStorage.clear();
+
     setIsProfileOpen(false);
     setIsMobileMenuOpen(false);
+
     window.location.href = "/";
   };
 
@@ -139,102 +183,180 @@ function Header() {
     navigate(isLoggedIn ? "/user-home" : "/");
   };
 
-  // const handleBack = () => {
-  //   if (window.history.length > 1) {
-  //     navigate(-1);
-  //   } else {
-  //     navigate(isLoggedIn ? "/user-home" : "/");
-  //   }
-  // };
-
   const goToLandingSection = (sectionId) => {
     if (location.pathname === "/") {
       const el = document.getElementById(sectionId);
-      if (el) el.scrollIntoView({ behavior: "smooth" });
+
+      if (el) {
+        el.scrollIntoView({
+          behavior: "smooth",
+        });
+      }
     } else {
-      navigate("/", { state: { scrollTo: sectionId } });
+      navigate("/", {
+        state: {
+          scrollTo: sectionId,
+        },
+      });
     }
   };
 
-  const isActive = (paths) => paths.includes(location.pathname);
+  const isActive = (paths) =>
+    paths.includes(location.pathname);
+
+  /* =========================================================
+     NAVBAR
+     ========================================================= */
 
   return (
-    <nav className="uh-nav">
-      <div className="uh-brand-row">
-        {/* <button className="uh-back-btn" type="button" onClick={handleBack}>
-          <FaArrowLeft />
-        </button> */}
+    <nav
+      className={`uh-nav ${
+        location.pathname === "/" ||
+        location.pathname === "/user-home"
+          ? "uh-nav-home"
+          : ""
+      } ${isScrolled ? "uh-nav-scrolled" : ""}`}
+    >
+      {/* =====================================================
+          LOGO
+          ===================================================== */}
 
-        <button className="uh-logo" type="button" onClick={handleLogoClick}>
+      <div className="uh-brand-row">
+        <button
+          className="uh-logo"
+          type="button"
+          onClick={handleLogoClick}
+        >
           <span className="uh-logo-mark">
-            <img src={pmgNavLogo} alt="PMG Printing House" />
+            <img
+              src={pmgNavLogo}
+              alt="PMG Printing House"
+            />
           </span>
         </button>
       </div>
 
-      <div className="uh-center-nav" aria-label="Main navigation">
+      {/* =====================================================
+          MAIN NAVIGATION
+          ===================================================== */}
+
+      <div
+        className="uh-center-nav"
+        aria-label="Main navigation"
+      >
         <button
-          className={`uh-nav-pill ${isActive(["/", "/user-home"]) ? "active" : ""}`}
+          className={`uh-nav-pill ${
+            isActive(["/", "/user-home"])
+              ? "active"
+              : ""
+          }`}
           type="button"
-          onClick={() => navigate(isLoggedIn ? "/user-home" : "/")}
+          onClick={() =>
+            navigate(
+              isLoggedIn ? "/user-home" : "/"
+            )
+          }
         >
-          <FaHome />
           <span>Home</span>
         </button>
+
         <button
-          className={`uh-nav-pill ${isActive(["/product-overview"]) ? "active" : ""}`}
+          className={`uh-nav-pill ${
+            isActive(["/product-overview"])
+              ? "active"
+              : ""
+          }`}
           type="button"
-          onClick={() => navigate("/product-overview")}
+          onClick={() =>
+            navigate("/product-overview")
+          }
         >
-          <FaCubes />
           <span>Products</span>
         </button>
+
         <button
-          className={`uh-nav-pill ${isActive(["/user-orders"]) ? "active" : ""}`}
+          className={`uh-nav-pill ${
+            isActive(["/user-orders"])
+              ? "active"
+              : ""
+          }`}
           type="button"
-          onClick={() => navigate("/user-orders")}
+          onClick={() =>
+            navigate("/user-orders")
+          }
         >
-          <FaBoxOpen />
           <span>Orders</span>
+        </button>
+
+        <button
+          className="uh-link uh-desktop-only"
+          type="button"
+          onClick={() =>
+            goToLandingSection("about")
+          }
+        >
+          About
+        </button>
+
+        <button
+          className="uh-link uh-desktop-only"
+          type="button"
+          onClick={() =>
+            goToLandingSection("contact")
+          }
+        >
+          Contact
         </button>
       </div>
 
+      {/* =====================================================
+          RIGHT SIDE
+          ===================================================== */}
+
       <div className="uh-actions">
+
+        {/* Cart */}
+
         <button
           className="uh-icon-btn uh-cart-btn"
           type="button"
           title="Cart"
-          onClick={() => navigate("/user-cart")}
+          onClick={() =>
+            navigate("/user-cart")
+          }
         >
           <FaShoppingCart />
-          {cartCount > 0 && <span className="uh-cart-badge">{cartCount}</span>}
+
+          {cartCount > 0 && (
+            <span className="uh-cart-badge">
+              {cartCount}
+            </span>
+          )}
         </button>
 
-        <button
-          className="uh-link uh-desktop-only"
-          type="button"
-          onClick={() => goToLandingSection("about")}
-        >
-          About
-        </button>
-        <button
-          className="uh-link uh-desktop-only"
-          type="button"
-          onClick={() => goToLandingSection("contact")}
-        >
-          Contact
-        </button>
+        {/* Mobile menu */}
 
         <button
           className="uh-icon-btn uh-mobile-only"
           type="button"
           aria-label="Menu"
-          onClick={() => setIsMobileMenuOpen((v) => !v)}
+          onClick={() =>
+            setIsMobileMenuOpen((v) => !v)
+          }
         >
-          {isMobileMenuOpen ? <FaTimes /> : <FaBars />}
+          {isMobileMenuOpen ? (
+            <FaTimes />
+          ) : (
+            <FaBars />
+          )}
         </button>
 
-        <div className="uh-profile-wrap" ref={dropdownRef}>
+        {/* Profile / Login */}
+
+        <div
+          className="uh-profile-wrap"
+          ref={dropdownRef}
+        >
           {isLoggedIn ? (
             <>
               <button
@@ -250,12 +372,6 @@ function Header() {
                   <img
                     src={user.avatarUrl}
                     alt="Profile"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                    }}
                   />
                 ) : (
                   <FaUserCircle />
@@ -264,31 +380,50 @@ function Header() {
 
               {isProfileOpen && (
                 <div className="uh-dropdown">
+
                   <div className="uh-dd-top">
                     <div className="uh-dd-avatar">
                       {user.avatarUrl ? (
-                        <img src={user.avatarUrl} alt="Profile" />
+                        <img
+                          src={user.avatarUrl}
+                          alt="Profile"
+                        />
                       ) : (
-                        <span>{user.name?.[0]?.toUpperCase() || "U"}</span>
+                        <span>
+                          {user.name?.[0]?.toUpperCase() ||
+                            "U"}
+                        </span>
                       )}
                     </div>
 
                     <div className="uh-dd-info">
-                      <div className="uh-dd-name">{user.name || "User"}</div>
-                      <div className="uh-dd-email">{user.email || ""}</div>
+                      <div className="uh-dd-name">
+                        {user.name || "User"}
+                      </div>
+
+                      <div className="uh-dd-email">
+                        {user.email || ""}
+                      </div>
                     </div>
                   </div>
 
                   <div className="uh-dd-menu">
+
                     <button
                       className="uh-dd-item"
                       type="button"
                       onClick={() => {
                         setIsProfileOpen(false);
-                        navigate("/user-password-security");
+                        navigate(
+                          "/user-password-security"
+                        );
                       }}
                     >
-                      <FaKey /> <span>Passwords and security</span>
+                      <FaKey />
+
+                      <span>
+                        Passwords and security
+                      </span>
                     </button>
 
                     <button
@@ -296,10 +431,16 @@ function Header() {
                       type="button"
                       onClick={() => {
                         setIsProfileOpen(false);
-                        navigate("/user-customize-profile");
+                        navigate(
+                          "/user-customize-profile"
+                        );
                       }}
                     >
-                      <FaEdit /> <span>Customize your profile</span>
+                      <FaEdit />
+
+                      <span>
+                        Customize your profile
+                      </span>
                     </button>
 
                     <button
@@ -310,7 +451,9 @@ function Header() {
                         navigate("/user-orders");
                       }}
                     >
-                      <FaBoxOpen /> <span>Orders</span>
+                      <FaBoxOpen />
+
+                      <span>Orders</span>
                     </button>
 
                     <button
@@ -321,8 +464,11 @@ function Header() {
                         navigate("/user-payments");
                       }}
                     >
-                      <FaFileInvoiceDollar />{" "}
-                      <span>Payment logs & invoices</span>
+                      <FaFileInvoiceDollar />
+
+                      <span>
+                        Payment logs & invoices
+                      </span>
                     </button>
 
                     <button
@@ -333,8 +479,11 @@ function Header() {
                         navigate("/user-inquiries");
                       }}
                     >
-                      <FaFileInvoiceDollar /> <span>My Inquiries</span>
+                      <FaFileInvoiceDollar />
+
+                      <span>My Inquiries</span>
                     </button>
+
                   </div>
 
                   <div className="uh-dd-divider" />
@@ -348,9 +497,9 @@ function Header() {
                       Logout
                     </button>
                   </div>
+
                 </div>
               )}
-
             </>
           ) : (
             <button
@@ -368,18 +517,24 @@ function Header() {
             </button>
           )}
 
+          {/* Mobile dropdown */}
+
           {isMobileMenuOpen && (
             <div className="uh-mobile-menu">
+
               <button
                 className="uh-mobile-item"
                 type="button"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  navigate(isLoggedIn ? "/user-home" : "/");
+                  navigate(
+                    isLoggedIn ? "/user-home" : "/"
+                  );
                 }}
               >
                 Home
               </button>
+
               <button
                 className="uh-mobile-item"
                 type="button"
@@ -390,6 +545,7 @@ function Header() {
               >
                 Products
               </button>
+
               <button
                 className="uh-mobile-item"
                 type="button"
@@ -400,6 +556,7 @@ function Header() {
               >
                 Orders
               </button>
+
               <button
                 className="uh-mobile-item"
                 type="button"
@@ -410,6 +567,7 @@ function Header() {
               >
                 About
               </button>
+
               <button
                 className="uh-mobile-item"
                 type="button"
@@ -420,9 +578,11 @@ function Header() {
               >
                 Contact
               </button>
+
             </div>
           )}
         </div>
+
       </div>
     </nav>
   );
