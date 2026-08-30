@@ -42,7 +42,6 @@ import {
   FaTrashAlt,
   FaInfoCircle,
   FaTachometerAlt,
-  FaEnvelope,
   FaBoxOpen,
   FaUsers,
   FaUser,
@@ -166,6 +165,7 @@ function AdminDashboard() {
   const activeItem = useMemo(() => {
     if (!tab) return "dashboard";
     if (tab === "manageaccount") return "customers";
+    if (tab === "inquiries") return "quotations";
     return tab;
   }, [tab]);
 
@@ -631,7 +631,6 @@ function AdminDashboard() {
       {
         label: "COMMUNICATION",
         items: [
-          { id: "inquiries", label: "Inquiries", icon: <FaEnvelope /> },
           { id: "supportInbox", label: "Support Inbox", icon: <FaHeadset /> },
         ],
       },
@@ -2689,7 +2688,6 @@ function AdminDashboard() {
 
           {activeItem === "calendar" && <AdminProductionCalendar />}
           {activeItem === "activity" && <AdminActivityLog />}
-          {activeItem === "inquiries" && <AdminInquiries />}
 
           {activeItem === "products" && (
             <AdminProducts
