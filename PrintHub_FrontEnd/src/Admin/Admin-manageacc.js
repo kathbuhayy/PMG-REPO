@@ -589,6 +589,8 @@ const permanentlyDeleteUser = async (u) => {
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
+            name="manageacc-search"
           />
         </div>
 
@@ -609,7 +611,7 @@ const permanentlyDeleteUser = async (u) => {
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
             >
-              <option value="all">All (Admin + Staff)</option>
+              <option value="all">All</option>
               <option value="admin">Admin</option>
               <option value="staff">Staff</option>
             </select>
@@ -973,6 +975,8 @@ const permanentlyDeleteUser = async (u) => {
                   placeholder="Search archived accounts..."
                   value={archivedSearch}
                   onChange={(e) => setArchivedSearch(e.target.value)}
+                  autoComplete="off"
+                  name="manageacc-archived-search"
                 />
               </div>
 

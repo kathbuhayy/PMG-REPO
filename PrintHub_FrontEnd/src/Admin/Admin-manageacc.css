@@ -182,8 +182,24 @@
   font-family: inherit;
 }
 
+.manageacc-search input:focus,
+.manageacc-search input:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
 .manageacc-search input::placeholder {
   color: #94a3b8;
+}
+
+.manageacc-search input:-webkit-autofill,
+.manageacc-search input:-webkit-autofill:hover,
+.manageacc-search input:-webkit-autofill:focus,
+.manageacc-search input:-webkit-autofill:active {
+  -webkit-text-fill-color: #0f172a;
+  transition: background-color 5000s ease-in-out 0s;
+  box-shadow: inset 0 0 0 1000px #ffffff;
 }
 
 .manageacc-search-icon {
