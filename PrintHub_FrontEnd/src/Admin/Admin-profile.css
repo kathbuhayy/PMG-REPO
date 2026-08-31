@@ -23,7 +23,7 @@
   align-items: center;
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-bottom: 1px solid rgba(6, 78, 59, 0.08);
   gap: 20px;
 }
 
@@ -37,7 +37,7 @@
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-  color: #2563eb;
+  color: #059669;
   letter-spacing: 1px;
 }
 
@@ -65,12 +65,12 @@
 /* Settings Card */
 .settings-card {
   background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(6, 78, 59, 0.06);
   border-radius: 16px;
   padding: 32px;
   backdrop-filter: blur(16px);
   margin-bottom: 24px;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.02);
+  box-shadow: 0 4px 20px rgba(6, 78, 59, 0.02);
 }
 
 /* Form Grid */
@@ -107,7 +107,7 @@
 
 .field input:focus,
 .field select:focus {
-  border-color: #2563eb;
+  border-color: #059669;
 }
 
 .field input:disabled,
@@ -136,8 +136,8 @@
 /* Actions */
 .primary-action {
   padding: 10px 20px;
-  background: #2563eb;
-  color: #ffffff;
+  background: #a3e635;
+  color: #0f172a;
   border: none;
   border-radius: 8px;
   font-size: 14px;
@@ -153,7 +153,7 @@
 }
 
 .primary-action:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #84cc16;
   transform: translateY(-1px);
 }
 
@@ -181,8 +181,8 @@
 }
 
 .secondary-action:hover:not(:disabled) {
-  background: #f1f5f9;
-  border-color: #2563eb;
+  background: #ecfdf5;
+  border-color: #059669;
   color: #0f172a;
   transform: translateY(-1px);
 }
@@ -199,7 +199,7 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 24px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid rgba(6, 78, 59, 0.06);
   padding-bottom: 24px;
 }
 
@@ -207,14 +207,14 @@
   width: 96px;
   height: 96px;
   border-radius: 50%;
-  background: rgba(37, 99, 235, 0.08);
+  background: rgba(6, 95, 70, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 24px;
-  color: #2563eb;
-  border: 2px solid rgba(37, 99, 235, 0.15);
+  color: #065f46;
+  border: 2px solid rgba(6, 95, 70, 0.15);
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -222,7 +222,7 @@
 }
 
 .profile-avatar[role="button"]:hover {
-  border-color: #2563eb;
+  border-color: #065f46;
   transform: scale(1.02);
 }
 
@@ -245,7 +245,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #2563eb;
+  background: #065f46;
   color: #ffffff;
   border: 2px solid #ffffff;
   display: flex;
@@ -257,7 +257,7 @@
 }
 
 .profile-avatar-edit-btn:hover {
-  background: #1d4ed8;
+  background: #047857;
 }
 
 .profile-msg {
@@ -273,7 +273,7 @@
 .cp-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.4);
+  background: rgba(6, 78, 59, 0.4);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -286,10 +286,10 @@
   width: 100%;
   max-width: 480px;
   background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(6, 78, 59, 0.08);
   border-radius: 16px;
   padding: 32px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.10);
+  box-shadow: 0 20px 40px rgba(6, 78, 59, 0.10);
 }
 
 .cp-title {
@@ -343,7 +343,7 @@
 }
 
 .cp-input-wrapper input:focus {
-  border-color: #2563eb;
+  border-color: #059669;
 }
 
 .cp-eye-btn {
@@ -367,7 +367,7 @@
 
 .cp-criteria {
   background: #f8fafc;
-  border: 1px solid rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(6, 78, 59, 0.04);
   border-radius: 8px;
   padding: 12px;
   margin-top: 6px;
@@ -412,8 +412,8 @@
 .cp-save {
   flex: 1;
   padding: 10px 20px;
-  background: #2563eb;
-  color: #ffffff;
+  background: #a3e635;
+  color: #0f172a;
   border: none;
   border-radius: 8px;
   font-size: 14px;
@@ -425,7 +425,7 @@
 }
 
 .cp-save:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: #84cc16;
 }
 
 .cp-save:disabled {
