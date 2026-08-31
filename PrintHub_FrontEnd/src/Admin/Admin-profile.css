@@ -107,7 +107,8 @@
 
 .field input:focus,
 .field select:focus {
-  border-color: #059669;
+  border-color: #a3e635;
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.25);
 }
 
 .field input:disabled,
@@ -137,11 +138,11 @@
 .primary-action {
   padding: 10px 20px;
   background: #a3e635;
-  color: #0f172a;
+  color: #020617;
   border: none;
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 44px;
@@ -150,6 +151,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .primary-action:hover:not(:disabled) {
@@ -165,11 +167,11 @@
 .secondary-action {
   padding: 10px 20px;
   background: #ffffff;
-  color: #475569;
-  border: 1px solid #cbd5e1;
+  color: #334155;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 44px;
@@ -181,9 +183,7 @@
 }
 
 .secondary-action:hover:not(:disabled) {
-  background: #ecfdf5;
-  border-color: #059669;
-  color: #0f172a;
+  background: #f8fafc;
   transform: translateY(-1px);
 }
 
@@ -343,7 +343,8 @@
 }
 
 .cp-input-wrapper input:focus {
-  border-color: #059669;
+  border-color: #a3e635;
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.25);
 }
 
 .cp-eye-btn {
@@ -394,11 +395,11 @@
   flex: 1;
   padding: 10px 20px;
   background: #ffffff;
-  color: #475569;
-  border: 1px solid #cbd5e1;
+  color: #334155;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 44px;
@@ -406,22 +407,23 @@
 }
 
 .cp-cancel:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
 }
 
 .cp-save {
   flex: 1;
   padding: 10px 20px;
   background: #a3e635;
-  color: #0f172a;
+  color: #020617;
   border: none;
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
   min-height: 44px;
   font-family: inherit;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 
 .cp-save:hover:not(:disabled) {
