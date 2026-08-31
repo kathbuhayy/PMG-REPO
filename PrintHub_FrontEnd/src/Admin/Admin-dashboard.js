@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import "./Admin-dashboard.css";
+import pmgNavLogo from "../assets/brand/pmg-logo-nav.png";
 import AdminProductionCalendar from "./AdminProductionCalendar";
 import AdminProfile from "./AdminProfile";
 import EditAdminProfile from "./EditAdminProfile";
@@ -2131,13 +2132,9 @@ function AdminDashboard() {
         <div className="sidebar-header">
           {!isCollapsed && (
             <div className="brand-block">
-              <span className="brand-mark">PM</span>
-              <div className="brand-text">
-                <h2 className="sidebar-title">
-                  PM<span className="brand-accent">G</span>
-                </h2>
-                <span className="brand-sub">PRINTING HOUSE</span>
-              </div>
+              <span className="uh-logo-mark">
+                <img src={pmgNavLogo} alt="PMG Printing House" />
+              </span>
             </div>
           )}
           <button
