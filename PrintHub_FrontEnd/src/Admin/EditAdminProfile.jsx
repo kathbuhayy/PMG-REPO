@@ -24,6 +24,10 @@ const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 // 09XXXXXXXXX or +639XXXXXXXXX
 const phRegex = /^(09\d{9}|\+639\d{9})$/;
 
+const MIN_BIRTHDAY = "1950-01-01";
+// Always today's actual date, so the upper bound advances on its own each year.
+const getTodayStr = () => new Date().toISOString().slice(0, 10);
+
 const isAtLeast18 = (dateStr) => {
   if (!dateStr) return false;
   const dob = new Date(dateStr);
@@ -180,6 +184,32 @@ function EditAdminProfile() {
     setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
   };
 
+  // Some browsers let the year segment of a native date input grow past 4
+  // digits while typing, even with min/max set. Cap it defensively here, and
+  // clamp the whole date to the 1950 – today range.
+  const handleBirthdayChange = (e) => {
+    let value = e.target.value;
+    const [year, month, day] = value.split("-");
+
+    if (year && year.length > 4) {
+      value = [year.slice(0, 4), month, day].filter(Boolean).join("-");
+    }
+
+    if (value) {
+      if (value < MIN_BIRTHDAY) {
+        value = MIN_BIRTHDAY;
+      } else {
+        const todayStr = getTodayStr();
+        if (value > todayStr) {
+          value = todayStr;
+        }
+      }
+    }
+
+    setAdmin((prev) => ({ ...prev, birthday: value }));
+    setErrors((prev) => ({ ...prev, birthday: "" }));
+  };
+
   const handlePhoneChange = (e) => {
     let value = e.target.value;
 
@@ -255,6 +285,8 @@ function EditAdminProfile() {
 
     if (!admin.birthday) {
       newErrors.birthday = "Birthday is required.";
+    } else if (admin.birthday < MIN_BIRTHDAY || admin.birthday > getTodayStr()) {
+      newErrors.birthday = `Birthday must be between ${MIN_BIRTHDAY} and today.`;
     } else if (!isAtLeast18(admin.birthday)) {
       newErrors.birthday = "You must be at least 18 years old.";
     }
@@ -679,18 +711,15 @@ function EditAdminProfile() {
   const hasConfirmError = isConfirmTooShort || isMismatch;
 
   return (
-    <div className="page-shell">
-      <div className="section-hero">
-        <div className="section-hero-left">
-          <h2 className="section-title">Edit Admin Profile</h2>
-          <p className="section-desc">
-            Update your personal information and account settings.
-          </p>
-        </div>
+    <>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Edit Admin Profile</h1>
+        <p className="admin-page-header-desc">
+          Update your personal information and account settings.
+        </p>
       </div>
 
-      <div className="settings-card">
-        <div className="profile-body">
+      <div className="profile-body">
           <div className="profile-avatar-col">
             <div className="profile-avatar-wrapper">
               <div
@@ -727,14 +756,16 @@ function EditAdminProfile() {
               </button>
             </div>
 
-            {adminAvatarUploading && (
-              <div className="profile-msg">Uploading avatar...</div>
-            )}
-            {adminAvatarError && (
-              <div className="profile-msg profile-msg-error">
-                {adminAvatarError}
-              </div>
-            )}
+            <div className="profile-avatar-status">
+              {adminAvatarUploading && (
+                <span className="profile-avatar-msg">Uploading avatar...</span>
+              )}
+              {adminAvatarError && (
+                <span className="profile-avatar-msg profile-avatar-msg-error">
+                  {adminAvatarError}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="form-grid">
@@ -821,7 +852,9 @@ function EditAdminProfile() {
               type="date"
               name="birthday"
               value={admin.birthday}
-              onChange={handleChange}
+              onChange={handleBirthdayChange}
+              min={MIN_BIRTHDAY}
+              max={getTodayStr()}
               data-no-realtime-validation="true"
             />
             {errors.birthday && (
@@ -829,30 +862,29 @@ function EditAdminProfile() {
             )}
           </div>
           </div>
-        </div>
-      </div>
+          </div>
 
-      <div className="profile-card-actions">
-        <button
-          className="secondary-action"
-          onClick={handleChangePasswordClick}
-          disabled={otpSending || cooldownTime > 0}
-        >
-          {otpSending
-            ? "Sending code..."
-            : cooldownTime > 0
-              ? `Try again in ${cooldownTime}s`
-              : "Change Password"}
-        </button>
+          <div className="profile-card-actions">
+            <button
+              className="secondary-action"
+              onClick={handleChangePasswordClick}
+              disabled={otpSending || cooldownTime > 0}
+            >
+              {otpSending
+                ? "Sending code..."
+                : cooldownTime > 0
+                  ? `Try again in ${cooldownTime}s`
+                  : "Change Password"}
+            </button>
 
-        <button className="secondary-action" onClick={handleCancel}>
-          Cancel
-        </button>
+            <button className="secondary-action" onClick={handleCancel}>
+              Cancel
+            </button>
 
-        <button className="primary-action" onClick={handleSaveChanges}>
-          Save Changes
-        </button>
-      </div>
+            <button className="primary-action" onClick={handleSaveChanges}>
+              Save Changes
+            </button>
+          </div>
 
       {showOtpModal && (
         <div className="cp-modal-overlay">
@@ -1050,7 +1082,7 @@ function EditAdminProfile() {
         message={alertMessage}
         onClose={() => setAlertOpen(false)}
       />
-    </div>
+    </>
   );
 }
 

@@ -68,58 +68,55 @@ function AdminProfile() {
   }, []);
 
   return (
-    <div className="page-shell">
-      <div className="section-hero">
-        <div className="section-hero-left">
-          <h2 className="section-title">Admin Profile</h2>
-          <p className="section-desc">
-            Manage your personal information and account settings.
-          </p>
-        </div>
+    <>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Admin Profile</h1>
+        <p className="admin-page-header-desc">
+          Manage your personal information and account settings.
+        </p>
       </div>
 
-      <div className="settings-card">
-        <div className="profile-body">
-          <div className="profile-avatar-col">
-            <div className="profile-avatar" aria-label="Profile photo">
-              {admin.avatar_url ? (
-                <img src={admin.avatar_url} alt="avatar" />
-              ) : (
-                "AD"
-              )}
-            </div>
+      <div className="profile-body">
+        <div className="profile-avatar-col">
+          <div className="profile-avatar" aria-label="Profile photo">
+            {admin.avatar_url ? (
+              <img src={admin.avatar_url} alt="avatar" />
+            ) : (
+              "AD"
+            )}
+          </div>
+          <div className="profile-avatar-status" />
+        </div>
+
+        <div className="form-grid">
+          <div className="field">
+            <label>First Name</label>
+            <input type="text" value={admin.firstName} disabled />
           </div>
 
-          <div className="form-grid">
-            <div className="field">
-              <label>First Name</label>
-              <input type="text" value={admin.firstName} disabled />
-            </div>
+          <div className="field">
+            <label>Last Name</label>
+            <input type="text" value={admin.lastName} disabled />
+          </div>
 
-            <div className="field">
-              <label>Last Name</label>
-              <input type="text" value={admin.lastName} disabled />
-            </div>
+          <div className="field">
+            <label>Email</label>
+            <input type="email" value={admin.email} disabled />
+          </div>
 
-            <div className="field">
-              <label>Email</label>
-              <input type="email" value={admin.email} disabled />
-            </div>
+          <div className="field">
+            <label>Phone Number</label>
+            <input type="text" value={admin.phone} disabled />
+          </div>
 
-            <div className="field">
-              <label>Phone Number</label>
-              <input type="text" value={admin.phone} disabled />
-            </div>
+          <div className="field">
+            <label>Gender</label>
+            <input type="text" value={admin.gender} disabled />
+          </div>
 
-            <div className="field">
-              <label>Gender</label>
-              <input type="text" value={admin.gender} disabled />
-            </div>
-
-            <div className="field">
-              <label>Birthday</label>
-              <input type="date" value={admin.birthday} disabled />
-            </div>
+          <div className="field">
+            <label>Birthday</label>
+            <input type="date" value={admin.birthday} disabled />
           </div>
         </div>
       </div>
@@ -138,7 +135,7 @@ function AdminProfile() {
         message={alertMessage}
         onClose={() => setAlertOpen(false)}
       />
-    </div>
+    </>
   );
 }
 

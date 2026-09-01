@@ -22,8 +22,12 @@ const NEXT_STATUS = {
  * Props:
  *   stage {string} — ProductionStatus id this page shows
  *   title {string} — page heading
+ *   description {string} — optional subtitle, shown only with useCardHeader
+ *   useCardHeader {boolean} — render the title/description as the
+ *     integrated top division of the single page card (matching the
+ *     standardized admin page header) instead of the legacy in-table title
  */
-function StageQueuePage({ stage, title }) {
+function StageQueuePage({ stage, title, description, useCardHeader = false }) {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -132,6 +136,18 @@ function StageQueuePage({ stage, title }) {
 
   return (
     <div>
+      {useCardHeader && (
+        <div className="admin-page-header admin-page-header-with-badge">
+          <div>
+            <h1 className="admin-page-header-title">{title}</h1>
+            {description && (
+              <p className="admin-page-header-desc">{description}</p>
+            )}
+          </div>
+          <span className="menu-badge">{filteredQueue.length}</span>
+        </div>
+      )}
+
       {toast && (
         <div className="app-toast-container success">
           <span>{toast}</span>
@@ -139,10 +155,12 @@ function StageQueuePage({ stage, title }) {
       )}
 
       <div className="data-table-card" style={{ marginTop: 0 }}>
-        <div className="data-table-head">
-          <h3>{title}</h3>
-          <span className="menu-badge">{filteredQueue.length}</span>
-        </div>
+        {!useCardHeader && (
+          <div className="data-table-head">
+            <h3>{title}</h3>
+            <span className="menu-badge">{filteredQueue.length}</span>
+          </div>
+        )}
 
         <div style={{ padding: "0 20px 16px" }}>
           <div

@@ -12,7 +12,15 @@ function AdminSupportInbox({ chat }) {
   };
 
   return (
-    <div style={{ display: "flex", gap: "16px", height: "calc(100vh - 220px)" }}>
+    <div>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Support Inbox</h1>
+        <p className="admin-page-header-desc">
+          Live chat conversations with customers.
+        </p>
+      </div>
+
+      <div style={{ display: "flex", gap: "16px", height: "calc(100vh - 320px)" }}>
       <div className="data-table-card" style={{ marginTop: 0, width: "320px", flexShrink: 0, display: "flex", flexDirection: "column" }}>
         <div className="data-table-head">
           <h3><FaHeadset style={{ marginRight: "6px" }} />Conversations</h3>
@@ -112,6 +120,7 @@ function AdminSupportInbox({ chat }) {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   );

@@ -7,23 +7,6 @@
   box-sizing: border-box;
 }
 
-.page-shell {
-  max-height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 24px 24px;
-  margin: -32px;
-  font-family: "Outfit", sans-serif;
-  color: #0f172a;
-}
-
-@media (max-width: 992px) {
-  .page-shell {
-    margin: -24px;
-  }
-}
-
 /* Lock the outer main-content panel to the viewport on the profile routes
    so the app's scrollable ancestor never has anything to scroll. */
 .dashboard-content.dashboard-content-locked {
@@ -37,55 +20,6 @@
   .dashboard-content.dashboard-content-locked {
     margin-left: 0;
   }
-}
-
-/* Section Hero */
-.section-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(6, 78, 59, 0.08);
-  gap: 20px;
-}
-
-.section-hero-left {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.section-title {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.5px;
-}
-
-.section-desc {
-  margin: 0;
-  font-size: 14px;
-  color: #64748b;
-}
-
-.section-hero-right {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-/* Settings Card */
-.settings-card {
-  background: #ffffff;
-  border: 1px solid rgba(6, 78, 59, 0.06);
-  border-radius: 16px;
-  padding: 20px;
-  backdrop-filter: blur(16px);
-  margin-bottom: 12px;
-  box-shadow: 0 4px 20px rgba(6, 78, 59, 0.02);
 }
 
 /* Avatar + form side-by-side */
@@ -105,11 +39,31 @@
 }
 
 .profile-avatar-col {
-  flex: 0 0 auto;
+  flex-shrink: 0;
+  width: 128px;
+  min-width: 128px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
+}
+
+.profile-avatar-status {
+  min-height: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: center;
+}
+
+.profile-avatar-msg {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.profile-avatar-msg-error {
+  color: #ef4444;
 }
 
 /* Form Grid */

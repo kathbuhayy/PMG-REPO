@@ -506,6 +506,17 @@ const permanentlyDeleteUser = async (u) => {
     setSelectedUser(null);
   };
 
+  const pageTitle =
+    scope === "customers"
+      ? "Customers"
+      : scope === "staff"
+        ? "Admin & Staff"
+        : "Manage Accounts";
+  const pageSubtitle =
+    scope === "customers"
+      ? "View and manage customer accounts."
+      : "Control user access and permissions.";
+
   return (
     <div className="manageacc">
       {toast.message && (
@@ -514,14 +525,13 @@ const permanentlyDeleteUser = async (u) => {
           <span>{toast.message}</span>
         </div>
       )}
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">{pageTitle}</h1>
+        <p className="admin-page-header-desc">{pageSubtitle}</p>
+      </div>
+
       {/* top row */}
       <div className="manageacc-top">
-        <div>
-          <p className="manageacc-subtitle">
-            Control user access and permissions
-          </p>
-        </div>
-
         <div className="manageacc-top-actions">
           <button
             className="manageacc-recyclebin-btn"

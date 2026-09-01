@@ -1205,14 +1205,15 @@ function AdminProducts({
         />
       )}
 
-      {/* ✅ Top row - Header with Title and Add Button */}
-      <div className="dashpage-top">
-        <div>
-          <p className="dashpage-subtitle">
-            Manage your product catalog and inventory
-          </p>
-        </div>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Products</h1>
+        <p className="admin-page-header-desc">
+          Manage your product catalog and inventory.
+        </p>
+      </div>
 
+      {/* ✅ Top row - Add Button */}
+      <div className="dashpage-top" style={{ justifyContent: "flex-end" }}>
         {onAddProduct && (
           <button
             className="dashpage-add-btn"

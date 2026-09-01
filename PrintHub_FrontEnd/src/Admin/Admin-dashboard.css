@@ -322,6 +322,20 @@
   flex-wrap: wrap;
 }
 
+/* On every non-Dashboard page the header renders with no visible content
+   (title + actions both hidden) except the mobile hamburger button — drop
+   its margin so .content-wrapper starts at the same position on every
+   route, rather than leaving a blank 32px gap above an empty bar. */
+.dashboard-header.dashboard-header-empty {
+  margin-bottom: 0;
+}
+
+@media (max-width: 992px) {
+  .dashboard-header.dashboard-header-empty {
+    margin-bottom: 16px;
+  }
+}
+
 .page-title {
   margin: 0;
   font-size: 28px;
@@ -446,6 +460,43 @@
   border: 1px solid rgba(6, 78, 59, 0.06);
   padding: 32px;
   box-shadow: 0 8px 30px rgba(6, 78, 59, 0.03);
+}
+
+/* Standardized in-card page header (title + subtitle + divider), used by
+   every non-Dashboard admin page so their own top header sits flush with
+   .content-wrapper's edges, matching the Admin Profile card pattern. */
+.admin-page-header {
+  margin: -32px -32px 24px;
+  padding: 28px 32px 24px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-page-header-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.4px;
+}
+
+.admin-page-header-desc {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.admin-page-header-with-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .admin-page-header {
+    margin: -16px -16px 20px;
+    padding: 20px 16px 16px;
+  }
 }
 
 .content-grid {
