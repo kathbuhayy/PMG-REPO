@@ -760,9 +760,9 @@ function UserRegistrationPage() {
                   }
                 >
                   {showPassword ? (
-                    <MdVisibilityOff size={21} />
-                  ) : (
                     <MdVisibility size={21} />
+                  ) : (
+                    <MdVisibilityOff size={21} />
                   )}
                 </button>
               </div>
@@ -856,9 +856,9 @@ function UserRegistrationPage() {
                   }
                 >
                   {showConfirmPassword ? (
-                    <MdVisibilityOff size={21} />
-                  ) : (
                     <MdVisibility size={21} />
+                  ) : (
+                    <MdVisibilityOff size={21} />
                   )}
                 </button>
               </div>

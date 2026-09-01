@@ -66,6 +66,7 @@ import {
   FaTruck,
   FaTools,
 } from "react-icons/fa";
+import { LuPanelLeftClose, LuPanelLeftOpen } from "react-icons/lu";
 
 const MOCK_DASHBOARD = {
   deliveriesPickup: 5,
@@ -691,6 +692,7 @@ function AdminDashboard() {
   }, [menuGroups]);
 
   const pageTitle = pageTitleMap[activeItem] || "Dashboard";
+  const hideTopHeader = activeItem === "profile" || activeItem === "activity";
 
   const handleMenuItemClick = (item) => {
     if (role === "staff" && item.id === "customers") return;
@@ -2142,8 +2144,9 @@ function AdminDashboard() {
             className="collapse-btn"
             onClick={() => setIsCollapsed(!isCollapsed)}
             aria-label="Toggle sidebar"
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {isCollapsed ? "→" : "←"}
+            {isCollapsed ? <LuPanelLeftOpen /> : <LuPanelLeftClose />}
           </button>
         </div>
 
@@ -2222,7 +2225,10 @@ function AdminDashboard() {
         </div>
       </div>
 
-      <main className="dashboard-content">
+      <main
+        className={`dashboard-content${activeItem === "profile" ? " dashboard-content-locked" : ""
+          }`}
+      >
         <header className="dashboard-header">
           <div className="header-left">
             {/* ✅ Mobile hamburger + title row */}
@@ -2236,39 +2242,43 @@ function AdminDashboard() {
                 ☰
               </button>
 
-              <div className="page-title-wrap">
-                <h1 className="page-title">{pageTitle}</h1>
-                {activeItem === "dashboard" && (
-                  <p className="subtitle">
-                    Overview of your printing business operations.
-                  </p>
-                )}
-              </div>
+              {!hideTopHeader && (
+                <div className="page-title-wrap">
+                  <h1 className="page-title">{pageTitle}</h1>
+                  {activeItem === "dashboard" && (
+                    <p className="subtitle">
+                      Overview of your printing business operations.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="header-actions">
-            <button type="button" className="header-icon-btn" aria-label="Search">
-              <FaSearch />
-            </button>
+          {!hideTopHeader && (
+            <div className="header-actions">
+              <button type="button" className="header-icon-btn" aria-label="Search">
+                <FaSearch />
+              </button>
 
-            <NotificationBell />
+              <NotificationBell />
 
-            <button type="button" className="header-daterange">
-              <FaCalendarAlt />
-              <span>Aug 1 – Aug 15, 2026</span>
-              <FaChevronDown style={{ fontSize: "10px" }} />
-            </button>
-            <button
-              type="button"
-              className="header-refresh-btn"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
-              <FaSyncAlt className={isRefreshing ? "spinning" : ""} />
-              Refresh
-            </button>
-          </div>
+              <button type="button" className="header-daterange">
+                <FaCalendarAlt />
+                <span>Aug 1 – Aug 15, 2026</span>
+                <FaChevronDown style={{ fontSize: "10px" }} />
+              </button>
+              <button
+                type="button"
+                className="header-refresh-btn"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                <FaSyncAlt className={isRefreshing ? "spinning" : ""} />
+                Refresh
+              </button>
+            </div>
+          )}
         </header>
 
         <div className="content-wrapper">

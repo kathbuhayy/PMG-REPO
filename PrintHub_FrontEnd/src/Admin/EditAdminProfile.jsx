@@ -2,7 +2,12 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Admin-profile.css";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
-import { FaPen } from "react-icons/fa";
+import {
+  FaPen,
+  FaCheckCircle,
+  FaTimes,
+  FaExclamationTriangle,
+} from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import AlertModal from "../components/AlertModal";
 import { adminFetch } from "../utils/adminFetch";
@@ -70,7 +75,7 @@ function EditAdminProfile() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [changePassError, setChangePassError] = useState("");
-  const [changePassSuccess, setChangePassSuccess] = useState("");
+  const [showToast, setShowToast] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpError, setOtpError] = useState("");
@@ -79,6 +84,48 @@ function EditAdminProfile() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+
+  // Rate-limit "Change Password" / OTP requests to 3 attempts, then a 60s cooldown.
+  // The cooldown's expiration timestamp lives in sessionStorage so it survives
+  // navigating away from and back to this page.
+  const [otpClickCount, setOtpClickCount] = useState(0);
+  const [cooldownTime, setCooldownTime] = useState(0);
+  const [showRateLimitToast, setShowRateLimitToast] = useState(false);
+
+  useEffect(() => {
+    if (showRateLimitToast) {
+      const timer = setTimeout(() => {
+        setShowRateLimitToast(false);
+      }, 10000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showRateLimitToast]);
+
+  // Restore an in-progress cooldown on mount, and keep it ticking down
+  // against the stored wall-clock expiry rather than a fresh in-memory timer.
+  useEffect(() => {
+    const checkCooldown = () => {
+      const savedEndTime = sessionStorage.getItem("otpCooldownEnd");
+      if (!savedEndTime) return;
+
+      const remaining = Math.ceil(
+        (parseInt(savedEndTime, 10) - Date.now()) / 1000,
+      );
+
+      if (remaining > 0) {
+        setCooldownTime(remaining);
+      } else {
+        sessionStorage.removeItem("otpCooldownEnd");
+        setCooldownTime(0);
+        setOtpClickCount(0);
+      }
+    };
+
+    checkCooldown();
+    const interval = setInterval(checkCooldown, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [cpCriteria, setCpCriteria] = useState({
     uppercase: false,
@@ -131,6 +178,48 @@ function EditAdminProfile() {
   const handleChange = (e) => {
     setAdmin({ ...admin, [e.target.name]: e.target.value });
     setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
+  };
+
+  const handlePhoneChange = (e) => {
+    let value = e.target.value;
+
+    // Allow a leading '+' for international format (+63), strip all other non-digit characters
+    if (value.startsWith("+")) {
+      value = "+" + value.slice(1).replace(/\D/g, "");
+    } else {
+      value = value.replace(/\D/g, "");
+    }
+
+    setAdmin((prev) => ({ ...prev, phone: value }));
+    setErrors((prev) => ({ ...prev, phone: "" }));
+  };
+
+  const handlePhoneKeyDown = (e) => {
+    // Allow backspace, delete, tab, arrows, home/end, etc.
+    const allowedKeys = [
+      "Backspace",
+      "Delete",
+      "Tab",
+      "ArrowLeft",
+      "ArrowRight",
+      "Home",
+      "End",
+    ];
+    if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey) return;
+
+    // Allow '+' only as the very first character
+    if (
+      e.key === "+" &&
+      e.currentTarget.selectionStart === 0 &&
+      !e.currentTarget.value.includes("+")
+    ) {
+      return;
+    }
+
+    // Block anything that isn't a digit
+    if (!/^\d$/.test(e.key)) {
+      e.preventDefault();
+    }
   };
 
   const validate = () => {
@@ -310,6 +399,27 @@ function EditAdminProfile() {
     }
   };
 
+  // Rate-limited entry point for the "Change Password" button
+  const handleChangePasswordClick = () => {
+    if (cooldownTime > 0) {
+      setShowRateLimitToast(true);
+      return;
+    }
+
+    const nextCount = otpClickCount + 1;
+    setOtpClickCount(nextCount);
+
+    if (nextCount >= 3) {
+      const expireTime = Date.now() + 60000;
+      sessionStorage.setItem("otpCooldownEnd", expireTime.toString());
+      setCooldownTime(60);
+      setShowRateLimitToast(true);
+      return;
+    }
+
+    requestPasswordOtp();
+  };
+
   // Step 2: verify OTP, then open the actual Change Password modal
   const verifyPasswordOtp = async (e) => {
     e.preventDefault();
@@ -367,7 +477,6 @@ function EditAdminProfile() {
     setNewPassword("");
     setConfirmNewPassword("");
     setChangePassError("");
-    setChangePassSuccess("");
 
     setShowCurrentPassword(false);
     setShowNewPassword(false);
@@ -382,15 +491,25 @@ function EditAdminProfile() {
 
   const closeChangePassword = () => {
     setShowChangePassword(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
     setChangePassError("");
-    setChangePassSuccess("");
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmNewPassword(false);
+    setCpCriteria({
+      uppercase: false,
+      number: false,
+      special: false,
+      length: false,
+    });
   };
 
   // Submit change password
   const handleChangePassword = async (e) => {
     e.preventDefault();
     setChangePassError("");
-    setChangePassSuccess("");
 
     if (!currentPassword || !newPassword || !confirmNewPassword) {
       setChangePassError("All fields are required.");
@@ -402,7 +521,7 @@ function EditAdminProfile() {
       return;
     }
 
-    if (newPassword !== confirmNewPassword) {
+    if (newPassword.trim() !== confirmNewPassword.trim()) {
       setChangePassError("New password and confirm password do not match.");
       return;
     }
@@ -448,17 +567,9 @@ function EditAdminProfile() {
       if (!res.ok)
         throw new Error(data?.message || "Failed to change password");
 
-      setChangePassSuccess("Password changed successfully!");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmNewPassword("");
-
-      setCpCriteria({
-        uppercase: false,
-        number: false,
-        special: false,
-        length: false,
-      });
+      closeChangePassword();
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 5000);
     } catch (err) {
       setChangePassError(err.message || "Error changing password");
     }
@@ -560,83 +671,73 @@ function EditAdminProfile() {
     }
   };
 
+  const isConfirmTooShort =
+    confirmNewPassword.length > 0 && confirmNewPassword.length < 6;
+  const isMismatch =
+    confirmNewPassword.length > 0 &&
+    newPassword.trim() !== confirmNewPassword.trim();
+  const hasConfirmError = isConfirmTooShort || isMismatch;
+
   return (
     <div className="page-shell">
       <div className="section-hero">
         <div className="section-hero-left">
-          <div className="section-kicker">Account</div>
           <h2 className="section-title">Edit Admin Profile</h2>
           <p className="section-desc">
             Update your personal information and account settings.
           </p>
         </div>
-        <div className="section-hero-right">
-          <button
-            className="secondary-action"
-            onClick={requestPasswordOtp}
-            disabled={otpSending}
-          >
-            {otpSending ? "Sending code..." : "Change Password"}
-          </button>
-
-          <button className="secondary-action" onClick={handleCancel}>
-            Cancel
-          </button>
-
-          <button className="primary-action" onClick={handleSaveChanges}>
-            Save Changes
-          </button>
-        </div>
       </div>
 
       <div className="settings-card">
-        <div className="profile-avatar-row">
-          <div className="profile-avatar-wrapper">
-            <div
-              className="profile-avatar"
-              onClick={handleAdminAvatarClick}
-              role="button"
-              aria-label="Change avatar"
-            >
-              {adminAvatarPreview ? (
-                <img src={adminAvatarPreview} alt="avatar" />
-              ) : (
-                "AD"
-              )}
+        <div className="profile-body">
+          <div className="profile-avatar-col">
+            <div className="profile-avatar-wrapper">
+              <div
+                className="profile-avatar"
+                onClick={handleAdminAvatarClick}
+                role="button"
+                aria-label="Change avatar"
+              >
+                {adminAvatarPreview ? (
+                  <img src={adminAvatarPreview} alt="avatar" />
+                ) : (
+                  "AD"
+                )}
 
-              <input
-                id="admin-avatar-input"
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                onChange={handleAdminAvatarUpload}
-                style={{ display: "none" }}
-              />
+                <input
+                  id="admin-avatar-input"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleAdminAvatarUpload}
+                  style={{ display: "none" }}
+                />
+              </div>
+
+              <button
+                type="button"
+                className="profile-avatar-edit-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdminAvatarClick();
+                }}
+                aria-label="Change profile photo"
+              >
+                <FaPen size={12} />
+              </button>
             </div>
 
-            <button
-              type="button"
-              className="profile-avatar-edit-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleAdminAvatarClick();
-              }}
-              aria-label="Change profile photo"
-            >
-              <FaPen size={12} />
-            </button>
+            {adminAvatarUploading && (
+              <div className="profile-msg">Uploading avatar...</div>
+            )}
+            {adminAvatarError && (
+              <div className="profile-msg profile-msg-error">
+                {adminAvatarError}
+              </div>
+            )}
           </div>
 
-          {adminAvatarUploading && (
-            <div className="profile-msg">Uploading avatar...</div>
-          )}
-          {adminAvatarError && (
-            <div className="profile-msg profile-msg-error">
-              {adminAvatarError}
-            </div>
-          )}
-        </div>
-
-        <div className="form-grid">
+          <div className="form-grid">
           <div className={`field${errors.firstName ? " field-invalid" : ""}`}>
             <label>First Name</label>
             <input
@@ -644,6 +745,7 @@ function EditAdminProfile() {
               name="firstName"
               value={admin.firstName}
               onChange={handleChange}
+              data-no-realtime-validation="true"
             />
             {errors.firstName && (
               <span className="field-error-text">{errors.firstName}</span>
@@ -657,6 +759,7 @@ function EditAdminProfile() {
               name="lastName"
               value={admin.lastName}
               onChange={handleChange}
+              data-no-realtime-validation="true"
             />
             {errors.lastName && (
               <span className="field-error-text">{errors.lastName}</span>
@@ -670,6 +773,7 @@ function EditAdminProfile() {
               name="email"
               value={admin.email}
               onChange={handleChange}
+              data-no-realtime-validation="true"
             />
             {errors.email && (
               <span className="field-error-text">{errors.email}</span>
@@ -683,7 +787,10 @@ function EditAdminProfile() {
               name="phone"
               value={admin.phone}
               placeholder="09XXXXXXXXX or +639XXXXXXXXX"
-              onChange={handleChange}
+              onChange={handlePhoneChange}
+              onKeyDown={handlePhoneKeyDown}
+              inputMode="tel"
+              data-no-realtime-validation="true"
             />
             {errors.phone && (
               <span className="field-error-text">{errors.phone}</span>
@@ -692,7 +799,12 @@ function EditAdminProfile() {
 
           <div className={`field${errors.gender ? " field-invalid" : ""}`}>
             <label>Gender</label>
-            <select name="gender" value={admin.gender} onChange={handleChange}>
+            <select
+              name="gender"
+              value={admin.gender}
+              onChange={handleChange}
+              data-no-realtime-validation="true"
+            >
               <option value="">Select...</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
@@ -710,16 +822,40 @@ function EditAdminProfile() {
               name="birthday"
               value={admin.birthday}
               onChange={handleChange}
+              data-no-realtime-validation="true"
             />
             {errors.birthday && (
               <span className="field-error-text">{errors.birthday}</span>
             )}
           </div>
+          </div>
         </div>
       </div>
 
+      <div className="profile-card-actions">
+        <button
+          className="secondary-action"
+          onClick={handleChangePasswordClick}
+          disabled={otpSending || cooldownTime > 0}
+        >
+          {otpSending
+            ? "Sending code..."
+            : cooldownTime > 0
+              ? `Try again in ${cooldownTime}s`
+              : "Change Password"}
+        </button>
+
+        <button className="secondary-action" onClick={handleCancel}>
+          Cancel
+        </button>
+
+        <button className="primary-action" onClick={handleSaveChanges}>
+          Save Changes
+        </button>
+      </div>
+
       {showOtpModal && (
-        <div className="cp-modal-overlay" onClick={closeOtpModal}>
+        <div className="cp-modal-overlay">
           <div className="cp-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="cp-title">Verify It's You</h3>
             <p className="cp-subtext">
@@ -736,6 +872,7 @@ function EditAdminProfile() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                   placeholder="Enter 6-digit code"
+                  data-no-realtime-validation="true"
                   autoFocus
                 />
               </div>
@@ -756,7 +893,7 @@ function EditAdminProfile() {
       )}
 
       {showChangePassword && (
-        <div className="cp-modal-overlay" onClick={closeChangePassword}>
+        <div className="cp-modal-overlay">
           <div className="cp-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="cp-title">Change Password</h3>
             <p className="cp-subtext">Enter your current and new password</p>
@@ -770,6 +907,7 @@ function EditAdminProfile() {
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="Enter current password"
+                    data-no-realtime-validation="true"
                   />
                   <button
                     type="button"
@@ -777,9 +915,9 @@ function EditAdminProfile() {
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                   >
                     {showCurrentPassword ? (
-                      <MdVisibilityOff />
-                    ) : (
                       <MdVisibility />
+                    ) : (
+                      <MdVisibilityOff />
                     )}
                   </button>
                 </div>
@@ -793,13 +931,14 @@ function EditAdminProfile() {
                     value={newPassword}
                     onChange={handleCpNewPasswordChange}
                     placeholder="Enter new password"
+                    data-no-realtime-validation="true"
                   />
                   <button
                     type="button"
                     className="cp-eye-btn"
                     onClick={() => setShowNewPassword(!showNewPassword)}
                   >
-                    {showNewPassword ? <MdVisibilityOff /> : <MdVisibility />}
+                    {showNewPassword ? <MdVisibility /> : <MdVisibilityOff />}
                   </button>
                 </div>
                 <div className="cp-criteria">
@@ -812,12 +951,16 @@ function EditAdminProfile() {
 
               <div className="cp-form-row">
                 <label>Confirm New Password</label>
-                <div className="cp-input-wrapper">
+                <div
+                  className={`cp-input-wrapper${hasConfirmError ? " cp-input-error" : ""
+                    }`}
+                >
                   <input
                     type={showConfirmNewPassword ? "text" : "password"}
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
                     placeholder="Confirm new password"
+                    data-no-realtime-validation="true"
                   />
                   <button
                     type="button"
@@ -827,12 +970,22 @@ function EditAdminProfile() {
                     }
                   >
                     {showConfirmNewPassword ? (
-                      <MdVisibilityOff />
-                    ) : (
                       <MdVisibility />
+                    ) : (
+                      <MdVisibilityOff />
                     )}
                   </button>
                 </div>
+                {isConfirmTooShort && (
+                  <span className="field-error-text">
+                    Password must be at least 6 characters.
+                  </span>
+                )}
+                {isMismatch && (
+                  <span className="field-error-text">
+                    Passwords do not match.
+                  </span>
+                )}
               </div>
 
               <div className="cp-actions">
@@ -854,10 +1007,41 @@ function EditAdminProfile() {
             </form>
 
             {changePassError && <p className="cp-error">{changePassError}</p>}
-            {changePassSuccess && (
-              <p className="cp-success">{changePassSuccess}</p>
-            )}
           </div>
+        </div>
+      )}
+
+      {showToast && (
+        <div className="password-toast">
+          <FaCheckCircle className="password-toast-icon" />
+          <span className="password-toast-text">
+            Password changed successfully!
+          </span>
+          <button
+            type="button"
+            className="password-toast-close"
+            onClick={() => setShowToast(false)}
+            aria-label="Dismiss notification"
+          >
+            <FaTimes />
+          </button>
+        </div>
+      )}
+
+      {showRateLimitToast && (
+        <div className="password-toast password-toast-warning">
+          <FaExclamationTriangle className="password-toast-icon" />
+          <span className="password-toast-text">
+            Too many attempts. Please wait before requesting a new OTP.
+          </span>
+          <button
+            type="button"
+            className="password-toast-close"
+            onClick={() => setShowRateLimitToast(false)}
+            aria-label="Dismiss notification"
+          >
+            <FaTimes />
+          </button>
         </div>
       )}
 
