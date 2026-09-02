@@ -26,118 +26,257 @@ import {
   AdminLoginRegisterGuard,
 } from "./guards/AdminGuards";
 
-// Customer page lazy imports
+/* =========================================================
+   CUSTOMER PAGE LAZY IMPORTS
+   ========================================================= */
+
 const UserLoginPage = lazy(() =>
   import("./Customer/User-login")
 );
+
 const UserRegistrationPage = lazy(() =>
   import("./Customer/User-regis")
 );
+
 const UserHomePage = lazy(() =>
   import("./Customer/User-home")
 );
+
 const UserOtpPage = lazy(() =>
   import("./Customer/User-otp")
 );
+
 const CustomerDashboard = lazy(() =>
   import("./Customer/User-dashboard")
 );
+
 const UserForgotOtpPage = lazy(() =>
   import("./Customer/User-forgot-otp")
 );
+
 const UserResetPasswordPage = lazy(() =>
   import("./Customer/User-reset-password")
 );
+
 const ProductOverview = lazy(() =>
   import("./Customer/Product-overview")
 );
+
+/* =========================================================
+   NEW ABOUT PAGE
+   ========================================================= */
+
+const AboutPage = lazy(() =>
+  import("./Customer/About")
+);
+
+/* =========================================================
+   NEW CONTACT PAGE
+   ========================================================= */
+
+const ContactPage = lazy(() =>
+  import("./Customer/Contact")
+);
+
 const UserCustomizeProfile = lazy(() =>
   import("./Customer/User-customize-profile")
 );
+
 const UserAccountSettings = lazy(() =>
   import("./Customer/User-account-settings")
 );
+
 const UserCartPage = lazy(() =>
   import("./Customer/User-cart")
 );
+
 const UserOrders = lazy(() =>
   import("./Customer/User-orders")
 );
+
 const UserPaymentReturn = lazy(() =>
   import("./Customer/User-payment-return")
 );
+
 const UserPayments = lazy(() =>
   import("./Customer/User-payments")
 );
+
 const UserInquiries = lazy(() =>
   import("./Customer/User-inquiries")
 );
+
 const UserPasswordSecurityPage = lazy(() =>
   import("./Customer/User-password-security")
 );
+
 const ProductDetail = lazy(() =>
   import("./Customer/Product-detail")
 );
+
 const HomePage = lazy(() =>
   import("./Customer/HomePage")
 );
 
-const CUSTOMER_ONLY_BUILD = process.env.REACT_APP_CUSTOMER_ONLY === "true";
+/* =========================================================
+   ADMIN
+   ========================================================= */
+
+const CUSTOMER_ONLY_BUILD =
+  process.env.REACT_APP_CUSTOMER_ONLY === "true";
+
 const AdminLoginPage = CUSTOMER_ONLY_BUILD
   ? CustomerOnlyRedirect
   : lazy(() => import("./Admin/Admin-login"));
+
 const AdminRegistrationPage = CUSTOMER_ONLY_BUILD
   ? CustomerOnlyRedirect
   : lazy(() => import("./Admin/Admin-registration"));
+
 const AdminDashboard = CUSTOMER_ONLY_BUILD
   ? CustomerOnlyRedirect
   : lazy(() => import("./Admin/Admin-dashboard"));
 
-function RealtimeInputValidation() {
-  useEffect(() => {
-    const validateFromEvent = (event, forceTouched = false) => {
-      renderRealtimeValidation(event.target, forceTouched);
-      if (event.target?.type === "password") {
-        const form = event.target.form || event.target.closest("form");
-        form
-          ?.querySelectorAll('input[type="password"]')
-          .forEach((field) => renderRealtimeValidation(field));
-      }
-    };
+/* =========================================================
+   REALTIME INPUT VALIDATION
+   ========================================================= */
 
-    const handleInput = (event) => validateFromEvent(event);
-    const handleChange = (event) => validateFromEvent(event, true);
-    const handleBlur = (event) => validateFromEvent(event, true);
-    const handleSubmit = (event) => {
-      const fields = Array.from(
-        event.target.querySelectorAll("input, textarea, select")
-      ).filter(isRealtimeValidatedField);
-      fields.forEach((field) => renderRealtimeValidation(field, true));
-      if (fields.some((field) => getRealtimeValidationMessage(field))) {
-        event.preventDefault();
-        fields.find((field) => getRealtimeValidationMessage(field))?.focus();
-      }
-    };
+   function RealtimeInputValidation() {
+    useEffect(() => {
+      const isContactForm = (target) => {
+        return target?.closest?.(".contact-form-card");
+      };
+  
+      const validateFromEvent = (
+        event,
+        forceTouched = false
+      ) => {
+        // IMPORTANT:
+        // Contact page has its own validation.
+        // Do not let the global validator touch it.
+        if (isContactForm(event.target)) {
+          return;
+        }
+  
+        renderRealtimeValidation(
+          event.target,
+          forceTouched
+        );
+  
+        if (event.target?.type === "password") {
+          const form =
+            event.target.form ||
+            event.target.closest("form");
+  
+          form
+            ?.querySelectorAll(
+              'input[type="password"]'
+            )
+            .forEach((field) =>
+              renderRealtimeValidation(field)
+            );
+        }
+      };
+  
+      const handleInput = (event) =>
+        validateFromEvent(event);
+  
+      const handleChange = (event) =>
+        validateFromEvent(event, true);
+  
+      const handleBlur = (event) =>
+        validateFromEvent(event, true);
+  
+      const handleSubmit = (event) => {
+        // IMPORTANT:
+        // Let Contact.js handle its own form validation.
+        if (isContactForm(event.target)) {
+          return;
+        }
+  
+        const fields = Array.from(
+          event.target.querySelectorAll(
+            "input, textarea, select"
+          )
+        ).filter(isRealtimeValidatedField);
+  
+        fields.forEach((field) =>
+          renderRealtimeValidation(field, true)
+        );
+  
+        if (
+          fields.some((field) =>
+            getRealtimeValidationMessage(field)
+          )
+        ) {
+          event.preventDefault();
+  
+          fields
+            .find((field) =>
+              getRealtimeValidationMessage(field)
+            )
+            ?.focus();
+        }
+      };
+  
+      document.addEventListener(
+        "input",
+        handleInput,
+        true
+      );
+  
+      document.addEventListener(
+        "change",
+        handleChange,
+        true
+      );
+  
+      document.addEventListener(
+        "blur",
+        handleBlur,
+        true
+      );
+  
+      document.addEventListener(
+        "submit",
+        handleSubmit,
+        true
+      );
+  
+      return () => {
+        document.removeEventListener(
+          "input",
+          handleInput,
+          true
+        );
+  
+        document.removeEventListener(
+          "change",
+          handleChange,
+          true
+        );
+  
+        document.removeEventListener(
+          "blur",
+          handleBlur,
+          true
+        );
+  
+        document.removeEventListener(
+          "submit",
+          handleSubmit,
+          true
+        );
+      };
+    }, []);
+  
+    return null;
+  }
 
-    document.addEventListener("input", handleInput, true);
-    document.addEventListener("change", handleChange, true);
-    document.addEventListener("blur", handleBlur, true);
-    document.addEventListener("submit", handleSubmit, true);
+/* =========================================================
+   ROUTES WHERE MOBILE FOOTER NAV SHOULD APPEAR
+   ========================================================= */
 
-    return () => {
-      document.removeEventListener("input", handleInput, true);
-      document.removeEventListener("change", handleChange, true);
-      document.removeEventListener("blur", handleBlur, true);
-      document.removeEventListener("submit", handleSubmit, true);
-    };
-  }, []);
-
-  return null;
-}
-
-
-
-// Routes where the mobile footer nav should appear
 const CUSTOMER_ROUTES = [
   "/user-home",
   "/user-cart",
@@ -152,104 +291,247 @@ const CUSTOMER_ROUTES = [
   "/payment/return",
 ];
 
-// Routes where top header should be rendered consistently
-const SHOW_HEADER_ROUTES = ["/", ...CUSTOMER_ROUTES];
+/* =========================================================
+   ROUTES WHERE TOP HEADER SHOULD BE RENDERED
+   ========================================================= */
+
+/*
+   Added:
+   /about
+   /contact
+*/
+
+const SHOW_HEADER_ROUTES = [
+  "/",
+  "/about",
+  "/contact",
+  ...CUSTOMER_ROUTES,
+];
+
+/* =========================================================
+   CUSTOMER APK
+   ========================================================= */
 
 const isCustomerApk = () =>
-  CUSTOMER_ONLY_BUILD || Capacitor.isNativePlatform();
+  CUSTOMER_ONLY_BUILD ||
+  Capacitor.isNativePlatform();
+
+/* =========================================================
+   CUSTOMER ONLY REDIRECT
+   ========================================================= */
 
 function CustomerOnlyRedirect() {
-  return <Navigate to="/user-home" replace />;
+  return (
+    <Navigate
+      to="/user-home"
+      replace
+    />
+  );
 }
+
+/* =========================================================
+   CUSTOMER APK BODY CLASS
+   ========================================================= */
 
 function CustomerApkBodyClass() {
   useEffect(() => {
     if (!isCustomerApk()) return undefined;
 
-    document.documentElement.classList.add("printhub-native-app");
-    document.body.classList.add("printhub-native-app");
+    document.documentElement.classList.add(
+      "printhub-native-app"
+    );
+
+    document.body.classList.add(
+      "printhub-native-app"
+    );
 
     return () => {
-      document.documentElement.classList.remove("printhub-native-app");
-      document.body.classList.remove("printhub-native-app");
+      document.documentElement.classList.remove(
+        "printhub-native-app"
+      );
+
+      document.body.classList.remove(
+        "printhub-native-app"
+      );
     };
   }, []);
 
   return null;
 }
 
+/* =========================================================
+   WEB ONLY
+   ========================================================= */
+
 function WebOnly({ children }) {
   if (isCustomerApk()) {
     return <CustomerOnlyRedirect />;
   }
 
-  return <Suspense fallback={null}>{children}</Suspense>;
+  return (
+    <Suspense fallback={null}>
+      {children}
+    </Suspense>
+  );
 }
+
+/* =========================================================
+   ROOT ROUTE GUARD
+   ========================================================= */
 
 function RootRouteGuard() {
   const location = useLocation();
+
   if (isCustomerApk()) {
     return <CustomerOnlyRedirect />;
   }
 
-  // Bypass redirect if explicitly viewing a landing page section
+  /*
+     Keep the old landing-page section behavior
+     for any existing links that still use scrollTo.
+  */
+
   if (location.state?.scrollTo) {
     return <HomePage />;
   }
-  
-  const userStr = localStorage.getItem("user");
+
+  const userStr =
+    localStorage.getItem("user");
+
   if (userStr) {
     try {
       const user = JSON.parse(userStr);
-      if (user && user.role === "customer") {
-        return <Navigate to="/user-home" replace />;
+
+      if (
+        user &&
+        user.role === "customer"
+      ) {
+        return (
+          <Navigate
+            to="/user-home"
+            replace
+          />
+        );
       }
     } catch (e) {
-      // invalid JSON, ignore
+      // Invalid JSON, ignore.
     }
   }
-  
+
   return <HomePage />;
 }
 
+/* =========================================================
+   APP ROUTES
+   ========================================================= */
+
 function AppRoutes() {
   const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const isEmbed = searchParams.get("embed") === "true";
-  const customerApk = isCustomerApk();
-  const currentPath = location.pathname.toLowerCase();
+
+  const searchParams =
+    new URLSearchParams(
+      location.search
+    );
+
+  const isEmbed =
+    searchParams.get("embed") === "true";
+
+  const customerApk =
+    isCustomerApk();
+
+  const currentPath =
+    location.pathname.toLowerCase();
+
+  /* =======================================================
+     EMBED MODE
+     ======================================================= */
 
   useEffect(() => {
-    document.body.classList.toggle("embed-mode", isEmbed);
+    document.body.classList.toggle(
+      "embed-mode",
+      isEmbed
+    );
+
     return () => {
-      document.body.classList.remove("embed-mode");
+      document.body.classList.remove(
+        "embed-mode"
+      );
     };
   }, [isEmbed]);
 
+  /* =======================================================
+     HEADER VISIBILITY
+     ======================================================= */
+
   const showHeader =
     !isEmbed &&
-    (SHOW_HEADER_ROUTES.some((r) => r.toLowerCase() === currentPath) ||
-      currentPath.startsWith("/product/"));
+    (
+      SHOW_HEADER_ROUTES.some(
+        (r) =>
+          r.toLowerCase() ===
+          currentPath
+      ) ||
+      currentPath.startsWith(
+        "/product/"
+      )
+    );
+
+  /* =======================================================
+     MOBILE FOOTER VISIBILITY
+     ======================================================= */
+
   const showFooterNav =
     !isEmbed &&
-    CUSTOMER_ROUTES.some((r) => r.toLowerCase() === currentPath);
+    CUSTOMER_ROUTES.some(
+      (r) =>
+        r.toLowerCase() ===
+        currentPath
+    );
 
   return (
     <div className="app-main-layout">
+
+      {/* =================================================
+          TOP HEADER
+          ================================================= */}
+
       {showHeader && <Header />}
+
+      {/* =================================================
+          PAGE CONTENT
+          ================================================= */}
+
       <div className="app-content-scrollable">
+
         <Suspense
           fallback={
-            <div className="route-loading" style={{ padding: "20px" }}>
+            <div
+              className="route-loading"
+              style={{
+                padding: "20px",
+              }}
+            >
               Loading...
             </div>
           }
         >
+
           <Routes>
+
+            {/* =================================================
+                HOME
+                ================================================= */}
+
             <Route
               path="/"
-              element={<RootRouteGuard />}
+              element={
+                <RootRouteGuard />
+              }
             />
+
+            {/* =================================================
+                ADMIN LOGIN
+                ================================================= */}
 
             <Route
               path="/admin-login"
@@ -261,6 +543,11 @@ function AppRoutes() {
                 </WebOnly>
               }
             />
+
+            {/* =================================================
+                ADMIN REGISTER
+                ================================================= */}
+
             <Route
               path="/admin-register"
               element={
@@ -271,6 +558,11 @@ function AppRoutes() {
                 </WebOnly>
               }
             />
+
+            {/* =================================================
+                ADMIN DASHBOARD
+                ================================================= */}
+
             <Route
               path="/admin/:tab"
               element={
@@ -281,23 +573,85 @@ function AppRoutes() {
                 </WebOnly>
               }
             />
+
+            {/* =================================================
+                ADMIN REDIRECTS
+                ================================================= */}
+
             <Route
               path="/admin-dashboard"
-              element={<Navigate to="/admin/dashboard" replace />}
+              element={
+                <Navigate
+                  to="/admin/dashboard"
+                  replace
+                />
+              }
             />
+
             <Route
               path="/admin-manageaccount"
-              element={<Navigate to="/admin/manageaccount" replace />}
+              element={
+                <Navigate
+                  to="/admin/manageaccount"
+                  replace
+                />
+              }
             />
-            <Route path="/user-login" element={<UserLoginPage />} />
-            <Route path="/user-register" element={<UserRegistrationPage />} />
-            <Route path="/user-forgot-otp" element={<UserForgotOtpPage />} />
+
+            {/* =================================================
+                CUSTOMER AUTH
+                ================================================= */}
+
+            <Route
+              path="/user-login"
+              element={
+                <UserLoginPage />
+              }
+            />
+
+            <Route
+              path="/user-register"
+              element={
+                <UserRegistrationPage />
+              }
+            />
+
+            <Route
+              path="/user-forgot-otp"
+              element={
+                <UserForgotOtpPage />
+              }
+            />
+
             <Route
               path="/user-reset-password"
-              element={<UserResetPasswordPage />}
+              element={
+                <UserResetPasswordPage />
+              }
             />
-            <Route path="/user-otp" element={<UserOtpPage />} />
-            <Route path="/user-home" element={<UserHomePage />} />
+
+            <Route
+              path="/user-otp"
+              element={
+                <UserOtpPage />
+              }
+            />
+
+            {/* =================================================
+                CUSTOMER HOME
+                ================================================= */}
+
+            <Route
+              path="/user-home"
+              element={
+                <UserHomePage />
+              }
+            />
+
+            {/* =================================================
+                CUSTOMER PASSWORD
+                ================================================= */}
+
             <Route
               path="/user-password-security"
               element={
@@ -306,7 +660,22 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
-            <Route path="/user-cart" element={<UserCartPage />} />
+
+            {/* =================================================
+                CUSTOMER CART
+                ================================================= */}
+
+            <Route
+              path="/user-cart"
+              element={
+                <UserCartPage />
+              }
+            />
+
+            {/* =================================================
+                CUSTOMER ORDERS
+                ================================================= */}
+
             <Route
               path="/user-orders"
               element={
@@ -315,6 +684,11 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
+
+            {/* =================================================
+                CUSTOMER PAYMENTS
+                ================================================= */}
+
             <Route
               path="/user-payments"
               element={
@@ -323,6 +697,11 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
+
+            {/* =================================================
+                PAYMENT RETURN
+                ================================================= */}
+
             <Route
               path="/payment/return"
               element={
@@ -331,6 +710,11 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
+
+            {/* =================================================
+                CUSTOMER INQUIRIES
+                ================================================= */}
+
             <Route
               path="/user-inquiries"
               element={
@@ -339,6 +723,11 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
+
+            {/* =================================================
+                CUSTOMER DASHBOARD
+                ================================================= */}
+
             <Route
               path="/user-dashboard"
               element={
@@ -347,7 +736,44 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
-            <Route path="/product-overview" element={<ProductOverview />} />
+
+            {/* =================================================
+                PRODUCTS
+                ================================================= */}
+
+            <Route
+              path="/product-overview"
+              element={
+                <ProductOverview />
+              }
+            />
+
+            {/* =================================================
+                ABOUT PAGE
+                ================================================= */}
+
+            <Route
+              path="/about"
+              element={
+                <AboutPage />
+              }
+            />
+
+            {/* =================================================
+                CONTACT PAGE
+                ================================================= */}
+
+            <Route
+              path="/contact"
+              element={
+                <ContactPage />
+              }
+            />
+
+            {/* =================================================
+                CUSTOMIZE PROFILE
+                ================================================= */}
+
             <Route
               path="/user-customize-profile"
               element={
@@ -356,6 +782,11 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
+
+            {/* =================================================
+                ACCOUNT SETTINGS
+                ================================================= */}
+
             <Route
               path="/user-account-settings"
               element={
@@ -364,52 +795,132 @@ function AppRoutes() {
                 </ProtectedCustomerRoute>
               }
             />
+
+            {/* =================================================
+                PRODUCT DETAIL
+                ================================================= */}
+
             <Route
               path="/product/:id"
-              element={<ProductDetail key="product-detail-view" />}
+              element={
+                <ProductDetail
+                  key="product-detail-view"
+                />
+              }
             />
+
+            {/* =================================================
+                PRODUCT CUSTOMIZER
+                ================================================= */}
+
             <Route
               path="/product/:id/customize"
-              element={<ProductDetail key="product-customizer-view" />}
+              element={
+                <ProductDetail
+                  key="product-customizer-view"
+                />
+              }
             />
+
+            {/* =================================================
+                CUSTOMER APK FALLBACK
+                ================================================= */}
+
             {customerApk && (
-              <Route path="*" element={<CustomerOnlyRedirect />} />
+              <Route
+                path="*"
+                element={
+                  <CustomerOnlyRedirect />
+                }
+              />
             )}
+
           </Routes>
+
         </Suspense>
       </div>
-      {showFooterNav && <MobileFooterNav />}
+
+      {/* =====================================================
+          MOBILE FOOTER
+          ===================================================== */}
+
+      {showFooterNav && (
+        <MobileFooterNav />
+      )}
+
+      {/* =====================================================
+          CHATBOT
+          ===================================================== */}
+
       <ChatbotRouteGate />
+
     </div>
   );
 }
+
+/* =========================================================
+   NATIVE DEEP LINK HANDLER
+   ========================================================= */
 
 function NativeDeepLinkHandler() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return undefined;
+    if (
+      !Capacitor.isNativePlatform()
+    ) {
+      return undefined;
+    }
 
     let listener;
-    const setupListener = async () => {
-      listener = await CapacitorApp.addListener("appUrlOpen", ({ url }) => {
-        if (!url) return;
 
-        try {
-          const parsedUrl = new URL(url);
-          const path =
-            parsedUrl.pathname ||
-            (parsedUrl.host ? `/${parsedUrl.host}` : "/");
-          const target = `${path}${parsedUrl.search || ""}`;
+    const setupListener =
+      async () => {
+        listener =
+          await CapacitorApp.addListener(
+            "appUrlOpen",
+            ({ url }) => {
+              if (!url) return;
 
-          if (target.startsWith("/payment/return")) {
-            navigate(target, { replace: true });
-          }
-        } catch (error) {
-          console.warn("Unable to handle app URL:", url, error);
-        }
-      });
-    };
+              try {
+                const parsedUrl =
+                  new URL(url);
+
+                const path =
+                  parsedUrl.pathname ||
+                  (
+                    parsedUrl.host
+                      ? `/${parsedUrl.host}`
+                      : "/"
+                  );
+
+                const target =
+                  `${path}${
+                    parsedUrl.search || ""
+                  }`;
+
+                if (
+                  target.startsWith(
+                    "/payment/return"
+                  )
+                ) {
+                  navigate(
+                    target,
+                    {
+                      replace: true,
+                    }
+                  );
+                }
+              } catch (error) {
+                console.warn(
+                  "Unable to handle app URL:",
+                  url,
+                  error
+                );
+              }
+            }
+          );
+      };
 
     setupListener();
 
@@ -423,10 +934,22 @@ function NativeDeepLinkHandler() {
   return null;
 }
 
+/* =========================================================
+   CHATBOT ROUTE GATE
+   ========================================================= */
+
 function ChatbotRouteGate() {
-  const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const isEmbed = searchParams.get("embed") === "true";
+  const location =
+    useLocation();
+
+  const searchParams =
+    new URLSearchParams(
+      location.search
+    );
+
+  const isEmbed =
+    searchParams.get("embed") === "true";
+
   const hiddenRoutes = [
     "/user-login",
     "/user-register",
@@ -434,42 +957,79 @@ function ChatbotRouteGate() {
     "/user-forgot-otp",
   ];
 
-  const isAdminRoute = location.pathname.startsWith("/admin");
+  const isAdminRoute =
+    location.pathname.startsWith(
+      "/admin"
+    );
 
-  if (isEmbed || isAdminRoute || hiddenRoutes.includes(location.pathname)) {
+  if (
+    isEmbed ||
+    isAdminRoute ||
+    hiddenRoutes.includes(
+      location.pathname
+    )
+  ) {
     return null;
   }
 
   return <PrintHubChatbot />;
 }
 
-function App() {
-  const [showSplash, setShowSplash] = useState(() => {
-    try {
-      return sessionStorage.getItem("pmg_splash_seen") !== "true";
-    } catch {
-      return true;
-    }
-  });
+/* =========================================================
+   MAIN APP
+   ========================================================= */
 
-  const handleSplashComplete = () => {
-    setShowSplash(false);
-    try {
-      sessionStorage.setItem("pmg_splash_seen", "true");
-    } catch {
-      // Splash state is cosmetic only.
-    }
-  };
+function App() {
+  const [showSplash, setShowSplash] =
+    useState(() => {
+      try {
+        return (
+          sessionStorage.getItem(
+            "pmg_splash_seen"
+          ) !== "true"
+        );
+      } catch {
+        return true;
+      }
+    });
+
+  const handleSplashComplete =
+    () => {
+      setShowSplash(false);
+
+      try {
+        sessionStorage.setItem(
+          "pmg_splash_seen",
+          "true"
+        );
+      } catch {
+        // Splash state is cosmetic only.
+      }
+    };
 
   return (
     <CartProvider>
+
       <BrowserRouter>
+
         <RealtimeInputValidation />
+
         <CustomerApkBodyClass />
+
         <NativeDeepLinkHandler />
-        {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+
+        {showSplash && (
+          <SplashScreen
+            onComplete={
+              handleSplashComplete
+            }
+          />
+        )}
+
         <AppRoutes />
+
       </BrowserRouter>
+
     </CartProvider>
   );
 }

@@ -1,4 +1,4 @@
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const prisma = require("../db/prisma");
 const { buildReceiptPayload } = require("./paymongo");
 const {
@@ -8,49 +8,27 @@ const {
 } = require("./order");
 
 const otpStore = {};
-let transporter = null;
 
-const SMTP_ENABLED = process.env.SMTP_ENABLED !== "false";
-const EMAIL_USER = process.env.EMAIL_USER?.trim();
-const EMAIL_PASS = process.env.EMAIL_PASS?.replace(/\s/g, "");
-const OAUTH_CLIENT_ID = process.env.OAUTH_CLIENT_ID?.trim();
-const OAUTH_CLIENT_SECRET = process.env.OAUTH_CLIENT_SECRET?.trim();
-const OAUTH_REFRESH_TOKEN = process.env.OAUTH_REFRESH_TOKEN?.trim();
+const RESEND_API_KEY = process.env.RESEND_API_KEY?.trim();
 
-// Check if all necessary OAuth2 credentials are provided.
-const useOAuth2 =
-  OAUTH_CLIENT_ID && OAUTH_CLIENT_SECRET && OAUTH_REFRESH_TOKEN;
+const EMAIL_FROM =
+  process.env.EMAIL_FROM?.trim() ||
+  "PMG Printing House <onboarding@resend.dev>";
 
-if (SMTP_ENABLED && EMAIL_USER) {
-  if (useOAuth2) {
-    console.log("✅ Gmail OAuth2 API ready (sends via HTTPS REST API)");
-  } else if (EMAIL_PASS) {
-    transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: EMAIL_USER,
-        pass: EMAIL_PASS,
-      },
-    });
+const CONTACT_EMAIL = process.env.CONTACT_EMAIL?.trim();
 
-    transporter.verify((err, success) => {
-      if (err) console.log("Email transporter verify failed:", err);
-      else console.log("Email transporter ready:", success);
-    });
-  } else {
-    console.log(
-      "SMTP disabled or missing EMAIL_PASS/OAuth2 credentials. " +
-        "OTP will be logged to console (dev mode)."
-    );
-  }
+const resend = RESEND_API_KEY
+  ? new Resend(RESEND_API_KEY)
+  : null;
+
+if (resend) {
+  console.log("✅ Resend email service ready");
 } else {
   console.log(
-    "SMTP disabled or missing EMAIL_USER. " +
-      "OTP will be logged to console (dev mode)."
+    "⚠️ RESEND_API_KEY is missing. " +
+    "Emails will be logged to console in development mode."
   );
 }
-
-
 
 // Saves an OTP code and expiration metadata for a specific email.
 const saveOtp = (email, data) => {
@@ -71,10 +49,10 @@ const deleteOtp = (email) => {
 function renderBaseEmailTemplate({ title, category, contentHtml }) {
   const catBadge = category
     ? `<span style="float:right;color:#94a3b8;` +
-      `font-size:12px;font-weight:600;` +
-      `text-transform:uppercase;margin-top:4px;">` +
-      `${category}` +
-      `</span>`
+    `font-size:12px;font-weight:600;` +
+    `text-transform:uppercase;margin-top:4px;">` +
+    `${category}` +
+    `</span>`
     : "";
 
   return (
@@ -99,11 +77,12 @@ function renderBaseEmailTemplate({ title, category, contentHtml }) {
     `<tr>` +
     `<td style="background:#0C1526;` +
     `background:linear-gradient(163deg, rgba(12, 21, 38, 1) 0%, ` +
-    `rgba(2, 68, 148, 1) 100%);padding:24px 32px;text-align:left;">` +
-    `<span style="color:#ffffff;font-size:22px;` +
-    `font-weight:700;letter-spacing:0.5px;">` +
-    `PrintSync` +
-    `</span>` +
+    `rgba(2, 68, 148, 1) 100%);padding:24px 32px;text-align:center;">` +
+    `<img
+  src="https://www.pmgprintsync.shop/pmg-logo-nav.png"
+  alt="PMG Printing House"
+  style="width:220px;height:auto;display:block;margin:0 auto 10px auto;"
+>` +
     `${catBadge}` +
     `</td>` +
     `</tr>` +
@@ -121,10 +100,10 @@ function renderBaseEmailTemplate({ title, category, contentHtml }) {
     `text-align:center;border-top:1px solid #e2e8f0;` +
     `font-size:12px;color:#64748b;">` +
     `<p style="margin:0 0 6px 0;">` +
-    `This is an automated message from PrintSync.` +
+    `This is an automated message from PMG Printing House.` +
     `</p>` +
     `<p style="margin:0;">` +
-    `&copy; PrintSync. All rights reserved.` +
+    `&copy; PMG Printing House. All rights reserved.` +
     `</p>` +
     `</td>` +
     `</tr>` +
@@ -137,162 +116,138 @@ function renderBaseEmailTemplate({ title, category, contentHtml }) {
   );
 }
 
-// Exchanges the Google OAuth2 refresh token for a fresh access token.
-async function getAccessToken() {
-  const response = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: OAUTH_CLIENT_ID,
-      client_secret: OAUTH_CLIENT_SECRET,
-      refresh_token: OAUTH_REFRESH_TOKEN,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error_description || data.error);
-  }
-
-  return data.access_token;
-}
-
-// Sends an email using the Gmail REST API over HTTPS port 443.
-async function sendGmailApiEmail({ to, subject, text, html }) {
-  const accessToken = await getAccessToken();
-
-  const mimeParts = [
-    `From: ${EMAIL_USER}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    "Mime-Version: 1.0",
-    "Content-Type: text/html; charset=utf-8",
-    "Content-Transfer-Encoding: 7bit",
-    "",
-    html || text,
-  ];
-
-  const mime = mimeParts.join("\r\n");
-
-  const raw = Buffer.from(mime)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-
-  const response = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ raw }),
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.error?.message || "Failed to send email");
-  }
-
-  return result;
-}
-
-// Sends an email using nodemailer or Gmail REST API, or logs to console.
+// Sends an email through Resend or logs to console in development.
 async function sendSystemEmail({ to, subject, text, html }) {
   const emojiPattern =
-    "[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}" +
-    "\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]";
+    "[\\u{1F600}-\\u{1F64F}" +
+    "\\u{1F300}-\\u{1F5FF}" +
+    "\\u{1F680}-\\u{1F6FF}" +
+    "\\u{2600}-\\u{26FF}" +
+    "\\u{2700}-\\u{27BF}]";
+
   const emojiRegex = new RegExp(emojiPattern, "gu");
-  const cleanSubject = (subject || "").replace(emojiRegex, "").trim();
+
+  const cleanSubject = (subject || "")
+    .replace(emojiRegex, "")
+    .trim();
 
   const payload = {
     to,
     subject: cleanSubject,
     body: text,
-    status: transporter || useOAuth2 ? "queued" : "mock",
+    status: resend ? "queued" : "mock",
   };
 
+  // No recipient
   if (!to) {
-    return { ...payload, status: "skipped", reason: "missing recipient" };
+    return {
+      ...payload,
+      status: "skipped",
+      reason: "missing recipient",
+    };
   }
 
-  if (!transporter && !useOAuth2) {
-    console.log(`System email mock to ${to}: ${cleanSubject}`);
+  // Resend API key is not configured
+  if (!resend) {
+    console.log(
+      `📧 System email mock to ${to}: ${cleanSubject}`
+    );
+
+    if (text) {
+      console.log("Email content:", text);
+    }
+
     return payload;
   }
 
   try {
-    if (useOAuth2) {
-      await sendGmailApiEmail({
-        to,
-        subject: cleanSubject,
-        text,
-        html,
-      });
-    } else {
-      await transporter.sendMail({
-        from: EMAIL_USER,
-        to,
-        subject: cleanSubject,
-        text,
-        html,
-      });
+    const { data, error } = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: [to],
+      subject: cleanSubject,
+      text: text || undefined,
+      html: html || undefined,
+    });
+
+    if (error) {
+      console.error("❌ Resend email failed:", error);
+
+      return {
+        ...payload,
+        status: "failed",
+        error: error.message || "Resend email failed",
+      };
     }
 
-    return { ...payload, status: "sent" };
+    console.log(
+      `✅ Email sent through Resend to ${to}`
+    );
+
+    return {
+      ...payload,
+      status: "sent",
+      id: data?.id || null,
+    };
   } catch (err) {
-    console.error("System email failed:", err.message);
-    return { ...payload, status: "failed", error: err.message };
+    console.error(
+      "❌ Resend email exception:",
+      err.message
+    );
+
+    return {
+      ...payload,
+      status: "failed",
+      error: err.message,
+    };
   }
 }
 
-// Sends an email notification to the customer about their order status.
-async function notifyOrderStatus(order, statusOverride) {
-  const status = statusOverride || order.status || "pending";
-  const label = ORDER_STATUS_LABELS[status] || status.replace(/_/g, " ");
+// Sends an email notification to the customer when their order status changes.
+async function notifyOrderStatus(order, status) {
   const customerName = getCustomerName(order);
+
+  const statusLabel =
+    ORDER_STATUS_LABELS?.[status] ||
+    status ||
+    "Updated";
 
   const contentHtml =
     `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;">` +
     `Hi ${customerName},` +
     `</p>` +
+
     `<p style="margin:0 0 20px 0;font-size:15px;line-height:1.5;">` +
-    `Your Order <strong>#${order.id}</strong> status has been updated.` +
+    `There is an update to your Order ` +
+    `<strong>#${order.id}</strong>.` +
     `</p>` +
+
     `<div style="background:#f8fafc;border:1px solid #e2e8f0;` +
-    `border-radius:8px;padding:20px;margin-bottom:24px;">` +
-    `<div style="margin-bottom:12px;">` +
+    `border-radius:8px;padding:20px;margin-bottom:20px;` +
+    `font-size:14px;">` +
+
+    `<div style="margin-bottom:8px;">` +
     `<span style="font-size:12px;color:#64748b;` +
-    `text-transform:uppercase;font-weight:600;">Status</span>` +
+    `text-transform:uppercase;font-weight:600;">Order Status</span>` +
     `<br>` +
-    `<span style="display:inline-block;margin-top:4px;` +
-    `padding:4px 12px;background:#e0f2fe;color:#0369a1;` +
-    `border-radius:9999px;font-size:13px;font-weight:700;">` +
-    `${label}` +
+    `<span style="font-size:20px;font-weight:700;color:#024494;">` +
+    `${statusLabel}` +
     `</span>` +
     `</div>` +
-    `<div>` +
-    `<span style="font-size:12px;color:#64748b;` +
-    `text-transform:uppercase;font-weight:600;">Total Amount</span>` +
-    `<br>` +
-    `<span style="font-size:18px;font-weight:700;color:#024494;">` +
-    `${money(order.total)}` +
-    `</span>` +
+
     `</div>` +
-    `</div>`;
+
+    `<p style="margin:0;font-size:14px;color:#475569;">` +
+    `You can view your order details from the "My Orders" tab ` +
+    `on your PrintSync profile.` +
+    `</p>`;
 
   return sendSystemEmail({
     to: order.user?.email,
-    subject: `PrintSync Order #${order.id}: ${label}`,
+    subject: `PrintSync Order #${order.id}: ${statusLabel}`,
     text:
       `Hi ${customerName}, your Order #${order.id} ` +
-      `status is now "${label}". Total: ${money(order.total)}.`,
+      `status has been updated to ${statusLabel}. ` +
+      `Please check your My Orders tab for details.`,
     html: renderBaseEmailTemplate({
       title: "Order Status Update",
       category: "Order Update",
@@ -314,7 +269,7 @@ async function notifyPaymentConfirmation(order) {
         `<strong>${item.productName}</strong>` +
         (item.customizationLabel
           ? `<br><span style="font-size:12px;color:#64748b;">` +
-            `${item.customizationLabel}</span>`
+          `${item.customizationLabel}</span>`
           : "") +
         `</td>` +
         `<td style="padding:10px;border-bottom:1px solid #e2e8f0;` +
@@ -362,9 +317,9 @@ async function notifyPaymentConfirmation(order) {
     `${receipt.paymentReference}</div>` +
     (receipt.shippingAddress
       ? `<div style="margin-top:12px;padding-top:12px;` +
-        `border-top:1px solid #e2e8f0;">` +
-        `<strong>Shipping Address:</strong><br>` +
-        `${receipt.shippingAddress}</div>`
+      `border-top:1px solid #e2e8f0;">` +
+      `<strong>Shipping Address:</strong><br>` +
+      `${receipt.shippingAddress}</div>`
       : "") +
     `</div>` +
     `<h3 style="font-size:16px;font-weight:700;color:#024494;` +
@@ -760,12 +715,16 @@ async function sendOtpEmail({ email, code, expiresAt, subject }) {
   const emojiPattern =
     "[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}" +
     "\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]";
+
   const emojiRegex = new RegExp(emojiPattern, "gu");
+
   const cleanSubject =
     (subject || "").replace(emojiRegex, "").trim() ||
-    `PrintSync Verification Code: ${code}`;
+    `PMG Printing House Verification Code: ${code}`;
 
-  const text = `Your verification code is: ${code}. It expires in 5 minutes.`;
+  const text =
+    `Your PMG Printing House verification code is: ${code}. ` +
+    `It expires in 5 minutes.`;
 
   const contentHtml =
     `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;">` +
@@ -879,6 +838,63 @@ async function notifyOutOfStockProducts(products) {
   });
 }
 
+// =========================================================
+// CONTACT FORM EMAIL
+// =========================================================
+async function notifyContactForm({ name, phone, message }) {
+  const safeName = String(name || "").trim();
+  const safePhone = String(phone || "").trim();
+  const safeMessage = String(message || "").trim();
+
+  const contentHtml =
+    `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;">` +
+    `A customer has submitted a new message through the PMG Printing House contact form.` +
+    `</p>` +
+
+    `<div style="background:#f8fafc;border:1px solid #e2e8f0;` +
+    `border-radius:8px;padding:20px;margin-bottom:20px;` +
+    `font-size:14px;line-height:1.6;">` +
+
+    `<div style="margin-bottom:12px;">` +
+    `<strong>Customer Name</strong><br>` +
+    `${safeName}` +
+    `</div>` +
+
+    `<div style="margin-bottom:12px;">` +
+    `<strong>Phone Number</strong><br>` +
+    `${safePhone}` +
+    `</div>` +
+
+    `<div>` +
+    `<strong>Message</strong><br>` +
+    `<div style="margin-top:6px;padding:12px;background:#ffffff;` +
+    `border:1px solid #e2e8f0;border-radius:6px;white-space:pre-wrap;">` +
+    `${safeMessage}` +
+    `</div>` +
+    `</div>` +
+
+    `</div>` +
+
+    `<p style="margin:0;font-size:13px;color:#64748b;">` +
+    `This message was submitted through the PMG Printing House website contact form.` +
+    `</p>`;
+
+  return sendSystemEmail({
+    to: CONTACT_EMAIL,
+    subject: `PMG Printing House Contact Form: ${safeName}`,
+    text:
+      `New PMG Printing House contact form message\n\n` +
+      `Customer Name: ${safeName}\n` +
+      `Phone Number: ${safePhone}\n\n` +
+      `Message:\n${safeMessage}`,
+    html: renderBaseEmailTemplate({
+      title: "New Contact Form Message",
+      category: "Customer Support",
+      contentHtml,
+    }),
+  });
+}
+
 module.exports = {
   saveOtp,
   getOtp,
@@ -894,5 +910,6 @@ module.exports = {
   notifyAdminsNewOrderForReview,
   notifyDesignApproval,
   notifyFinalPaymentDue,
-    notifyNewSupportChat,
+  notifyNewSupportChat,
+  notifyContactForm,
 };

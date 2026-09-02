@@ -1,0 +1,1785 @@
+/* =========================================================
+   PMG CONTACT PAGE
+   PRODUCT OVERVIEW COLORWAY
+   20% SMALLER VERSION
+   ========================================================= */
+
+   .pmg-contact-page {
+    min-height: 100vh;
+
+    background:
+        radial-gradient(circle at 10% 15%,
+            rgba(91, 190, 0, 0.055),
+            transparent 25%),
+        radial-gradient(circle at 90% 60%,
+            rgba(91, 190, 0, 0.045),
+            transparent 28%),
+        #f8fbf7;
+
+    color: #15231e;
+
+    overflow: hidden;
+
+    font-family: inherit;
+}
+
+
+/* =========================================================
+   BACKGROUND DOTS
+   ========================================================= */
+
+.pmg-contact-page::before {
+    content: "";
+
+    position: fixed;
+
+    inset: 0;
+
+    pointer-events: none;
+
+    background-image:
+        radial-gradient(rgba(82, 177, 0, 0.12) 1px,
+            transparent 1px);
+
+    background-size: 52px 52px;
+
+    opacity: 0.35;
+
+    z-index: 0;
+}
+
+
+/* =========================================================
+   HERO
+   ========================================================= */
+
+.contact-hero {
+    position: relative;
+
+    z-index: 1;
+
+    /*
+     * Increased top padding so the heading has
+     * comfortable spacing below the fixed navbar.
+     */
+    padding: 82px 25px 36px;
+
+    text-align: center;
+}
+
+
+.contact-hero-eyebrow {
+    margin-bottom: 13px;
+
+    color: #57b900;
+
+    font-size: 9px;
+
+    font-weight: 800;
+
+    letter-spacing: 4px;
+}
+
+
+.contact-hero h1 {
+    margin: 0;
+
+    color: #15231e;
+
+    font-size: clamp(42px, 4.8vw, 66px);
+
+    line-height: 0.95;
+
+    font-weight: 800;
+
+    letter-spacing: -2.4px;
+}
+
+
+.contact-hero h1 span {
+    color: #58bd00;
+}
+
+
+.contact-hero p {
+    margin: 18px auto 0;
+
+    max-width: 560px;
+
+    color: #7a8580;
+
+    font-size: 13px;
+
+    line-height: 1.6;
+}
+
+
+/* =========================================================
+   CONTENT
+   ========================================================= */
+
+.contact-content-section {
+    position: relative;
+
+    z-index: 1;
+
+    padding: 12px 5% 60px;
+}
+
+
+.contact-content-container {
+    width: min(1000px, 100%);
+
+    margin: 0 auto;
+
+    display: grid;
+
+    grid-template-columns:
+        1fr 1fr;
+
+    gap: 15px;
+}
+
+
+/* =========================================================
+   CARDS
+   ========================================================= */
+
+.contact-card {
+    border: 1px solid #d4e4d0;
+
+    border-radius: 15px;
+
+    background:
+        linear-gradient(145deg,
+            #ffffff,
+            #f4faf2);
+
+    box-shadow:
+        0 8px 24px rgba(35, 76, 42, 0.055);
+
+    backdrop-filter: blur(10px);
+}
+
+
+.contact-form-card {
+    padding: 27px 30px;
+}
+
+
+.contact-right-column {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 15px;
+}
+
+
+/* =========================================================
+   CARD HEADINGS
+   ========================================================= */
+
+.contact-card-heading {
+    margin-bottom: 24px;
+}
+
+
+.contact-card-heading h2 {
+    margin: 0;
+
+    color: #58bd00;
+
+    font-size: 18px;
+
+    font-weight: 900;
+
+    letter-spacing: 1.6px;
+}
+
+
+.contact-card-heading span {
+    display: block;
+
+    width: 32px;
+
+    height: 2.5px;
+
+    margin-top: 9px;
+
+    background: #58bd00;
+
+    box-shadow:
+        0 0 7px rgba(88, 189, 0, 0.2);
+}
+
+
+/* =========================================================
+   FORM
+   ========================================================= */
+
+.contact-form-group {
+    margin-bottom: 18px;
+}
+
+
+.contact-form-group label {
+    display: block;
+
+    margin-bottom: 8px;
+
+    color: #26352e;
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    letter-spacing: 0.6px;
+}
+
+
+.contact-form-group input,
+.contact-form-group textarea {
+    width: 100%;
+
+    box-sizing: border-box;
+
+    border: 1px solid #d6e2d8;
+
+    border-radius: 7px;
+
+    outline: none;
+
+    background:
+        #f1f7f1;
+
+    color: #25342c;
+
+    font-family: inherit;
+
+    font-size: 12px;
+
+    transition:
+        border-color 0.2s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+
+.contact-form-group input {
+    height: 39px;
+
+    padding: 0 14px;
+}
+
+
+.contact-form-group textarea {
+    min-height: 140px;
+
+    padding: 12px 14px;
+
+    resize: vertical;
+}
+
+
+.contact-form-group input::placeholder,
+.contact-form-group textarea::placeholder {
+    color: #929d96;
+}
+
+
+.contact-form-group input:focus,
+.contact-form-group textarea:focus {
+    border-color: #8bcf67;
+
+    background: #ffffff;
+
+    box-shadow:
+        0 0 0 3px rgba(88, 189, 0, 0.08);
+}
+
+
+/* =========================================================
+   SEND BUTTON
+   ========================================================= */
+
+.contact-send-button {
+    width: 100%;
+
+    height: 39px;
+
+    border: none;
+
+    border-radius: 6px;
+
+    background: #a6f000;
+
+    color: #10200f;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 10px;
+
+    font-family: inherit;
+
+    font-size: 11px;
+
+    font-weight: 900;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+
+.contact-send-button:hover {
+    background: #b7f733;
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 7px 20px rgba(88, 189, 0, 0.16);
+}
+
+
+.contact-send-button:active {
+    transform: translateY(0);
+}
+
+
+/* =========================================================
+   SUCCESS MESSAGE
+   ========================================================= */
+
+.contact-success-message {
+    margin-top: 12px;
+
+    padding: 10px 12px;
+
+    border: 1px solid #c9e4bd;
+
+    border-radius: 7px;
+
+    background: #f1faed;
+
+    color: #4fa900;
+
+    font-size: 11px;
+
+    text-align: center;
+}
+
+
+/* =========================================================
+   CONTACT INFORMATION
+   ========================================================= */
+
+.contact-information-card {
+    padding: 26px 30px;
+}
+
+
+.contact-information-grid {
+    display: grid;
+
+    grid-template-columns:
+        1fr 1fr;
+
+    gap: 24px 32px;
+}
+
+
+.contact-information-item {
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+}
+
+
+.contact-address {
+    grid-column: 1 / -1;
+}
+
+
+/* =========================================================
+   ICONS
+   ========================================================= */
+
+.contact-icon {
+    width: 40px;
+
+    height: 40px;
+
+    flex: 0 0 40px;
+
+    border-radius: 50%;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    background:
+        #edf7e9;
+
+    color: #63bf12;
+
+    font-size: 15px;
+
+    box-shadow:
+        inset 0 0 12px rgba(88, 189, 0, 0.035);
+}
+
+
+/* =========================================================
+   CONTACT INFORMATION TEXT
+   ========================================================= */
+
+.contact-information-item h3 {
+    margin: 0 0 5px;
+
+    color: #27352e;
+
+    font-size: 13px;
+
+    font-weight: 900;
+
+    letter-spacing: 0.7px;
+}
+
+
+.contact-information-item p {
+    margin: 0;
+
+    color: #7c8781;
+
+    font-size: 14px;
+
+    line-height: 1.55;
+}
+
+
+/* =========================================================
+   CLICKABLE EMAIL
+   ========================================================= */
+
+.contact-email-link {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    margin: 0;
+
+    padding: 0;
+
+    border: none;
+
+    background: transparent;
+
+    color: #7c8781;
+
+    font-family: inherit;
+
+    font-size: 14px;
+
+    line-height: 1.5;
+
+    cursor: pointer;
+
+    text-align: left;
+
+    transition:
+        color 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+.contact-email-link svg {
+    flex-shrink: 0;
+
+    color: #58bd00;
+
+    font-size: 12px;
+}
+
+
+.contact-email-link:hover {
+    color: #58bd00;
+
+    transform: translateX(2px);
+}
+
+
+.contact-email-link:focus-visible {
+    outline: 2px solid #58bd00;
+
+    outline-offset: 3px;
+
+    border-radius: 3px;
+}
+
+
+/* =========================================================
+   PHONE NUMBERS
+   ========================================================= */
+
+.contact-phone-item p {
+    font-size: 14px;
+
+    line-height: 1.65;
+}
+
+
+/* =========================================================
+   FORM LABELS
+   ========================================================= */
+
+.contact-form-group label {
+    display: block;
+
+    margin-bottom: 8px;
+
+    color: #26352e;
+
+    font-size: 12px;
+
+    font-weight: 800;
+
+    letter-spacing: 0.6px;
+}
+
+
+/* =========================================================
+   BUSINESS HOURS
+   ========================================================= */
+
+.contact-hours-card {
+    padding: 24px 30px;
+
+    width: 100%;
+
+    box-sizing: border-box;
+}
+
+
+.contact-hours-card .contact-card-heading {
+    margin-bottom: 24px;
+}
+
+
+.contact-hours-card .contact-card-heading h2 {
+    margin: 0;
+
+    color: #58bd00;
+
+    font-size: 18px;
+
+    font-weight: 900;
+
+    letter-spacing: 1.6px;
+}
+
+
+.contact-hours-card .contact-card-heading span {
+    display: block;
+
+    width: 32px;
+
+    height: 2.5px;
+
+    margin-top: 9px;
+
+    background: #58bd00;
+}
+
+
+/* =========================================================
+   THREE COLUMN LAYOUT
+   ========================================================= */
+
+.contact-hours-card .contact-hours-grid {
+    width: 100%;
+
+    display: grid;
+
+    grid-template-columns: repeat(3, 1fr);
+
+    align-items: start;
+
+    gap: 0;
+
+    margin-top: 4px;
+}
+
+
+/* =========================================================
+   EACH BUSINESS HOURS ITEM
+   ========================================================= */
+
+.contact-hours-card .contact-hours-item {
+    min-width: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: flex-start;
+
+    text-align: center;
+
+    padding: 4px 20px;
+}
+
+
+/* Divider between columns */
+
+.contact-hours-card .contact-hours-item+.contact-hours-item {
+    border-left: 1px solid #dfe8df;
+}
+
+
+/* =========================================================
+   CLOCK ICON
+   ========================================================= */
+
+.contact-hours-card .contact-hours-icon {
+    width: 40px;
+
+    height: 40px;
+
+    margin-bottom: 12px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: #edf7e9;
+
+    color: #58bd00;
+
+    font-size: 16px;
+
+    flex-shrink: 0;
+}
+
+
+/* =========================================================
+   DAY
+   ========================================================= */
+
+.contact-hours-card .contact-hours-item h3 {
+    margin: 0 0 6px;
+
+    color: #29372f;
+
+    font-size: 12px;
+
+    font-weight: 900;
+
+    line-height: 1.3;
+
+    white-space: nowrap;
+}
+
+
+/* =========================================================
+   TIME
+   ========================================================= */
+
+.contact-hours-card .contact-hours-item p {
+    margin: 0;
+
+    color: #7f8984;
+
+    font-size: 13px;
+
+    line-height: 1.5;
+
+    white-space: nowrap;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+    .contact-hours-card .contact-hours-grid {
+        grid-template-columns: 1fr;
+
+        gap: 18px;
+    }
+
+
+    .contact-hours-card .contact-hours-item {
+        padding: 4px 10px 18px;
+    }
+
+
+    .contact-hours-card .contact-hours-item+.contact-hours-item {
+        border-left: none;
+
+        border-top: 1px solid #dfe8df;
+
+        padding-top: 18px;
+    }
+
+
+    .contact-hours-card .contact-hours-item h3,
+    .contact-hours-card .contact-hours-item p {
+        white-space: normal;
+    }
+
+}
+
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+.contact-footer {
+    position: relative;
+
+    z-index: 1;
+
+    margin: 0 4%;
+
+    padding: 32px 20px 44px;
+
+    border-top: 1px solid #e0e9df;
+
+    background: #f8fbf7;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    text-align: center;
+}
+
+
+.contact-footer-logo {
+    width: 110px;
+
+    height: auto;
+
+    margin-bottom: 14px;
+}
+
+
+.contact-footer p {
+    margin: 0;
+
+    color: #8a948e;
+
+    font-size: 11px;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 950px) {
+
+    .contact-content-container {
+        grid-template-columns: 1fr;
+    }
+
+
+    .contact-information-grid {
+        grid-template-columns:
+            1fr 1fr;
+    }
+
+
+    .contact-address {
+        grid-column: auto;
+    }
+
+}
+
+
+@media (max-width: 700px) {
+
+    .contact-hero {
+        padding-top: 48px;
+    }
+
+
+    .contact-hero h1 {
+        font-size: 38px;
+
+        letter-spacing: -1.6px;
+    }
+
+
+    .contact-content-section {
+        padding-left: 20px;
+
+        padding-right: 20px;
+    }
+
+
+    .contact-form-card,
+    .contact-information-card,
+    .contact-hours-card {
+        padding: 23px 19px;
+    }
+
+
+    .contact-information-grid {
+        grid-template-columns: 1fr;
+    }
+
+
+    .contact-hours-grid {
+        grid-template-columns: 1fr;
+
+        gap: 20px;
+    }
+
+
+    .contact-hours-item+.contact-hours-item {
+        border-left: none;
+
+        border-top: 1px solid #e0e8df;
+
+        padding-top: 20px;
+    }
+
+}
+
+
+@media (max-width: 480px) {
+
+    .contact-hero h1 {
+        font-size: 31px;
+    }
+
+
+    .contact-hero p {
+        font-size: 12px;
+
+        line-height: 1.6;
+    }
+
+
+    .contact-card-heading h2 {
+        font-size: 15px;
+    }
+
+}
+
+
+/* =========================================================
+   CLICKABLE EMAIL
+   ========================================================= */
+
+.contact-email-link {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 6px;
+
+    margin: 0;
+
+    padding: 0;
+
+    border: none;
+
+    background: transparent;
+
+    color: #7c8781;
+
+    font-family: inherit;
+
+    font-size: 12px;
+
+    line-height: 1.5;
+
+    cursor: pointer;
+
+    text-align: left;
+
+    transition:
+        color 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+.contact-email-link svg {
+    flex-shrink: 0;
+
+    color: #58bd00;
+
+    font-size: 11px;
+}
+
+
+.contact-email-link:hover {
+    color: #58bd00;
+
+    transform: translateX(2px);
+}
+
+
+.contact-email-link:focus-visible {
+    outline: 2px solid #58bd00;
+
+    outline-offset: 3px;
+
+    border-radius: 3px;
+}
+
+
+/* =========================================================
+   FIX CONTACT FORM VALIDATION DISPLAY
+   ========================================================= */
+
+/* Remove browser/custom invalid styling from NAME */
+
+#contact-name {
+    border-color: #d5e3d8 !important;
+
+    box-shadow: none !important;
+
+    outline: none;
+}
+
+
+/* Remove browser/custom invalid styling from MESSAGE */
+
+#contact-message {
+    border-color: #d5e3d8 !important;
+
+    box-shadow: none !important;
+
+    outline: none;
+}
+
+
+/* Remove any validation pseudo-elements from form fields */
+
+.contact-form-group::before,
+.contact-form-group::after,
+.contact-form-group input::before,
+.contact-form-group input::after,
+.contact-form-group textarea::before,
+.contact-form-group textarea::after {
+    content: none !important;
+
+    display: none !important;
+}
+
+
+/* Hide any generic validation/error message */
+
+.contact-form-group>.error-message,
+.contact-form-group>.validation-message,
+.contact-form-group>.field-error,
+.contact-form-group>.invalid-feedback {
+    display: none !important;
+}
+
+
+/* =========================================================
+   PHONE ERROR — ONLY PHONE CAN SHOW THIS
+   ========================================================= */
+
+.contact-phone-error {
+    display: block !important;
+
+    margin-top: 8px;
+
+    color: #d11f1f;
+
+    font-size: 16px;
+
+    line-height: 1.4;
+
+    font-weight: 500;
+}
+
+
+/* Phone is only red when our React validation says so */
+
+#contact-phone {
+    border-color: #d5e3d8 !important;
+
+    box-shadow: none !important;
+
+    outline: none;
+}
+
+
+#contact-phone.contact-input-error {
+    border-color: #d11f1f !important;
+
+    box-shadow:
+        0 0 0 4px rgba(209, 31, 31, 0.10) !important;
+}
+
+
+/* Never show the phone error underneath other fields */
+
+#contact-name+.contact-phone-error,
+#contact-message+.contact-phone-error {
+    display: none !important;
+}
+
+
+/* =========================================================
+   FACEBOOK MESSENGER
+   =========================================================
+
+   IMPORTANT:
+   The Messenger section is placed in column 2,
+   row 2 so it aligns with TRECE MARTIRES, CAVITE.
+   ========================================================= */
+
+.contact-messenger-item {
+    grid-column: 2;
+
+    grid-row: 2;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: flex-start;
+
+    justify-content: flex-start;
+
+    min-width: 0;
+}
+
+
+/* =========================================================
+   SOCIAL MEDIA ACCOUNT HEADING
+   ========================================================= */
+
+.contact-messenger-item h3 {
+    margin: 0 0 22px;
+
+    color: #27352e;
+
+    font-size: 13px;
+
+    font-weight: 900;
+
+    letter-spacing: 0.7px;
+
+    line-height: 1.3;
+}
+
+
+/* =========================================================
+   MESSENGER LINK
+   ========================================================= */
+
+.contact-messenger-link {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    margin: 0;
+
+    padding: 0;
+
+    border: none !important;
+
+    outline: none;
+
+    background: transparent !important;
+
+    color: #7c8781;
+
+    font-family: inherit;
+
+    font-size: 14px;
+
+    font-weight: 400;
+
+    line-height: 1.5;
+
+    text-decoration: none;
+
+    cursor: pointer;
+
+    box-shadow: none !important;
+
+    transition:
+        color 0.2s ease,
+        transform 0.2s ease;
+}
+
+
+/* =========================================================
+   MESSENGER ICON
+   ========================================================= */
+
+.contact-messenger-link svg {
+    flex-shrink: 0;
+
+    width: 20px;
+
+    height: 20px;
+
+    color: #1877F2;
+
+    font-size: 20px;
+}
+
+
+/* =========================================================
+   MESSENGER TEXT
+   ========================================================= */
+
+.contact-messenger-link span {
+    color: #7c8781;
+
+    white-space: nowrap;
+}
+
+
+/* =========================================================
+   HOVER
+   ========================================================= */
+
+.contact-messenger-link:hover {
+    color: #0084ff;
+
+    transform: translateX(2px);
+
+    text-decoration: none;
+}
+
+
+.contact-messenger-link:hover span {
+    color: #0084ff;
+}
+
+
+/* =========================================================
+   KEYBOARD FOCUS
+   ========================================================= */
+
+.contact-messenger-link:focus-visible {
+    outline: 2px solid #0084ff;
+
+    outline-offset: 3px;
+
+    border-radius: 3px;
+}
+
+
+/* =========================================================
+   MESSENGER RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+    .contact-messenger-item {
+        grid-column: 1;
+
+        grid-row: auto;
+
+        margin-top: 5px;
+    }
+
+
+    .contact-messenger-item h3 {
+        margin-bottom: 12px;
+    }
+
+
+    .contact-messenger-link {
+        font-size: 13px;
+    }
+
+
+    .contact-messenger-link span {
+        white-space: normal;
+    }
+
+}
+
+
+/* =========================================================
+   STANDARD LAPTOP SIZE — 1366 x 768
+   ========================================================= */
+
+/* Main page */
+
+.pmg-contact-page {
+    width: 100%;
+
+    min-height: 100vh;
+
+    overflow-x: hidden;
+}
+
+
+/* =========================================================
+   HERO — SMALLER FOR LAPTOP
+   ========================================================= */
+
+.contact-hero {
+    /*
+     * MOVED DOWN:
+     * Increased from 42px to 72px so the heading
+     * doesn't sit directly underneath the navbar.
+     */
+    padding: 72px 20px 28px;
+}
+
+
+.contact-hero-eyebrow {
+    margin-bottom: 10px;
+
+    font-size: 8px;
+
+    letter-spacing: 3px;
+}
+
+
+.contact-hero h1 {
+    font-size: clamp(34px, 3.8vw, 52px);
+
+    letter-spacing: -1.8px;
+}
+
+
+.contact-hero p {
+    margin-top: 13px;
+
+    max-width: 520px;
+
+    font-size: 12px;
+}
+
+
+/* =========================================================
+   MAIN CONTENT
+   ========================================================= */
+
+.contact-content-section {
+    padding: 5px 20px 45px;
+}
+
+
+.contact-content-container {
+    width: min(900px, 100%);
+
+    gap: 12px;
+}
+
+
+/* =========================================================
+   CARDS
+   ========================================================= */
+
+.contact-card {
+    border-radius: 13px;
+}
+
+
+.contact-form-card {
+    padding: 23px 25px;
+}
+
+
+.contact-right-column {
+    gap: 12px;
+}
+
+
+/* =========================================================
+   CARD HEADINGS
+   ========================================================= */
+
+.contact-card-heading {
+    margin-bottom: 20px;
+}
+
+
+.contact-card-heading h2 {
+    font-size: 16px;
+
+    letter-spacing: 1.3px;
+}
+
+
+.contact-card-heading span {
+    width: 28px;
+
+    height: 2px;
+
+    margin-top: 7px;
+}
+
+
+/* =========================================================
+   FORM
+   ========================================================= */
+
+.contact-form-group {
+    margin-bottom: 14px;
+}
+
+
+.contact-form-group label {
+    margin-bottom: 6px;
+
+    font-size: 10px;
+}
+
+
+.contact-form-group input,
+.contact-form-group textarea {
+    font-size: 11px;
+
+    border-radius: 6px;
+}
+
+
+.contact-form-group input {
+    height: 36px;
+
+    padding: 0 12px;
+}
+
+
+.contact-form-group textarea {
+    min-height: 115px;
+
+    padding: 10px 12px;
+}
+
+
+/* =========================================================
+   SEND BUTTON
+   ========================================================= */
+
+.contact-send-button {
+    height: 36px;
+
+    border-radius: 6px;
+
+    font-size: 10px;
+
+    gap: 8px;
+}
+
+
+/* =========================================================
+   CONTACT INFORMATION
+   ========================================================= */
+
+.contact-information-card {
+    padding: 23px 25px;
+}
+
+
+.contact-information-grid {
+    column-gap: 25px;
+
+    row-gap: 27px;
+}
+
+
+.contact-information-item {
+    gap: 10px;
+}
+
+
+.contact-icon {
+    width: 36px;
+
+    height: 36px;
+
+    flex: 0 0 36px;
+
+    font-size: 13px;
+}
+
+
+.contact-information-item h3 {
+    margin-bottom: 4px;
+
+    font-size: 11px;
+
+    letter-spacing: 0.5px;
+}
+
+
+.contact-information-item p,
+.contact-email-link {
+    font-size: 11px;
+}
+
+
+.contact-email-link {
+    gap: 6px;
+}
+
+
+.contact-email-link svg {
+    font-size: 10px;
+}
+
+
+/* =========================================================
+   PHONE NUMBERS
+   ========================================================= */
+
+.contact-phone-item p {
+    font-size: 11px;
+
+    line-height: 1.5;
+}
+
+
+/* =========================================================
+   FACEBOOK / SOCIAL MEDIA
+   ========================================================= */
+
+.contact-messenger-item {
+    grid-column: 2;
+
+    grid-row: 2;
+}
+
+
+.contact-messenger-item h3 {
+    margin-bottom: 13px;
+
+    font-size: 11px;
+
+    letter-spacing: 0.5px;
+}
+
+
+.contact-messenger-link {
+    gap: 8px;
+
+    font-size: 11px;
+}
+
+
+.contact-messenger-link svg {
+    width: 18px;
+
+    height: 18px;
+
+    font-size: 18px;
+}
+
+
+.contact-messenger-link span {
+    font-size: 11px;
+}
+
+
+/* =========================================================
+   BUSINESS HOURS
+   ========================================================= */
+
+.contact-hours-card {
+    padding: 21px 25px;
+}
+
+
+.contact-hours-card .contact-card-heading {
+    margin-bottom: 19px;
+}
+
+
+.contact-hours-card .contact-card-heading h2 {
+    font-size: 16px;
+}
+
+
+.contact-hours-card .contact-hours-grid {
+    margin-top: 2px;
+}
+
+
+.contact-hours-card .contact-hours-item {
+    padding: 3px 15px;
+}
+
+
+.contact-hours-card .contact-hours-icon {
+    width: 34px;
+
+    height: 34px;
+
+    margin-bottom: 9px;
+
+    font-size: 13px;
+}
+
+
+.contact-hours-card .contact-hours-item h3 {
+    margin-bottom: 4px;
+
+    font-size: 10px;
+}
+
+
+.contact-hours-card .contact-hours-item p {
+    font-size: 10px;
+}
+
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+
+.contact-footer {
+    margin: 0 3%;
+
+    padding: 25px 15px 32px;
+}
+
+
+.contact-footer-logo {
+    width: 95px;
+
+    margin-bottom: 10px;
+}
+
+
+.contact-footer p {
+    font-size: 10px;
+}
+
+
+/* =========================================================
+   LAPTOP HEIGHT OPTIMIZATION
+   For 768px-high screens
+   ========================================================= */
+
+@media (min-width: 1000px) and (max-height: 800px) {
+
+    /*
+     * IMPORTANT:
+     * Increased this as well so the height optimization
+     * doesn't pull the heading back up.
+     */
+    .contact-hero {
+        padding-top: 72px;
+
+        padding-bottom: 22px;
+    }
+
+
+    .contact-hero h1 {
+        font-size: 46px;
+    }
+
+
+    .contact-hero p {
+        margin-top: 10px;
+    }
+
+
+    .contact-content-section {
+        padding-bottom: 35px;
+    }
+
+
+    .contact-information-grid {
+        row-gap: 22px;
+    }
+
+
+    .contact-form-group {
+        margin-bottom: 12px;
+    }
+
+
+    .contact-form-group textarea {
+        min-height: 105px;
+    }
+
+
+    .contact-footer {
+        padding-top: 20px;
+
+        padding-bottom: 25px;
+    }
+}
+
+
+/* =========================================================
+   1366px STANDARD LAPTOP
+   ========================================================= */
+
+@media (min-width: 1200px) and (max-width: 1440px) {
+
+    .contact-content-container {
+        width: min(900px, 100%);
+    }
+
+
+    .contact-hero {
+        /*
+         * Increased from 38px to 72px.
+         * This is the main fix for your screenshot.
+         */
+        padding-top: 72px;
+
+        padding-bottom: 25px;
+    }
+
+
+    .contact-information-card,
+    .contact-form-card {
+        padding: 23px 25px;
+    }
+}
+
+
+/* =========================================================
+   1024px–1199px LAPTOP / SMALL DESKTOP
+   ========================================================= */
+
+@media (min-width: 950px) and (max-width: 1199px) {
+
+    .contact-content-container {
+        width: min(850px, 100%);
+    }
+
+
+    .contact-hero h1 {
+        font-size: 42px;
+    }
+
+
+    .contact-information-item h3 {
+        font-size: 10px;
+    }
+
+
+    .contact-information-item p,
+    .contact-email-link {
+        font-size: 10px;
+    }
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 949px) {
+
+    .contact-content-container {
+        width: min(700px, 100%);
+
+        grid-template-columns: 1fr;
+    }
+
+
+    .contact-right-column {
+        gap: 12px;
+    }
+
+
+    .contact-information-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+    .contact-hero {
+        /*
+         * Keep mobile spacing smaller.
+         */
+        padding: 38px 18px 25px;
+    }
+
+
+    .contact-hero h1 {
+        font-size: 34px;
+    }
+
+
+    .contact-content-section {
+        padding: 5px 15px 35px;
+    }
+
+
+    .contact-form-card,
+    .contact-information-card,
+    .contact-hours-card {
+        padding: 22px 18px;
+    }
+
+
+    .contact-information-grid {
+        grid-template-columns: 1fr;
+
+        row-gap: 25px;
+    }
+
+
+    .contact-messenger-item {
+        grid-column: 1;
+
+        grid-row: auto;
+    }
+
+
+    .contact-hours-card .contact-hours-grid {
+        grid-template-columns: 1fr;
+
+        gap: 15px;
+    }
+
+
+    .contact-hours-card .contact-hours-item {
+        padding: 10px;
+    }
+
+
+    .contact-hours-card .contact-hours-item + .contact-hours-item {
+        border-left: none;
+
+        border-top: 1px solid #dfe8df;
+    }
+
+}

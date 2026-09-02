@@ -176,13 +176,6 @@ function UserCartPage() {
       <div>
         <div className="ucart-page fade-in-up">
           <div className="uo-top">
-            <button
-              className="uo-back"
-              type="button"
-              onClick={() => navigate(-1)}
-            >
-              <FaArrowLeft /> Back
-            </button>
             <h1 className="uo-title">My Cart</h1>
             <p className="uo-subtitle">
               Your cart is empty. Start shopping to add custom print products.
@@ -214,13 +207,6 @@ function UserCartPage() {
       <div className="ucart-page fade-in-up">
         {/* TOP BAR */}
         <div className="uo-top">
-          <button
-            className="uo-back"
-            type="button"
-            onClick={() => navigate(-1)}
-          >
-            <FaArrowLeft /> Back
-          </button>
           <h1 className="uo-title">My Cart</h1>
           <p className="uo-subtitle">
             Review your selected print products and options before checkout.

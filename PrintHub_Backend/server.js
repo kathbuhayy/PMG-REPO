@@ -82,7 +82,11 @@ const {
   notifyAdminsNewOrderForReview,
   notifyDesignApproval,
   notifyFinalPaymentDue,
+  notifyContactForm,
 } = require("./services/notification");
+
+const OTP_RESEND_COOLDOWN = 45 * 1000; // 45 seconds
+const OTP_MAX_RESENDS = 5;
 
 const { 
   handleChat 
@@ -150,6 +154,45 @@ app.post("/api/chat", async (req, res) => {
         "file requirements, delivery, and payments. Please ask me about " +
         "a product like business cards, flyers, posters, shirts, mugs, " +
         "stickers, or notebooks.",
+    });
+  }
+});
+
+// =================================================
+// CONTACT FORM API
+// =================================================
+app.post("/api/contact", async (req, res) => {
+  const { name, phone, message } = req.body;
+
+  if (!name || !phone || !message) {
+    return res.status(400).json({
+      message: "Name, phone number, and message are required.",
+    });
+  }
+
+  try {
+    const emailResult = await notifyContactForm({
+      name,
+      phone,
+      message,
+    });
+
+    if (emailResult.status === "failed") {
+      console.error("Contact form email failed:", emailResult.error);
+
+      return res.status(500).json({
+        message: "Failed to send your message. Please try again.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Your message has been sent successfully.",
+    });
+  } catch (error) {
+    console.error("Contact form error:", error);
+
+    return res.status(500).json({
+      message: "Failed to send your message. Please try again.",
     });
   }
 });
@@ -333,6 +376,100 @@ app.post("/api/register/send-otp", (req, res) => {
       console.error(e);
       return res.status(500).json({ message: "Database error" });
     });
+});
+
+app.post("/api/register/resend-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        message: "Email is required.",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingOtp = getOtp(normalizedEmail);
+
+    if (!existingOtp) {
+      return res.status(400).json({
+        message: "No active OTP request found. Please register again.",
+      });
+    }
+
+    // Prevent OTP spam
+    if (
+      existingOtp.lastSentAt &&
+      Date.now() - existingOtp.lastSentAt < OTP_RESEND_COOLDOWN
+    ) {
+      const remainingSeconds = Math.ceil(
+        (OTP_RESEND_COOLDOWN -
+          (Date.now() - existingOtp.lastSentAt)) /
+          1000
+      );
+
+      return res.status(429).json({
+        message: `Please wait ${remainingSeconds} seconds before requesting another OTP.`,
+        remainingSeconds,
+      });
+    }
+
+    // Prevent excessive resend requests
+    const resendCount = existingOtp.resendCount || 0;
+
+    if (resendCount >= OTP_MAX_RESENDS) {
+      return res.status(429).json({
+        message:
+          "You have reached the maximum number of OTP resend attempts. Please register again.",
+      });
+    }
+
+    // Generate a new 6-digit OTP
+    const code = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+
+    const expiresAt = new Date(
+      Date.now() + 5 * 60 * 1000
+    );
+
+    // Save the new OTP
+    saveOtp(normalizedEmail, {
+      ...existingOtp,
+      otp: code,
+      code,
+      expiresAt,
+      lastSentAt: Date.now(),
+      resendCount: resendCount + 1,
+    });
+
+    const emailResult = await sendOtpEmail({
+      email: normalizedEmail,
+      code,
+      expiresAt,
+      subject: "Your OTP Code (Registration)",
+    });
+
+    if (emailResult?.status === "failed") {
+      return res.status(500).json({
+        message: "Failed to resend OTP email.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "A new OTP has been sent to your email.",
+      expiresAt,
+      remainingResends:
+        OTP_MAX_RESENDS - (resendCount + 1),
+    });
+  } catch (error) {
+    console.error("❌ Resend registration OTP error:", error);
+
+    return res.status(500).json({
+      message: "Failed to resend OTP.",
+    });
+  }
 });
 
 // =================================================
