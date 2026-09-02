@@ -1,14 +1,12 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import "./Admin-manageacc.css";
 import {
-  FaEdit,
   FaTrash,
   FaSearch,
   FaPlus,
   FaTimes,
   FaInfoCircle,
-  FaTrashRestore,
-  FaUserCog
+  FaTrashRestore
 } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
@@ -508,6 +506,17 @@ const permanentlyDeleteUser = async (u) => {
     setSelectedUser(null);
   };
 
+  const pageTitle =
+    scope === "customers"
+      ? "Customers"
+      : scope === "staff"
+        ? "Admin & Staff"
+        : "Manage Accounts";
+  const pageSubtitle =
+    scope === "customers"
+      ? "View and manage customer accounts."
+      : "Control user access and permissions.";
+
   return (
     <div className="manageacc">
       {toast.message && (
@@ -516,14 +525,13 @@ const permanentlyDeleteUser = async (u) => {
           <span>{toast.message}</span>
         </div>
       )}
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">{pageTitle}</h1>
+        <p className="admin-page-header-desc">{pageSubtitle}</p>
+      </div>
+
       {/* top row */}
       <div className="manageacc-top">
-        <div>
-          <p className="manageacc-subtitle">
-            Control user access and permissions
-          </p>
-        </div>
-
         <div className="manageacc-top-actions">
           <button
             className="manageacc-recyclebin-btn"
@@ -591,6 +599,8 @@ const permanentlyDeleteUser = async (u) => {
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
+            name="manageacc-search"
           />
         </div>
 
@@ -611,7 +621,7 @@ const permanentlyDeleteUser = async (u) => {
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
             >
-              <option value="all">All (Admin + Staff)</option>
+              <option value="all">All</option>
               <option value="admin">Admin</option>
               <option value="staff">Staff</option>
             </select>
@@ -684,7 +694,6 @@ const permanentlyDeleteUser = async (u) => {
                       onClick={() => handleEdit(u)}
                       title="Edit user"
                     >
-                      <FaEdit size={12} />
                       Edit
                     </button>
                     {(u.role === "staff" || u.role === "admin") && (
@@ -694,26 +703,27 @@ const permanentlyDeleteUser = async (u) => {
                         onClick={() => openRolesModal(u)}
                         title="Manage job roles"
                       >
-                        <FaUserCog size={12} />
                         Roles
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className={`manageacc-btn-delete ${
-                        isSelf(u) ? "disabled" : ""
-                      }`}
-                      title={
-                        isSelf(u)
-                          ? "You can't delete your own account"
-                          : "Delete"
-                      }
-                      onClick={() => !isSelf(u) && handleDelete(u)}
-                      disabled={isSelf(u)}
-                    >
-                      <FaTrash size={12} />
-                      Delete
-                    </button>
+                    {(u.role || "").toLowerCase() !== "admin" && (
+                      <button
+                        type="button"
+                        className={`manageacc-btn-delete ${
+                          isSelf(u) ? "disabled" : ""
+                        }`}
+                        title={
+                          isSelf(u)
+                            ? "You can't delete your own account"
+                            : "Delete"
+                        }
+                        onClick={() => !isSelf(u) && handleDelete(u)}
+                        disabled={isSelf(u)}
+                      >
+                        <FaTrash size={12} />
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -975,6 +985,8 @@ const permanentlyDeleteUser = async (u) => {
                   placeholder="Search archived accounts..."
                   value={archivedSearch}
                   onChange={(e) => setArchivedSearch(e.target.value)}
+                  autoComplete="off"
+                  name="manageacc-archived-search"
                 />
               </div>
 

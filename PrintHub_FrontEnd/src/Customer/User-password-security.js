@@ -262,9 +262,9 @@ function UserPasswordSecurityPage() {
                   className="show-password-button"
                 >
                   {showCurrentPassword ? (
-                    <MdVisibilityOff size={22} color="#64748b" />
-                  ) : (
                     <MdVisibility size={22} color="#64748b" />
+                  ) : (
+                    <MdVisibilityOff size={22} color="#64748b" />
                   )}
                 </button>
               </div>
@@ -289,9 +289,9 @@ function UserPasswordSecurityPage() {
                   className="show-password-button"
                 >
                   {showNewPassword ? (
-                    <MdVisibilityOff size={22} color="#64748b" />
-                  ) : (
                     <MdVisibility size={22} color="#64748b" />
+                  ) : (
+                    <MdVisibilityOff size={22} color="#64748b" />
                   )}
                 </button>
               </div>
@@ -318,9 +318,9 @@ function UserPasswordSecurityPage() {
                   className="show-password-button"
                 >
                   {showConfirmNewPassword ? (
-                    <MdVisibilityOff size={22} color="#64748b" />
-                  ) : (
                     <MdVisibility size={22} color="#64748b" />
+                  ) : (
+                    <MdVisibilityOff size={22} color="#64748b" />
                   )}
                 </button>
               </div>

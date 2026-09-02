@@ -325,13 +325,11 @@ function AdminInquiries() {
 
   return (
     <div className="dashpage dashpage-products">
-      {/* Header */}
-      <div className="dashpage-top">
-        <div>
-          <p className="dashpage-subtitle">
-            Quote requests submitted by customers
-          </p>
-        </div>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Quotations</h1>
+        <p className="admin-page-header-desc">
+          Quote requests submitted by customers.
+        </p>
       </div>
 
       {/* Stats */}

@@ -1,12 +1,56 @@
 import React, { useState, useEffect } from "react";
-import { FaEdit, FaKey } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 import "./Admin-profile.css";
 import { MdVisibility, MdVisibilityOff } from "react-icons/md";
+import {
+  FaPen,
+  FaCheckCircle,
+  FaTimes,
+  FaExclamationTriangle,
+} from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import AlertModal from "../components/AlertModal";
 import { adminFetch } from "../utils/adminFetch";
 
-function AdminProfile() {
+// Allows letters, spaces, dot, dash
+const nameRegex = /^[A-Za-z.\-\s]+$/;
+const isValidName = (value) => {
+  const v = String(value || "").trim();
+  if (!v) return false;
+  return nameRegex.test(v);
+};
+
+const emailRegex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+// 09XXXXXXXXX or +639XXXXXXXXX
+const phRegex = /^(09\d{9}|\+639\d{9})$/;
+
+const MIN_BIRTHDAY = "1950-01-01";
+// Always today's actual date, so the upper bound advances on its own each year.
+const getTodayStr = () => new Date().toISOString().slice(0, 10);
+
+const isAtLeast18 = (dateStr) => {
+  if (!dateStr) return false;
+  const dob = new Date(dateStr);
+  if (isNaN(dob.getTime())) return false;
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age >= 18;
+};
+
+// Normalize 09XXXXXXXXX -> +639XXXXXXXXX for storage
+const normalizePhone = (value) => {
+  const v = (value || "").trim();
+  if (/^09\d{9}$/.test(v)) return "+63" + v.slice(1);
+  return v;
+};
+
+function EditAdminProfile() {
+  const navigate = useNavigate();
 
   const [admin, setAdmin] = useState({
     firstName: "",
@@ -15,9 +59,11 @@ function AdminProfile() {
     role: "",
     birthday: "",
     gender: "",
-    phone: "+63", // ✅ +63 pre-filled
+    phone: "",
     avatar_url: "",
   });
+
+  const [errors, setErrors] = useState({});
 
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -27,26 +73,64 @@ function AdminProfile() {
     setAlertOpen(true);
   };
 
-  const [isEditing, setIsEditing] = useState(false);
-
-  // ✅ Change password modal state
+  // Change password modal state
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [changePassError, setChangePassError] = useState("");
-  const [changePassSuccess, setChangePassSuccess] = useState("");
+  const [showToast, setShowToast] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpError, setOtpError] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
-  // ✅ eye toggles for change password modal
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
-  // ✅ criteria for change password modal (same rules)
+  // Rate-limit "Change Password" / OTP requests to 3 attempts, then a 60s cooldown.
+  // The cooldown's expiration timestamp lives in sessionStorage so it survives
+  // navigating away from and back to this page.
+  const [otpClickCount, setOtpClickCount] = useState(0);
+  const [cooldownTime, setCooldownTime] = useState(0);
+  const [showRateLimitToast, setShowRateLimitToast] = useState(false);
+
+  useEffect(() => {
+    if (showRateLimitToast) {
+      const timer = setTimeout(() => {
+        setShowRateLimitToast(false);
+      }, 10000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showRateLimitToast]);
+
+  // Restore an in-progress cooldown on mount, and keep it ticking down
+  // against the stored wall-clock expiry rather than a fresh in-memory timer.
+  useEffect(() => {
+    const checkCooldown = () => {
+      const savedEndTime = sessionStorage.getItem("otpCooldownEnd");
+      if (!savedEndTime) return;
+
+      const remaining = Math.ceil(
+        (parseInt(savedEndTime, 10) - Date.now()) / 1000,
+      );
+
+      if (remaining > 0) {
+        setCooldownTime(remaining);
+      } else {
+        sessionStorage.removeItem("otpCooldownEnd");
+        setCooldownTime(0);
+        setOtpClickCount(0);
+      }
+    };
+
+    checkCooldown();
+    const interval = setInterval(checkCooldown, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [cpCriteria, setCpCriteria] = useState({
     uppercase: false,
     number: false,
@@ -54,19 +138,7 @@ function AdminProfile() {
     length: false,
   });
 
-  // ✅ ADDED: Inline name validation message (replaces alert for name only)
-  const [nameError, setNameError] = useState("");
-
-  // ✅ ADDED: name validation (not empty, no special characters)
-  // Allows letters, spaces, dot, dash
-  const nameRegex = /^[A-Za-z.\-\s]+$/;
-  const isValidName = (value) => {
-    const v = String(value || "").trim();
-    if (!v) return false;
-    return nameRegex.test(v);
-  };
-
-  // ✅ Load profile from DB
+  // Load profile from DB
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (!stored) return;
@@ -97,8 +169,7 @@ function AdminProfile() {
           role: user.role || "",
           birthday: data.birthday || "",
           gender: data.gender || "",
-          phone:
-            data.phone && String(data.phone).trim() !== "" ? data.phone : "+63", // ✅ fallback to +63
+          phone: data.phone && String(data.phone).trim() !== "" ? data.phone : "",
           avatar_url: data.avatar_url || "",
         });
       })
@@ -110,15 +181,127 @@ function AdminProfile() {
 
   const handleChange = (e) => {
     setAdmin({ ...admin, [e.target.name]: e.target.value });
+    setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
   };
 
-  const handleEdit = () => {
-    setIsEditing(true);
-    // ✅ ADDED: clear name error when editing
-    setNameError("");
+  // Some browsers let the year segment of a native date input grow past 4
+  // digits while typing, even with min/max set. Cap it defensively here, and
+  // clamp the whole date to the 1950 – today range.
+  const handleBirthdayChange = (e) => {
+    let value = e.target.value;
+    const [year, month, day] = value.split("-");
+
+    if (year && year.length > 4) {
+      value = [year.slice(0, 4), month, day].filter(Boolean).join("-");
+    }
+
+    if (value) {
+      if (value < MIN_BIRTHDAY) {
+        value = MIN_BIRTHDAY;
+      } else {
+        const todayStr = getTodayStr();
+        if (value > todayStr) {
+          value = todayStr;
+        }
+      }
+    }
+
+    setAdmin((prev) => ({ ...prev, birthday: value }));
+    setErrors((prev) => ({ ...prev, birthday: "" }));
   };
 
-  const handleSave = async () => {
+  const handlePhoneChange = (e) => {
+    let value = e.target.value;
+
+    // Allow a leading '+' for international format (+63), strip all other non-digit characters
+    if (value.startsWith("+")) {
+      value = "+" + value.slice(1).replace(/\D/g, "");
+    } else {
+      value = value.replace(/\D/g, "");
+    }
+
+    setAdmin((prev) => ({ ...prev, phone: value }));
+    setErrors((prev) => ({ ...prev, phone: "" }));
+  };
+
+  const handlePhoneKeyDown = (e) => {
+    // Allow backspace, delete, tab, arrows, home/end, etc.
+    const allowedKeys = [
+      "Backspace",
+      "Delete",
+      "Tab",
+      "ArrowLeft",
+      "ArrowRight",
+      "Home",
+      "End",
+    ];
+    if (allowedKeys.includes(e.key) || e.ctrlKey || e.metaKey) return;
+
+    // Allow '+' only as the very first character
+    if (
+      e.key === "+" &&
+      e.currentTarget.selectionStart === 0 &&
+      !e.currentTarget.value.includes("+")
+    ) {
+      return;
+    }
+
+    // Block anything that isn't a digit
+    if (!/^\d$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const validate = () => {
+    const newErrors = {};
+
+    if (!isValidName(admin.firstName)) {
+      newErrors.firstName =
+        "First name is required and must not contain special characters.";
+    }
+    if (!isValidName(admin.lastName)) {
+      newErrors.lastName =
+        "Last name is required and must not contain special characters.";
+    }
+
+    const emailTrim = (admin.email || "").trim();
+    if (!emailTrim) {
+      newErrors.email = "Email is required.";
+    } else if (!emailRegex.test(emailTrim)) {
+      newErrors.email = "Enter a valid email address (e.g. user@domain.com).";
+    }
+
+    const phoneTrim = (admin.phone || "").trim();
+    if (!phoneTrim) {
+      newErrors.phone = "Phone number is required.";
+    } else if (!phRegex.test(phoneTrim)) {
+      newErrors.phone =
+        "Enter a valid PH mobile number (09XXXXXXXXX or +639XXXXXXXXX).";
+    }
+
+    if (!admin.gender) {
+      newErrors.gender = "Please select a gender.";
+    }
+
+    if (!admin.birthday) {
+      newErrors.birthday = "Birthday is required.";
+    } else if (admin.birthday < MIN_BIRTHDAY || admin.birthday > getTodayStr()) {
+      newErrors.birthday = `Birthday must be between ${MIN_BIRTHDAY} and today.`;
+    } else if (!isAtLeast18(admin.birthday)) {
+      newErrors.birthday = "You must be at least 18 years old.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleCancel = () => {
+    navigate("/admin/profile");
+  };
+
+  const handleSaveChanges = async () => {
+    if (!validate()) return;
+
     const stored = localStorage.getItem("user");
     if (!stored) {
       showAlert("No logged-in user found.");
@@ -138,27 +321,7 @@ function AdminProfile() {
       return;
     }
 
-    // ✅ ADDED: First/Last name validation (NO alerts — shows inline message)
-    setNameError("");
-    if (!isValidName(admin.firstName) || !isValidName(admin.lastName)) {
-      setNameError("Name is required and must not contain special character.");
-      return;
-    }
-
-    // ✅ Philippines phone validation
-    // Allowed:
-    // - "+63" only (treated as empty/not provided)
-    // - "+639XXXXXXXXX" (PH mobile)
-    const phoneTrim = (admin.phone || "").trim();
-    if (phoneTrim !== "" && phoneTrim !== "+63") {
-      const phoneRegex = /^\+639\d{9}$/;
-      if (!phoneRegex.test(phoneTrim)) {
-        showAlert(
-          "Phone must be a Philippine mobile number: +639 followed by 9 digits",
-        );
-        return;
-      }
-    }
+    const normalizedPhone = normalizePhone(admin.phone);
 
     try {
       const res = await adminFetch(buildApiUrl(`/api/user-profile/${user.id}`), {
@@ -166,15 +329,10 @@ function AdminProfile() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: `${admin.firstName} ${admin.lastName}`.trim(),
-
-          // ✅ ADDED ONLY: send email so server can update it
           email: admin.email,
-
           birthday: admin.birthday,
           gender: admin.gender,
-
-          // ✅ if only "+63", send empty so backend treats as not provided
-          phone: phoneTrim === "+63" ? "" : phoneTrim,
+          phone: normalizedPhone,
           address: "",
         }),
       });
@@ -195,18 +353,14 @@ function AdminProfile() {
       }
       window.dispatchEvent(new Event("profileUpdated"));
 
-      setIsEditing(false);
-      // ✅ ADDED: clear name error on successful save
-      setNameError("");
-
-      showAlert("Profile Updated Successfully!");
+      navigate("/admin/profile");
     } catch (err) {
       console.error(err);
       showAlert(err.message || "Error updating profile");
     }
   };
 
-  // ✅ update criteria as user types new password
+  // update criteria as user types new password
   const handleCpNewPasswordChange = (e) => {
     const value = e.target.value;
     setNewPassword(value);
@@ -231,7 +385,7 @@ function AdminProfile() {
     </p>
   );
 
-  // ✅ Step 1: request OTP, then open the OTP entry modal
+  // Step 1: request OTP, then open the OTP entry modal
   const requestPasswordOtp = async () => {
     setOtpError("");
     setOtpCode("");
@@ -277,7 +431,28 @@ function AdminProfile() {
     }
   };
 
-  // ✅ Step 2: verify OTP, then open the actual Change Password modal
+  // Rate-limited entry point for the "Change Password" button
+  const handleChangePasswordClick = () => {
+    if (cooldownTime > 0) {
+      setShowRateLimitToast(true);
+      return;
+    }
+
+    const nextCount = otpClickCount + 1;
+    setOtpClickCount(nextCount);
+
+    if (nextCount >= 3) {
+      const expireTime = Date.now() + 60000;
+      sessionStorage.setItem("otpCooldownEnd", expireTime.toString());
+      setCooldownTime(60);
+      setShowRateLimitToast(true);
+      return;
+    }
+
+    requestPasswordOtp();
+  };
+
+  // Step 2: verify OTP, then open the actual Change Password modal
   const verifyPasswordOtp = async (e) => {
     e.preventDefault();
     setOtpError("");
@@ -315,7 +490,7 @@ function AdminProfile() {
       setOtpLoading(false);
       setShowOtpModal(false);
       setOtpCode("");
-      openChangePassword(); // ✅ only now open the real modal
+      openChangePassword();
     } catch (err) {
       setOtpLoading(false);
       setOtpError(err.message || "Error verifying code");
@@ -334,7 +509,6 @@ function AdminProfile() {
     setNewPassword("");
     setConfirmNewPassword("");
     setChangePassError("");
-    setChangePassSuccess("");
 
     setShowCurrentPassword(false);
     setShowNewPassword(false);
@@ -345,6 +519,92 @@ function AdminProfile() {
       special: false,
       length: false,
     });
+  };
+
+  const closeChangePassword = () => {
+    setShowChangePassword(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setChangePassError("");
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmNewPassword(false);
+    setCpCriteria({
+      uppercase: false,
+      number: false,
+      special: false,
+      length: false,
+    });
+  };
+
+  // Submit change password
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setChangePassError("");
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      setChangePassError("All fields are required.");
+      return;
+    }
+
+    if (!cpPasswordValid()) {
+      setChangePassError("New password does not meet the criteria.");
+      return;
+    }
+
+    if (newPassword.trim() !== confirmNewPassword.trim()) {
+      setChangePassError("New password and confirm password do not match.");
+      return;
+    }
+
+    if (newPassword === currentPassword) {
+      setChangePassError(
+        "New password must be different from current password.",
+      );
+      return;
+    }
+
+    const stored = localStorage.getItem("user");
+    if (!stored) {
+      setChangePassError("No logged-in user found.");
+      return;
+    }
+
+    let user;
+    try {
+      user = JSON.parse(stored);
+    } catch {
+      setChangePassError("Invalid user session.");
+      return;
+    }
+
+    if (!user?.id) {
+      setChangePassError("User ID missing.");
+      return;
+    }
+
+    try {
+      const res = await adminFetch(buildApiUrl(`/api/profile/${user.id}/password`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok)
+        throw new Error(data?.message || "Failed to change password");
+
+      closeChangePassword();
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 5000);
+    } catch (err) {
+      setChangePassError(err.message || "Error changing password");
+    }
   };
 
   // Avatar upload state + handlers
@@ -400,7 +660,6 @@ function AdminProfile() {
       setAdminAvatarPreview(data.url || "");
       setAdmin((prev) => ({ ...prev, avatar_url: data.url || "" }));
 
-      // Save to profile (best-effort)
       if (userId) {
         try {
           const profileRes = await adminFetch(
@@ -444,256 +703,191 @@ function AdminProfile() {
     }
   };
 
-  const closeChangePassword = () => {
-    setShowChangePassword(false);
-    setChangePassError("");
-    setChangePassSuccess("");
-  };
-
-  // ✅ Submit change password
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-    setChangePassError("");
-    setChangePassSuccess("");
-
-    if (!currentPassword || !newPassword || !confirmNewPassword) {
-      setChangePassError("All fields are required.");
-      return;
-    }
-
-    if (!cpPasswordValid()) {
-      setChangePassError("New password does not meet the criteria.");
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setChangePassError("New password and confirm password do not match.");
-      return;
-    }
-
-    if (newPassword === currentPassword) {
-      setChangePassError(
-        "New password must be different from current password.",
-      );
-      return;
-    }
-
-    const stored = localStorage.getItem("user");
-    if (!stored) {
-      setChangePassError("No logged-in user found.");
-      return;
-    }
-
-    let user;
-    try {
-      user = JSON.parse(stored);
-    } catch {
-      setChangePassError("Invalid user session.");
-      return;
-    }
-
-    if (!user?.id) {
-      setChangePassError("User ID missing.");
-      return;
-    }
-
-    try {
-      const res = await adminFetch(buildApiUrl(`/api/profile/${user.id}/password`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok)
-        throw new Error(data?.message || "Failed to change password");
-
-      setChangePassSuccess("Password changed successfully!");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmNewPassword("");
-
-      setCpCriteria({
-        uppercase: false,
-        number: false,
-        special: false,
-        length: false,
-      });
-    } catch (err) {
-      setChangePassError(err.message || "Error changing password");
-    }
-  };
+  const isConfirmTooShort =
+    confirmNewPassword.length > 0 && confirmNewPassword.length < 6;
+  const isMismatch =
+    confirmNewPassword.length > 0 &&
+    newPassword.trim() !== confirmNewPassword.trim();
+  const hasConfirmError = isConfirmTooShort || isMismatch;
 
   return (
-    <div className="page-shell">
-      <div className="section-hero">
-        <div className="section-hero-left">
-          <div className="section-kicker">Account</div>
-          <h2 className="section-title">Admin Profile</h2>
-          <p className="section-desc">
-            Manage your personal information and account settings.
-          </p>
-        </div>
-        <div className="section-hero-right">
-          <button
-            className="primary-action"
-            onClick={handleEdit}
-            disabled={isEditing}
-          >
-            <FaEdit /> Edit
-          </button>
-
-          <button
-            className="primary-action"
-            onClick={handleSave}
-            disabled={!isEditing}
-          >
-            ✓ Save
-          </button>
-
-          <button
-            className="secondary-action"
-            onClick={requestPasswordOtp}
-            disabled={otpSending}
-          >
-            <FaKey />
-            {otpSending ? "Sending code..." : "Change Password"}
-          </button>
-        </div>
+    <>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Edit Admin Profile</h1>
+        <p className="admin-page-header-desc">
+          Update your personal information and account settings.
+        </p>
       </div>
 
-      {nameError && (
-        <div className="profile-msg profile-msg-error">{nameError}</div>
-      )}
+      <div className="profile-body">
+          <div className="profile-avatar-col">
+            <div className="profile-avatar-wrapper">
+              <div
+                className="profile-avatar"
+                onClick={handleAdminAvatarClick}
+                role="button"
+                aria-label="Change avatar"
+              >
+                {adminAvatarPreview ? (
+                  <img src={adminAvatarPreview} alt="avatar" />
+                ) : (
+                  "AD"
+                )}
 
-      <div className="settings-card">
-        <div className="profile-avatar-row">
-          <div
-            className="profile-avatar"
-            onClick={isEditing ? handleAdminAvatarClick : undefined}
-            role={isEditing ? "button" : undefined}
-            aria-label="Change avatar"
-          >
-            {adminAvatarPreview ? (
-              <img src={adminAvatarPreview} alt="avatar" />
-            ) : (
-              "AD"
-            )}
+                <input
+                  id="admin-avatar-input"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleAdminAvatarUpload}
+                  style={{ display: "none" }}
+                />
+              </div>
 
-            <input
-              id="admin-avatar-input"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={handleAdminAvatarUpload}
-              style={{ display: "none" }}
-            />
+              <button
+                type="button"
+                className="profile-avatar-edit-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdminAvatarClick();
+                }}
+                aria-label="Change profile photo"
+              >
+                <FaPen size={12} />
+              </button>
+            </div>
+
+            <div className="profile-avatar-status">
+              {adminAvatarUploading && (
+                <span className="profile-avatar-msg">Uploading avatar...</span>
+              )}
+              {adminAvatarError && (
+                <span className="profile-avatar-msg profile-avatar-msg-error">
+                  {adminAvatarError}
+                </span>
+              )}
+            </div>
           </div>
 
-          {adminAvatarUploading && (
-            <div className="profile-msg">Uploading avatar...</div>
-          )}
-          {adminAvatarError && (
-            <div className="profile-msg profile-msg-error">
-              {adminAvatarError}
-            </div>
-          )}
-        </div>
-        <div className="form-grid">
-          <div className="field">
+          <div className="form-grid">
+          <div className={`field${errors.firstName ? " field-invalid" : ""}`}>
             <label>First Name</label>
             <input
               type="text"
               name="firstName"
               value={admin.firstName}
               onChange={handleChange}
-              disabled={!isEditing}
+              data-no-realtime-validation="true"
             />
+            {errors.firstName && (
+              <span className="field-error-text">{errors.firstName}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.lastName ? " field-invalid" : ""}`}>
             <label>Last Name</label>
             <input
               type="text"
               name="lastName"
               value={admin.lastName}
               onChange={handleChange}
-              disabled={!isEditing}
+              data-no-realtime-validation="true"
             />
+            {errors.lastName && (
+              <span className="field-error-text">{errors.lastName}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.email ? " field-invalid" : ""}`}>
             <label>Email</label>
             <input
               type="email"
               name="email"
               value={admin.email}
               onChange={handleChange}
-              disabled={!isEditing}
+              data-no-realtime-validation="true"
             />
+            {errors.email && (
+              <span className="field-error-text">{errors.email}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.phone ? " field-invalid" : ""}`}>
             <label>Phone Number</label>
             <input
               type="text"
               name="phone"
               value={admin.phone}
-              disabled={!isEditing}
-              placeholder="+639XXXXXXXXX"
-              inputMode="numeric"
-              maxLength={13}
-              onChange={(e) => {
-                let value = e.target.value || "";
-
-                // Always keep +63
-                if (!value.startsWith("+63")) value = "+63";
-
-                // Only allow digits after +63
-                const restDigits = value.slice(3).replace(/\D/g, "");
-
-                // Build final value
-                const next = "+63" + restDigits;
-
-                setAdmin({ ...admin, phone: next });
-              }}
+              placeholder="09XXXXXXXXX or +639XXXXXXXXX"
+              onChange={handlePhoneChange}
+              onKeyDown={handlePhoneKeyDown}
+              inputMode="tel"
+              data-no-realtime-validation="true"
             />
+            {errors.phone && (
+              <span className="field-error-text">{errors.phone}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.gender ? " field-invalid" : ""}`}>
             <label>Gender</label>
             <select
               name="gender"
               value={admin.gender}
               onChange={handleChange}
-              disabled={!isEditing}
+              data-no-realtime-validation="true"
             >
               <option value="">Select...</option>
               <option value="male">Male</option>
               <option value="female">Female</option>
               <option value="prefer not to say">Prefer not to say</option>
             </select>
+            {errors.gender && (
+              <span className="field-error-text">{errors.gender}</span>
+            )}
           </div>
 
-          <div className="field">
+          <div className={`field${errors.birthday ? " field-invalid" : ""}`}>
             <label>Birthday</label>
             <input
               type="date"
               name="birthday"
               value={admin.birthday}
-              onChange={handleChange}
-              disabled={!isEditing}
-              max="2010-12-31"
+              onChange={handleBirthdayChange}
+              min={MIN_BIRTHDAY}
+              max={getTodayStr()}
+              data-no-realtime-validation="true"
             />
+            {errors.birthday && (
+              <span className="field-error-text">{errors.birthday}</span>
+            )}
           </div>
-        </div>
-      </div>
+          </div>
+          </div>
+
+          <div className="profile-card-actions">
+            <button
+              className="secondary-action"
+              onClick={handleChangePasswordClick}
+              disabled={otpSending || cooldownTime > 0}
+            >
+              {otpSending
+                ? "Sending code..."
+                : cooldownTime > 0
+                  ? `Try again in ${cooldownTime}s`
+                  : "Change Password"}
+            </button>
+
+            <button className="secondary-action" onClick={handleCancel}>
+              Cancel
+            </button>
+
+            <button className="primary-action" onClick={handleSaveChanges}>
+              Save Changes
+            </button>
+          </div>
 
       {showOtpModal && (
-        <div className="cp-modal-overlay" onClick={closeOtpModal}>
+        <div className="cp-modal-overlay">
           <div className="cp-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="cp-title">Verify It's You</h3>
             <p className="cp-subtext">
@@ -710,6 +904,7 @@ function AdminProfile() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                   placeholder="Enter 6-digit code"
+                  data-no-realtime-validation="true"
                   autoFocus
                 />
               </div>
@@ -729,9 +924,8 @@ function AdminProfile() {
         </div>
       )}
 
-      {/* ✅ Change Password Modal */}
       {showChangePassword && (
-        <div className="cp-modal-overlay" onClick={closeChangePassword}>
+        <div className="cp-modal-overlay">
           <div className="cp-modal" onClick={(e) => e.stopPropagation()}>
             <h3 className="cp-title">Change Password</h3>
             <p className="cp-subtext">Enter your current and new password</p>
@@ -745,6 +939,7 @@ function AdminProfile() {
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="Enter current password"
+                    data-no-realtime-validation="true"
                   />
                   <button
                     type="button"
@@ -752,9 +947,9 @@ function AdminProfile() {
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                   >
                     {showCurrentPassword ? (
-                      <MdVisibilityOff />
-                    ) : (
                       <MdVisibility />
+                    ) : (
+                      <MdVisibilityOff />
                     )}
                   </button>
                 </div>
@@ -768,13 +963,14 @@ function AdminProfile() {
                     value={newPassword}
                     onChange={handleCpNewPasswordChange}
                     placeholder="Enter new password"
+                    data-no-realtime-validation="true"
                   />
                   <button
                     type="button"
                     className="cp-eye-btn"
                     onClick={() => setShowNewPassword(!showNewPassword)}
                   >
-                    {showNewPassword ? <MdVisibilityOff /> : <MdVisibility />}
+                    {showNewPassword ? <MdVisibility /> : <MdVisibilityOff />}
                   </button>
                 </div>
                 <div className="cp-criteria">
@@ -787,12 +983,16 @@ function AdminProfile() {
 
               <div className="cp-form-row">
                 <label>Confirm New Password</label>
-                <div className="cp-input-wrapper">
+                <div
+                  className={`cp-input-wrapper${hasConfirmError ? " cp-input-error" : ""
+                    }`}
+                >
                   <input
                     type={showConfirmNewPassword ? "text" : "password"}
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
                     placeholder="Confirm new password"
+                    data-no-realtime-validation="true"
                   />
                   <button
                     type="button"
@@ -802,12 +1002,22 @@ function AdminProfile() {
                     }
                   >
                     {showConfirmNewPassword ? (
-                      <MdVisibilityOff />
-                    ) : (
                       <MdVisibility />
+                    ) : (
+                      <MdVisibilityOff />
                     )}
                   </button>
                 </div>
+                {isConfirmTooShort && (
+                  <span className="field-error-text">
+                    Password must be at least 6 characters.
+                  </span>
+                )}
+                {isMismatch && (
+                  <span className="field-error-text">
+                    Passwords do not match.
+                  </span>
+                )}
               </div>
 
               <div className="cp-actions">
@@ -829,20 +1039,51 @@ function AdminProfile() {
             </form>
 
             {changePassError && <p className="cp-error">{changePassError}</p>}
-            {changePassSuccess && (
-              <p className="cp-success">{changePassSuccess}</p>
-            )}
           </div>
         </div>
       )}
 
-      <AlertModal 
-        isOpen={alertOpen} 
-        message={alertMessage} 
-        onClose={() => setAlertOpen(false)} 
+      {showToast && (
+        <div className="password-toast">
+          <FaCheckCircle className="password-toast-icon" />
+          <span className="password-toast-text">
+            Password changed successfully!
+          </span>
+          <button
+            type="button"
+            className="password-toast-close"
+            onClick={() => setShowToast(false)}
+            aria-label="Dismiss notification"
+          >
+            <FaTimes />
+          </button>
+        </div>
+      )}
+
+      {showRateLimitToast && (
+        <div className="password-toast password-toast-warning">
+          <FaExclamationTriangle className="password-toast-icon" />
+          <span className="password-toast-text">
+            Too many attempts. Please wait before requesting a new OTP.
+          </span>
+          <button
+            type="button"
+            className="password-toast-close"
+            onClick={() => setShowRateLimitToast(false)}
+            aria-label="Dismiss notification"
+          >
+            <FaTimes />
+          </button>
+        </div>
+      )}
+
+      <AlertModal
+        isOpen={alertOpen}
+        message={alertMessage}
+        onClose={() => setAlertOpen(false)}
       />
-    </div>
+    </>
   );
 }
 
-export default AdminProfile;
+export default EditAdminProfile;

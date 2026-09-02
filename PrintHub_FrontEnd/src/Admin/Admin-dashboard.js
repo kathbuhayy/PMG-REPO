@@ -1,9 +1,11 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
 import "./Admin-dashboard.css";
+import pmgNavLogo from "../assets/brand/pmg-logo-nav.png";
 import AdminProductionCalendar from "./AdminProductionCalendar";
-import AdminProfile from "./Admin-profile";
+import AdminProfile from "./AdminProfile";
+import EditAdminProfile from "./EditAdminProfile";
 import AdminManageAccounts from "./Admin-manageacc";
 import AdminOrders from "./AdminOrders";
 import AdminInquiries from "./AdminInquiries";
@@ -64,6 +66,7 @@ import {
   FaTruck,
   FaTools,
 } from "react-icons/fa";
+import { LuPanelLeftClose, LuPanelLeftOpen } from "react-icons/lu";
 
 const MOCK_DASHBOARD = {
   deliveriesPickup: 5,
@@ -162,12 +165,15 @@ function AdminDashboard() {
   };
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { tab } = useParams();
+  const location = useLocation();
+  const isProfileEditRoute = location.pathname === "/admin/profile/edit";
   const activeItem = useMemo(() => {
+    if (isProfileEditRoute) return "profile";
     if (!tab) return "dashboard";
     if (tab === "manageaccount") return "customers";
     if (tab === "inquiries") return "quotations";
     return tab;
-  }, [tab]);
+  }, [tab, isProfileEditRoute]);
 
   // ✅ Mobile sidebar drawer
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -679,14 +685,6 @@ function AdminDashboard() {
 
     return groups;
   }, [role, dashStats.totalOrders, lowStock.pagination.total, quotationsCount, designApprovalCount, staffRoles]);
-  const pageTitleMap = useMemo(() => {
-    const map = {};
-    menuGroups.forEach((g) => g.items.forEach((i) => (map[i.id] = i.label)));
-    return map;
-  }, [menuGroups]);
-
-  const pageTitle = pageTitleMap[activeItem] || "Dashboard";
-
   const handleMenuItemClick = (item) => {
     if (role === "staff" && item.id === "customers") return;
     const targetTab = item.id === "customers" ? "manageaccount" : item.id;
@@ -2127,13 +2125,9 @@ function AdminDashboard() {
         <div className="sidebar-header">
           {!isCollapsed && (
             <div className="brand-block">
-              <span className="brand-mark">PM</span>
-              <div className="brand-text">
-                <h2 className="sidebar-title">
-                  PM<span className="brand-accent">G</span>
-                </h2>
-                <span className="brand-sub">PRINTING HOUSE</span>
-              </div>
+              <span className="uh-logo-mark">
+                <img src={pmgNavLogo} alt="PMG Printing House" />
+              </span>
             </div>
           )}
           <button
@@ -2141,8 +2135,9 @@ function AdminDashboard() {
             className="collapse-btn"
             onClick={() => setIsCollapsed(!isCollapsed)}
             aria-label="Toggle sidebar"
+            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {isCollapsed ? "→" : "←"}
+            {isCollapsed ? <LuPanelLeftOpen /> : <LuPanelLeftClose />}
           </button>
         </div>
 
@@ -2221,10 +2216,13 @@ function AdminDashboard() {
         </div>
       </div>
 
-      <main className="dashboard-content">
-        <header className="dashboard-header">
+      <main
+        className={`dashboard-content${activeItem === "profile" ? " dashboard-content-locked" : ""
+          }`}
+      >
+        <header className="dashboard-header dashboard-header-empty">
           <div className="header-left">
-            {/* ✅ Mobile hamburger + title row */}
+            {/* ✅ Mobile hamburger */}
             <div className="mobile-header-row">
               <button
                 type="button"
@@ -2234,43 +2232,45 @@ function AdminDashboard() {
               >
                 ☰
               </button>
-
-              <div className="page-title-wrap">
-                <h1 className="page-title">{pageTitle}</h1>
-                {activeItem === "dashboard" && (
-                  <p className="subtitle">
-                    Overview of your printing business operations.
-                  </p>
-                )}
-              </div>
             </div>
-          </div>
-
-          <div className="header-actions">
-            <button type="button" className="header-icon-btn" aria-label="Search">
-              <FaSearch />
-            </button>
-
-            <NotificationBell />
-
-            <button type="button" className="header-daterange">
-              <FaCalendarAlt />
-              <span>Aug 1 – Aug 15, 2026</span>
-              <FaChevronDown style={{ fontSize: "10px" }} />
-            </button>
-            <button
-              type="button"
-              className="header-refresh-btn"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
-              <FaSyncAlt className={isRefreshing ? "spinning" : ""} />
-              Refresh
-            </button>
           </div>
         </header>
 
         <div className="content-wrapper">
+          {activeItem === "dashboard" && (
+            <div className="admin-page-header admin-page-header-with-badge">
+              <div>
+                <h1 className="admin-page-header-title">Dashboard</h1>
+                <p className="admin-page-header-desc">
+                  Overview of your printing business operations.
+                </p>
+              </div>
+
+              <div className="header-actions">
+                <button type="button" className="header-icon-btn" aria-label="Search">
+                  <FaSearch />
+                </button>
+
+                <NotificationBell />
+
+                <button type="button" className="header-daterange">
+                  <FaCalendarAlt />
+                  <span>Aug 1 – Aug 15, 2026</span>
+                  <FaChevronDown style={{ fontSize: "10px" }} />
+                </button>
+                <button
+                  type="button"
+                  className="header-refresh-btn"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                >
+                  <FaSyncAlt className={isRefreshing ? "spinning" : ""} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ✅ DASHBOARD */}
           {activeItem === "dashboard" && role === "staff" && (
             <StaffDashboard userName={sidebarUser?.firstName} />
@@ -2668,13 +2668,49 @@ function AdminDashboard() {
               </div>
             </>
           )}
-          {activeItem === "designApprovals" && <StageQueuePage stage="PENDING_FILE_CHECK" title="Design Approvals" />}
-          {activeItem === "paymentVerification" && <StageQueuePage stage="AWAITING_PAYMENT" title="Payment Verification" />}
-          {activeItem === "printJobs" && <StageQueuePage stage="PRINTING_QUEUE" title="Print Jobs" />}
-          {activeItem === "qualityCheck" && <StageQueuePage stage="QUALITY_ASSURANCE" title="Quality Check" />}
-          {activeItem === "packaging" && <StageQueuePage stage="PACKAGING_READY" title="Packaging" />}
+          {activeItem === "designApprovals" && (
+            <StageQueuePage
+              stage="PENDING_FILE_CHECK"
+              title="Design Approvals"
+              description="Orders awaiting design file review before moving to payment."
+              useCardHeader
+            />
+          )}
+          {activeItem === "paymentVerification" && (
+            <StageQueuePage
+              stage="AWAITING_PAYMENT"
+              title="Payment Verification"
+              description="Orders awaiting payment confirmation before moving to production."
+              useCardHeader
+            />
+          )}
+          {activeItem === "printJobs" && (
+            <StageQueuePage
+              stage="PRINTING_QUEUE"
+              title="Print Jobs"
+              description="Orders currently queued for printing."
+              useCardHeader
+            />
+          )}
+          {activeItem === "qualityCheck" && (
+            <StageQueuePage
+              stage="QUALITY_ASSURANCE"
+              title="Quality Check"
+              description="Orders awaiting quality assurance before packaging."
+              useCardHeader
+            />
+          )}
+          {activeItem === "packaging" && (
+            <StageQueuePage
+              stage="PACKAGING_READY"
+              title="Packaging"
+              description="Orders ready to be packaged for delivery."
+              useCardHeader
+            />
+          )}
 
-          {activeItem === "profile" && <AdminProfile />}
+          {activeItem === "profile" &&
+            (isProfileEditRoute ? <EditAdminProfile /> : <AdminProfile />)}
           {activeItem === "customers" && role !== "staff" && (
             <AdminManageAccounts scope="customers" />
           )}
@@ -2700,7 +2736,6 @@ function AdminDashboard() {
           {/* New sections without a page yet — placeholders */}
           {activeItem === "quotations" && <AdminInquiries/>}
           {activeItem === "supportInbox" && <AdminSupportInbox chat={chat} />}
-          {activeItem === "designApprovals" && <AdminOrders />}
           {activeItem === "productionQueue" && <ProductionQueue />}
           {activeItem === "inventory" && <AdminInventory />}
           {activeItem === "requisitions" && <AdminRequisitions />}
