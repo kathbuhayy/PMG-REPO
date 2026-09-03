@@ -86,15 +86,12 @@ function AdminActivityLog() {
 
   return (
     <div className="activity-log-page">
-      <div className="dash-hero">
-        <div className="dash-hero-left">
-          <div className="dash-kicker">Admin &amp; Staff</div>
-          <h2 className="dash-title">Activity Log</h2>
-          <p className="dash-desc">
-            Every action admins and staff take across orders, products,
-            accounts, and inquiries.
-          </p>
-        </div>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Activity Log</h1>
+        <p className="admin-page-header-desc">
+          Every action admins and staff take across orders, products,
+          accounts, and inquiries.
+        </p>
       </div>
 
       <div className="data-table-card" style={{ marginTop: 0 }}>
@@ -228,9 +225,11 @@ function AdminActivityLog() {
           <div
             style={{
               display: "flex",
+              alignItems: "center",
               justifyContent: "flex-end",
               gap: "8px",
-              padding: "12px 4px 0",
+              padding: "16px 24px 20px",
+              borderTop: "1px solid rgba(15, 23, 42, 0.06)",
             }}
           >
             <button

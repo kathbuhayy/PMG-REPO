@@ -146,6 +146,13 @@ function AdminInventory() {
 
   return (
     <div>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Inventory</h1>
+        <p className="admin-page-header-desc">
+          Track material stock levels and safety thresholds.
+        </p>
+      </div>
+
       {summary && (
         <div className="dash-stat-grid" style={{ marginBottom: "20px" }}>
           <div className="dash-stat-card tone-blue">
