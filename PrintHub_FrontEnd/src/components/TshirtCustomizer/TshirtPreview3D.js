@@ -1,4 +1,4 @@
-// src/components/TshirtCustomizer/TshirtPreview3D.js  (replace entire file)
+// src/components/TshirtCustomizer/TshirtPreview3D.js
 // TshirtPreview3D
 
 import React, {
@@ -11,49 +11,37 @@ import React, {
 } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+import { renderZoneLayersToCanvasElement } from "../../utils/fabricZoneRenderer";
 import "./TshirtCustomizer.css";
 
 const textureLoader = new THREE.TextureLoader();
 textureLoader.setCrossOrigin("anonymous");
 const textureCache = {};
 
-function drawTextLayer(ctx, t, zoneX, zoneY, zoneW, zoneH) {
-  const boxX = zoneX + (t.x / 100) * zoneW;
-  const boxY = zoneY + (t.y / 100) * zoneH;
-  const boxW = (t.w / 100) * zoneW;
-  const boxH = (t.h / 100) * zoneH;
-  const fontPx = (t.fontSize / 100) * zoneH;
-
-  ctx.save();
-  ctx.font = `${t.italic ? "italic " : ""}${t.bold ? "700" : "400"} ${fontPx}px ${t.fontFamily}`;
-  ctx.textBaseline = "middle";
-  ctx.textAlign =
-    t.align === "left" ? "left" : t.align === "right" ? "right" : "center";
-
-  let drawX = boxX + boxW / 2;
-  if (t.align === "left") drawX = boxX;
-  if (t.align === "right") drawX = boxX + boxW;
-
-  const drawY = boxY + boxH / 2;
-
-  if (t.shadow) {
-    ctx.shadowColor = t.shadowColor;
-    ctx.shadowBlur = (t.shadowBlur / 100) * zoneH;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
+// Converts the legacy { design, texts } shape (imageUrl/x/y/w/h for the
+// single image + an array of text layers) into the small layer array
+// fabricZoneRenderer.js expects, so the front/back UV texture renders
+// through the same shared Fabric renderer the 2D editor and the
+// SudoMock/Printful export use - this is what makes text wrapping
+// agree across all three instead of drifting.
+function legacyZoneToLayers(design, texts) {
+  const layers = [];
+  if (design?.imageUrl) {
+    layers.push({
+      kind: "image",
+      imageUrl: design.imageUrl,
+      x: design.x ?? 10,
+      y: design.y ?? 10,
+      w: design.w ?? 80,
+      h: design.h ?? 80,
+      rotation: design.rotation ?? 0,
+    });
   }
-
-  if (t.outline) {
-    ctx.lineWidth = (t.outlineWidth / 100) * zoneH;
-    ctx.strokeStyle = t.outlineColor;
-    ctx.strokeText(t.text || "", drawX, drawY);
-  }
-
-  ctx.fillStyle = t.color;
-  ctx.fillText(t.text || "", drawX, drawY);
-  ctx.restore();
+  (texts || []).forEach((t) => {
+    layers.push({ ...t, kind: "text" });
+  });
+  return layers;
 }
 
 function loadTextureCached(url, onLoad) {
@@ -68,46 +56,101 @@ function loadTextureCached(url, onLoad) {
   });
 }
 
-const FRONT_BODY_MESH = "Material1718";
-const BACK_BODY_MESH = "Material1722";
-const SLEEVE_MESH_NAMES = new Set(["Material1724"]);
+// Mesh names and UV ranges below match FINAL.glb's per-mesh UV report:
+// Front/Back are 0.17-0.84 (U) / 0.04-0.96 (V), each a single clean
+// island with 0 triangles outside 0-1 - unlike the old model, these
+// numbers come directly from the model's real unwrap, not a guess.
+// All four zones now use the same UV-texture-painting approach - the
+// old decal system (DecalGeometry projected onto the mesh surface) is
+// gone entirely. It existed only because the old model's sleeve UVs
+// were unusable; FINAL.glb's sleeves are clean single-island unwraps
+// like front/back, so they get the same, simpler, proven treatment.
+const FRONT_BODY_MESH = "Front";
+const BACK_BODY_MESH = "Back";
+const LEFT_SLEEVE_MESH = "Left";
+const HEM_LEFT_MESH = "Hem_Left";
+const RIGHT_SLEEVE_MESH = "Right";
+const HEM_RIGHT_MESH = "Hem_Right";
+const NECK_MESH = "Neck";
+const HEM_FRONT_MESH = "Hem_Front";
+const HEM_BACK_MESH = "Hem_Back";
 
 const BODY_ZONES = {
+  neck: {
+    meshName: NECK_MESH,
+    uMin: 0.04,
+    uMax: 0.96,
+    vMin: 0.92,
+    vMax: 0.96,
+  },
   front: {
     meshName: FRONT_BODY_MESH,
-    uMin: 0.0884,
-    uMax: 0.9116,
-    vMin: 0,
-    vMax: 1,
+    uMin: 0.17,
+    uMax: 0.84,
+    vMin: 0.04,
+    vMax: 0.96,
   },
   back: {
     meshName: BACK_BODY_MESH,
-    uMin: 0.0884,
-    uMax: 0.9116,
-    vMin: 0,
-    vMax: 1,
+    uMin: 0.17,
+    uMax: 0.84,
+    vMin: 0.04,
+    vMax: 0.96,
+  },
+  left_sleeve: {
+    meshName: LEFT_SLEEVE_MESH,
+    uMin: 0.04,
+    uMax: 0.96,
+    vMin: 0.47,
+    vMax: 0.92,
+  },
+  left_hem: {
+    meshName: HEM_LEFT_MESH ,
+    uMin: 0.11,
+    uMax: 0.89,
+    vMin: 0.92,
+    vMax: 0.96,
+  },
+  right_sleeve: {
+    meshName: RIGHT_SLEEVE_MESH,
+    uMin: 0.04,
+    uMax: 0.96,
+    vMin: 0.47,
+    vMax: 0.92,
+  },
+  right_hem: {
+    meshName: HEM_RIGHT_MESH ,
+    uMin: 0.11,
+    uMax: 0.89,
+    vMin: 0.92,
+    vMax: 0.96,
+  },
+    front_hem: {
+    meshName: HEM_FRONT_MESH,
+    uMin: 0.17,
+    uMax: 0.84,
+    vMin: 0.94,
+    vMax: 0.96,
+  },
+  back_hem: {
+    meshName: HEM_BACK_MESH,
+    uMin: 0.17,
+    uMax: 0.84,
+    vMin: 0.94,
+    vMax: 0.96,
   },
 };
 
-const SLEEVE_DECALS = {
-  left_sleeve: {
-    side: -1,
-    ry: Math.PI / 2,
-    sw: 0.30,
-    sh: 0.26,
-    y: -0.15,
-    z: 0.1,
-    depth: 0.2,
-  },
-  right_sleeve: {
-    side: 1,
-    ry: -Math.PI / 2,
-    sw: 0.18,
-    sh: 0.16,
-    y: 0,
-    z: 0.0,
-    depth: 0.2,
-  },
+const meshNameToZone = {
+  [NECK_MESH]: "neck",
+  [FRONT_BODY_MESH]: "front",
+  [BACK_BODY_MESH]: "back",
+  [LEFT_SLEEVE_MESH]: "left_sleeve",
+  [HEM_LEFT_MESH]: "left_hem",
+  [RIGHT_SLEEVE_MESH]: "right_sleeve",
+  [HEM_RIGHT_MESH]: "right_hem",
+  [HEM_FRONT_MESH]: "front_hem",
+  [HEM_BACK_MESH]: "back_hem",
 };
 
 
@@ -115,8 +158,10 @@ const SLEEVE_DECALS = {
 const TshirtPreview3D = forwardRef(function TshirtPreview3D({
   modelPath,
   shirtColor = "#ffffff",
+  zoneColors = {}, 
   zoneDesigns = {},
   zoneTexts = {},
+  zoneLayers = {},
   zones = [],
   onZoneDesignChange,
   onTextChange,
@@ -129,7 +174,6 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
   const modelRef = useRef(null);
   const sceneRef = useRef(null);
   const rendererRef = useRef(null);
-  const meshesRef = useRef([]);
   const cameraRef = useRef(null);
   // Mockup-view support: OrbitControls instance, the model's fitted
   // center/distance (so preset angles orbit at the same radius the
@@ -141,9 +185,6 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [zoom, setZoom] = useState(100);
-
-  const rebuildSleeveDecalsPendingRef = useRef(false);
-  const rebuildSleeveDecalsQueuedRef = useRef(false);
 
   const zoneTextsRef = useRef(zoneTexts);
   zoneTextsRef.current = zoneTexts;
@@ -166,48 +207,42 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
   const shirtColorRef = useRef(shirtColor);
   shirtColorRef.current = shirtColor;
 
+  const zoneColorsRef = useRef(zoneColors);
+  zoneColorsRef.current = zoneColors;
+
   const designsRef = useRef(zoneDesigns);
   designsRef.current = zoneDesigns;
+
+  const zoneLayersRef = useRef(zoneLayers);
+  zoneLayersRef.current = zoneLayers;
+  
 
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
 
-  const clearDecals = useCallback(() => {
+  const updateZoneTextures = useCallback(async () => {
     const model = modelRef.current;
     if (!model) return;
 
-    meshesRef.current.forEach((m) => {
-      m.parent?.remove(m);
-      m.geometry.dispose();
-
-      if (m.material.map) {
-        m.material.map.dispose();
-      }
-
-      m.material.dispose();
-    });
-
-    meshesRef.current = [];
-  }, []);
-
-  const updateZoneTextures = useCallback(() => {
-    const model = modelRef.current;
-    if (!model) return;
-
-    Object.entries(BODY_ZONES).forEach(([zoneId, uv]) => {
+    for (const [zoneId, uv] of Object.entries(BODY_ZONES)) {
       const design = designsRef.current[zoneId];
       const texts = zoneTextsRef.current[zoneId] || [];
+      const fullLayers = zoneLayersRef.current[zoneId];
+      // Prefer the full layer stack (includes shapes/patterns) whenever
+      // it's supplied - legacyZoneToLayers is now only a fallback for
+      // callers that haven't been updated to pass zoneLayers yet.
+      const layers = fullLayers && fullLayers.length > 0
+        ? fullLayers
+        : legacyZoneToLayers(design, texts);
       const target = model.getObjectByName(uv.meshName);
 
-      if (!target?.material) return;
+      if (!target?.material) continue;
 
       const isZoneActive =
         zonesRef.current.length === 0 ||
         zonesRef.current.includes(zoneId);
 
-      const hasContent =
-        Boolean(design?.imageUrl) ||
-        texts.length > 0;
+      const hasContent = layers.length > 0;
 
       if (!isZoneActive || !hasContent) {
         const oldUserData = target.material.userData;
@@ -217,7 +252,7 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
         }
 
         const newMat = new THREE.MeshPhongMaterial({
-          color: new THREE.Color(shirtColorRef.current),
+          color: new THREE.Color(zoneColorsRef.current[zoneId] || shirtColorRef.current),
           map: null,
           shininess: 10,
           side: THREE.DoubleSide,
@@ -229,7 +264,7 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
         target.material.dispose();
         target.material = newMat;
 
-        return;
+        continue;
       }
 
       const canvas = document.createElement("canvas");
@@ -238,249 +273,49 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
 
       const ctx = canvas.getContext("2d");
 
-      ctx.fillStyle = shirtColorRef.current;
+      ctx.fillStyle = zoneColorsRef.current[zoneId] || shirtColorRef.current;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const x = uv.uMin * canvas.width;
       const y = uv.vMin * canvas.height;
       const w = (uv.uMax - uv.uMin) * canvas.width;
       const h = (uv.vMax - uv.vMin) * canvas.height;
+      
+      // Renders this zone's design+texts through the same shared Fabric
+      // renderer the 2D editor and the SudoMock/Printful export use, so
+      // text wraps identically here instead of drifting via a separate
+      // hand-written fillText call.
+      const boxCanvas = await renderZoneLayersToCanvasElement(layers, w, h);
 
-      const finalize = () => {
-        texts.forEach((t) => {
-          drawTextLayer(ctx, t, x, y, w, h);
-        });
+      if (!modelRef.current) return;
 
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.needsUpdate = true;
+      ctx.drawImage(boxCanvas, x, y, w, h);
 
-        const oldUserData = target.material.userData;
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.needsUpdate = true;
+      texture.flipY = false;
 
-        if (target.material.map) {
-          target.material.map.dispose();
-        }
+      const oldUserData = target.material.userData;
 
-        const newMat = new THREE.MeshPhongMaterial({
-          color: new THREE.Color("#ffffff"),
-          map: texture,
-          shininess: 10,
-          side: THREE.DoubleSide,
-        });
-
-        newMat.userData = oldUserData || {};
-        newMat.userData.isZoneTexture = true;
-
-        target.material.dispose();
-        target.material = newMat;
-      };
-
-      if (design?.imageUrl) {
-        const img = new Image();
-        img.crossOrigin = "Anonymous";
-
-        img.onload = () => {
-          if (!modelRef.current) return;
-
-          const designX = design.x ?? 10;
-          const designY = design.y ?? 10;
-          const designW = design.w ?? 80;
-          const designH = design.h ?? 80;
-
-          ctx.drawImage(
-            img,
-            x + (designX / 100) * w,
-            y + (designY / 100) * h,
-            (designW / 100) * w,
-            (designH / 100) * h
-          );
-
-          finalize();
-        };
-
-        img.src = design.imageUrl;
-      } else {
-        finalize();
+      if (target.material.map) {
+        target.material.map.dispose();
       }
-    });
-  }, []);
 
-  const rebuildSleeveDecals = useCallback(() => {
-    const model = modelRef.current;
-    const scene = sceneRef.current;
-
-    if (!model || !scene) return;
-
-    clearDecals();
-
-    model.updateMatrixWorld(true);
-
-    const sleeveMesh = Array.from(SLEEVE_MESH_NAMES)
-      .map((name) => model.getObjectByName(name))
-      .find(Boolean);
-
-    if (!sleeveMesh) return;
-
-    sleeveMesh.updateMatrixWorld(true);
-
-    const box = new THREE.Box3().setFromObject(sleeveMesh);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-
-    Object.entries(SLEEVE_DECALS)
-      .filter(([zoneId]) => {
-        return (
-          zonesRef.current.length === 0 ||
-          zonesRef.current.includes(zoneId)
-        );
-      })
-      .forEach(([zoneId, cfg]) => {
-        const design = designsRef.current[zoneId];
-        const texts = zoneTextsRef.current[zoneId] || [];
-
-        const hasContent =
-          Boolean(design?.imageUrl) ||
-          texts.length > 0;
-
-        if (!hasContent) return;
-
-        const buildDecal = (tex) => {
-          if (!modelRef.current) return;
-
-          const canvas = document.createElement("canvas");
-          canvas.width = 1024;
-          canvas.height = 1024;
-
-          const ctx = canvas.getContext("2d");
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          if (tex && design) {
-            ctx.drawImage(
-              tex.image,
-              0,
-              0,
-              canvas.width,
-              canvas.height
-            );
-          }
-
-          texts.forEach((t) => {
-            drawTextLayer(
-              ctx,
-              t,
-              0,
-              0,
-              canvas.width,
-              canvas.height
-            );
-          });
-
-          const finalTexture = new THREE.CanvasTexture(canvas);
-
-          finalTexture.colorSpace = THREE.SRGBColorSpace;
-          finalTexture.wrapS = THREE.RepeatWrapping;
-          finalTexture.repeat.x = -1;
-          finalTexture.needsUpdate = true;
-
-          const designX = design?.x ?? 10;
-          const designY = design?.y ?? 10;
-          const designW = design?.w ?? 80;
-          const designH = design?.h ?? 80;
-
-          const zoneW = size.z * cfg.sw;
-          const zoneH = size.y * cfg.sh;
-
-          const actualW = zoneW * (designW / 100);
-          const actualH = zoneH * (designH / 100);
-
-          const offsetZ =
-            ((designX + designW / 2) / 100 - 0.5) *
-            zoneW;
-
-          const offsetY =
-            (0.5 - (designY + designH / 2) / 100) *
-            zoneH;
-
-          const position = new THREE.Vector3(
-            cfg.side > 0
-              ? box.max.x - size.x * 0.05
-              : box.min.x + size.x * 0.05,
-            center.y + size.y * cfg.y + offsetY,
-            center.z + size.z * cfg.z + offsetZ
-          );
-
-          const orientation = new THREE.Euler(
-            0,
-            cfg.ry,
-            0
-          );
-
-          const decalSize = new THREE.Vector3(
-            actualW,
-            actualH,
-            size.x * cfg.depth
-          );
-
-          const geometry = new DecalGeometry(
-            sleeveMesh,
-            position,
-            orientation,
-            decalSize
-          );
-
-          const material = new THREE.MeshBasicMaterial({
-            map: finalTexture,
-            transparent: true,
-            side: THREE.DoubleSide,
-            depthTest: true,
-            depthWrite: false,
-            polygonOffset: true,
-            polygonOffsetFactor: -4,
-            polygonOffsetUnits: -4,
-          });
-
-          const mesh = new THREE.Mesh(
-            geometry,
-            material
-          );
-
-          mesh.userData.isDesignDecal = true;
-          mesh.userData.zoneId = zoneId;
-
-          scene.add(mesh);
-          meshesRef.current.push(mesh);
-        };
-
-        if (design?.imageUrl) {
-          loadTextureCached(design.imageUrl, (tex) => {
-            tex.colorSpace = THREE.SRGBColorSpace;
-            buildDecal(tex);
-          });
-        } else {
-          buildDecal(null);
-        }
+      const newMat = new THREE.MeshPhongMaterial({
+        color: new THREE.Color("#ffffff"),
+        map: texture,
+        shininess: 10,
+        side: THREE.DoubleSide,
       });
-  }, [clearDecals]);
 
-  const rebuildSleeveDecalsThrottled = useCallback(() => {
-    if (rebuildSleeveDecalsPendingRef.current) {
-      rebuildSleeveDecalsQueuedRef.current = true;
-      return;
+      newMat.userData = oldUserData || {};
+      newMat.userData.isZoneTexture = true;
+
+      target.material.dispose();
+      target.material = newMat;
     }
-
-    rebuildSleeveDecalsPendingRef.current = true;
-
-    rebuildSleeveDecals();
-
-    setTimeout(() => {
-      rebuildSleeveDecalsPendingRef.current = false;
-
-      if (rebuildSleeveDecalsQueuedRef.current) {
-        rebuildSleeveDecalsQueuedRef.current = false;
-        rebuildSleeveDecalsThrottled();
-      }
-    }, 60);
-  }, [rebuildSleeveDecals]);
+  }, []);
 
   // =========================================================
   // THREE.JS SETUP
@@ -518,7 +353,7 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    scene.background = new THREE.Color(0x1e2433);
+    scene.background = new THREE.Color(0xeef1f5);
 
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -568,11 +403,6 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
     const pointerNDC = new THREE.Vector2();
 
     let dragState = null;
-
-    const meshNameToZone = {
-      [FRONT_BODY_MESH]: "front",
-      [BACK_BODY_MESH]: "back",
-    };
 
     const clamp = (v, min, max) =>
       Math.max(min, Math.min(max, v));
@@ -654,33 +484,6 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
           zoneCfg
         ),
       };
-    };
-
-    const raycastSleeveDecal = (
-      clientX,
-      clientY
-    ) => {
-      if (!meshesRef.current.length) {
-        return null;
-      }
-
-      getNDC(clientX, clientY);
-
-      raycaster.setFromCamera(
-        pointerNDC,
-        camera
-      );
-
-      const hits =
-        raycaster.intersectObjects(
-          meshesRef.current.filter(
-            (m) =>
-              m.userData.isDesignDecal
-          ),
-          false
-        );
-
-      return hits[0] || null;
     };
 
     const findHitTarget = (
@@ -942,47 +745,6 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
             target.id
           );
         }
-
-        return;
-      }
-
-      const sleeveHit =
-        raycastSleeveDecal(
-          e.clientX,
-          e.clientY
-        );
-
-      const zoneId =
-        sleeveHit?.object?.userData
-          ?.zoneId;
-
-      const design = zoneId
-        ? designsRef.current[
-            zoneId
-          ]
-        : null;
-
-      if (
-        zoneId &&
-        design?.imageUrl
-      ) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-
-        startDrag(
-          {
-            mode: "sleeve",
-            kind: "image",
-            zoneId,
-            w: design.w ?? 80,
-            h: design.h ?? 80,
-            startX: e.clientX,
-            startY: e.clientY,
-            origX: design.x ?? 10,
-            origY: design.y ?? 10,
-          },
-          zoneId
-        );
       }
     };
 
@@ -1025,18 +787,13 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
 
         modelRef.current = model;
 
-        model.rotation.y = 5;
+        model.rotation.y = 0;
 
         scene.add(model);
 
-        applyColor(
-          model,
-          shirtColorRef.current
-        );
+        applyColor(model, shirtColorRef.current, zoneColorsRef.current);
 
         updateZoneTextures();
-
-        rebuildSleeveDecals();
 
         const box =
           new THREE.Box3().setFromObject(
@@ -1209,21 +966,6 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
         );
       }
 
-      meshesRef.current.forEach(
-        (m) => {
-          m.parent?.remove(m);
-          m.geometry.dispose();
-
-          if (m.material.map) {
-            m.material.map.dispose();
-          }
-
-          m.material.dispose();
-        }
-      );
-
-      meshesRef.current = [];
-
       if (modelRef.current) {
         modelRef.current.traverse(
           (node) => {
@@ -1262,35 +1004,16 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
 
   useEffect(() => {
     if (modelRef.current) {
-      applyColor(
-        modelRef.current,
-        shirtColor
-      );
-
+      applyColor(modelRef.current, shirtColor, zoneColorsRef.current);
       updateZoneTextures();
-
-      rebuildSleeveDecalsThrottled();
     }
-  }, [
-    shirtColor,
-    updateZoneTextures,
-    rebuildSleeveDecalsThrottled,
-  ]);
+  }, [shirtColor, zoneColors, updateZoneTextures]);
 
   useEffect(() => {
     if (ready) {
       updateZoneTextures();
-      rebuildSleeveDecalsThrottled();
     }
-  }, [
-    ready,
-    zoneDesigns,
-    zoneTexts,
-    updateZoneTextures,
-    rebuildSleeveDecalsThrottled,
-    zones,
-  ]);
-
+  }, [ready, zoneDesigns, zoneTexts, zoneLayers, updateZoneTextures, zones, zoneColors]);
   // Mockup-view API for the parent (Preview mode's angle switcher /
   // "Download mockup" button). Exposed via ref since the 3D scene is
   // managed with plain Three.js objects, not React state.
@@ -1450,61 +1173,36 @@ TshirtPreview3D.displayName = "TshirtPreview3D";
 
 export default TshirtPreview3D;
 
-function applyColor(
-  model,
-  hexColor
-) {
-  const color =
-    new THREE.Color(hexColor);
+function applyColor(model, hexColor, zoneColors = {}) {
+  const color = new THREE.Color(hexColor);
 
   model.traverse((node) => {
-    if (
-      node.isMesh &&
-      !node.userData?.isDesignDecal
-    ) {
-      if (
-        node.geometry.hasAttribute(
-          "color"
-        )
-      ) {
-        node.geometry.deleteAttribute(
-          "color"
-        );
+    if (node.isMesh && !node.userData?.isDesignDecal) {
+      if (node.geometry.hasAttribute("color")) {
+        node.geometry.deleteAttribute("color");
       }
 
       if (node.material) {
-        const oldMap =
-          node.material.map;
+        const oldMap = node.material.map;
+        const oldUserData = node.material.userData;
+        const isZoneTexture = oldUserData?.isZoneTexture;
 
-        const oldUserData =
-          node.material.userData;
+        const zoneId = meshNameToZone[node.name];
+        const override = zoneId && zoneColors[zoneId];
+        const baseColor = override ? new THREE.Color(override) : color;
 
-        const isZoneTexture =
-          oldUserData?.isZoneTexture;
-
-        if (
-          oldMap &&
-          !isZoneTexture
-        ) {
+        if (oldMap && !isZoneTexture) {
           oldMap.dispose();
         }
 
-        const newMat =
-          new THREE.MeshPhongMaterial({
-            color: isZoneTexture
-              ? new THREE.Color(
-                  "#ffffff"
-                )
-              : color,
-            map: isZoneTexture
-              ? oldMap
-              : null,
-            shininess: 10,
-            side: THREE.DoubleSide,
-          });
+        const newMat = new THREE.MeshPhongMaterial({
+          color: isZoneTexture ? new THREE.Color("#ffffff") : baseColor,
+          map: isZoneTexture ? oldMap : null,
+          shininess: 10,
+          side: THREE.DoubleSide,
+        });
 
-        newMat.userData =
-          oldUserData || {};
+        newMat.userData = oldUserData || {};
 
         node.material.dispose();
 

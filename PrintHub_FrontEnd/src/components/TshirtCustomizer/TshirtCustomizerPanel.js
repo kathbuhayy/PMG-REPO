@@ -10,15 +10,16 @@ import {
   FaFont,
   FaLayerGroup,
   FaShapes,
+  FaLock,
+  FaLockOpen,
+  FaSlidersH,
 } from "react-icons/fa";
 import { useCustomizerUpload } from "../../hooks/useCustomizerUpload";
 import AIGeneratePanel from "../AIBuilder/AIGeneratePanel";
 import TemplatesPanel from "./TemplatesPanel";
-import TshirtZoneCanvas from "./TshirtZoneCanvas";
-import TshirtSideView from "./TshirtSideView";
+import FabricZoneCanvas, { ZONE_META } from "./FabricZoneCanvas";
 import TshirtPreview3D from "./TshirtPreview3D";
 import LayersPanel from "./LayersPanel";
-import { ZONE_META } from "./TshirtZoneCanvas";
 import { parseFlatSize, parseSizeInchesRaw } from "../../utils/parseFlatSize";
 import { removeGuestDesign } from "../../utils/guestDesigns";
 import "./TshirtCustomizer.css";
@@ -35,9 +36,10 @@ import {
   updateLayer,
   moveLayer,
   applyToZones,
+  toggleLayerLock,
 } from "../../utils/zoneLayerModel";
 import { loadImageNaturalSize, getLayerPrintQuality } from "../../utils/layerDpiCheck";
-import { renderZoneLayersToDataURL, renderZoneLayersToCanvas } from "../../utils/renderZoneDesign";
+import { renderZoneLayersToDataURL, renderZoneLayersToFabricCanvas } from "../../utils/fabricZoneRenderer";
 import {
   computeResolutionScore,
   computeSafeAreaScore,
@@ -45,13 +47,14 @@ import {
   computeOverallScore,
 } from "../../utils/printReadiness";
 import { SHAPE_PATHS, SHAPE_LABELS } from "../../utils/shapeDefs";
-import { PATTERN_TYPES, PATTERN_LABELS, buildPatternSvgDef } from "../../utils/patternDefs";
+import { PATTERN_TYPES, PATTERN_LABELS, buildPatternPreviewDataUrl } from "../../utils/patternDefs";
 import { TEXT_FONTS, FONT_CATEGORIES, loadGoogleFonts } from "../../config/textFonts";
 import { buildApiUrl } from "../../config/api";
+import { getZoneDimensions } from "../../utils/zoneDimensions";
 
 
 
-const TSHIRT_GLB = "/models/tshirt.glb";
+const TSHIRT_GLB = "/models/texture.glb";
 const QUICK_COLORS = [
   "#ffffff",
   "#111827",
@@ -64,10 +67,6 @@ const QUICK_COLORS = [
   "#7c3aed",
   "#ec4899",
 ];
-
-const SUDOMOCK_ZONE_DIMENSIONS = {
-  front: { width: 487, height: 815 },
-};
 
 
 // Convert hue (0-360) to a hex color at full saturation/lightness=50%
@@ -287,9 +286,6 @@ export default function TshirtCustomizerPanel({
 
   const [selectedLayerId, setSelectedLayerId] = useState(null);
 
-  // Edit (flat 2D) vs Preview (3D) mode - the Printify-style split.
-  const [mode, setMode] = useState("edit");
-
   // { [layerId]: { status: 'ready'|'low'|'unknown', dpi } } for the
   // ACTIVE zone's image layers only (that's all the Layers panel shows).
   const [dpiByLayerId, setDpiByLayerId] = useState({});
@@ -351,6 +347,24 @@ export default function TshirtCustomizerPanel({
   const [sliderHue, setSliderHue] = useState(0);
   const colorInputRef = useRef(null);
 
+    // Per-zone color overrides (currently just the 4 hem meshes) - { [zoneId]: hexColor }
+  const [zoneColors, setZoneColors] = useState(initialWip?.zoneColors ?? {});
+
+  const applyZoneColor = (zoneId, color) => {
+    const normalized = normalizeHexColor(color);
+    if (!normalized) return false;
+    setZoneColors((prev) => ({ ...prev, [zoneId]: normalized }));
+    return true;
+  };
+
+  const HEM_ZONE_OPTIONS = [
+    { id: "neck", label: "Neck Hem" },
+    { id: "front_hem", label: "Bottom Hem (Front)" },
+    { id: "back_hem", label: "Bottom Hem (Back)" },
+    { id: "left_hem", label: "Left Sleeve Hem" },
+    { id: "right_hem", label: "Right Sleeve Hem" },
+  ];
+
   // Synchronize layer image URLs with converted base64 URLs from gallery
   // (blob: URLs get swapped for durable data:/hosted URLs once ready).
   useEffect(() => {
@@ -382,6 +396,7 @@ export default function TshirtCustomizerPanel({
     onWipChange?.({
       zoneLayers,
       shirtColor,
+      zoneColors,
       activeTab,
       gallery,
       aiPrompt,
@@ -390,6 +405,7 @@ export default function TshirtCustomizerPanel({
   }, [
     zoneLayers,
     shirtColor,
+    zoneColors,
     activeTab,
     gallery,
     aiPrompt,
@@ -409,6 +425,7 @@ export default function TshirtCustomizerPanel({
       activeDesign.productColor ||
       activeDesign.baseColor;
     if (savedColor) applyShirtColor(savedColor);
+        if (activeDesign.zoneColors) setZoneColors(activeDesign.zoneColors);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDesign]);
 
@@ -497,7 +514,8 @@ export default function TshirtCustomizerPanel({
       if (anyZoneWithContent) {
         try {
           const [, layers] = anyZoneWithContent;
-          const canvas = await renderZoneLayersToCanvas(layers, 256);
+          const staticCanvas = await renderZoneLayersToFabricCanvas(layers, 256, 256);
+          const canvas = staticCanvas.getElement();
           colorContrast = computeColorContrastScore(canvas, shirtColor);
         } catch {
           // Non-fatal - contrast sub-score just falls back to its default.
@@ -626,6 +644,16 @@ export default function TshirtCustomizerPanel({
     handleLayerUpdate(activeZone, selectedLayerId, updates);
   };
 
+  const updateActiveLayer = (updates) => {
+    if (!activeZone || !selectedLayerId) return;
+    handleLayerUpdate(activeZone, selectedLayerId, updates);
+  };
+
+  const toggleActiveLayerLock = () => {
+    if (!selectedLayer) return;
+    updateActiveLayer({ locked: !selectedLayer.locked });
+  };
+
   const handleTextRemove = (zoneId, textId) => {
     handleLayerRemove(zoneId, textId);
   };
@@ -649,42 +677,6 @@ export default function TshirtCustomizerPanel({
   // ── Zone select ───────────────────────────────────────────────────
   const handleZoneSelect = (zoneId) => {
     setActiveZone(zoneId);
-  };
-
-  // ── Selected layer (image/text) size controls ──────────────────────
-  const selectedLayerData = useMemo(() => {
-    if (!selectedLayer) return null;
-    return {
-      kind: selectedLayer.kind,
-      zoneId: activeZone,
-      id: selectedLayer.id,
-      x: selectedLayer.x ?? 10,
-      y: selectedLayer.y ?? 10,
-      w: selectedLayer.w ?? 80,
-      h: selectedLayer.h ?? (selectedLayer.kind === "text" ? 20 : 80),
-    };
-  }, [selectedLayer, activeZone]);
-
-  // Resize the selected image/text layer while keeping its center fixed
-  const resizeSelectedLayer = (newW, newH) => {
-    if (!selectedLayer || !activeZone) return;
-
-    const clampValue = (v, min, max) => Math.max(min, Math.min(max, v));
-    const width = clampValue(Number(newW) || 5, 5, 100);
-    const height = clampValue(Number(newH) || 5, 5, 100);
-
-    const oldW = selectedLayer.w ?? 80;
-    const oldH = selectedLayer.h ?? 80;
-    const oldX = selectedLayer.x ?? 10;
-    const oldY = selectedLayer.y ?? 10;
-
-    const centerX = oldX + oldW / 2;
-    const centerY = oldY + oldH / 2;
-
-    const x = clampValue(centerX - width / 2, 0, 100 - width);
-    const y = clampValue(centerY - height / 2, 0, 100 - height);
-
-    handleLayerUpdate(activeZone, selectedLayer.id, { x, y, w: width, h: height });
   };
 
   // ── Use this design ───────────────────────────────────────────────
@@ -717,7 +709,7 @@ export default function TshirtCustomizerPanel({
     Object.entries(template.zoneLayers).forEach(([zoneId, layers]) => {
       remapped[zoneId] = (layers || []).map((l) => ({
         ...l,
-        id: `${l.kind === "image" ? "img" : "text"}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id: `${l.kind}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       }));
     });
     setZoneLayers(remapped);
@@ -749,7 +741,7 @@ export default function TshirtCustomizerPanel({
   // first success, so a later pass overwrites the stale black snapshot
   // once the texture actually lands.
   useEffect(() => {
-    if (mode !== "preview" || !previewSupportsMockupView) return undefined;
+    if (!previewSupportsMockupView) return undefined;
 
     let cancelled = false;
     let attempts = 0;
@@ -784,7 +776,7 @@ export default function TshirtCustomizerPanel({
       clearTimeout(initialDelay);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, previewSupportsMockupView]);
+  }, [previewSupportsMockupView, zoneLayers, shirtColor]);
 
   const handleSetMockupView = (view) => {
     setActiveMockupView(view);
@@ -888,7 +880,7 @@ export default function TshirtCustomizerPanel({
         // Flatten at this zone's real SudoMock print-area aspect ratio
         // (not a generic square) so "fit"/"center" on SudoMock's side
         // doesn't stretch/reposition the design relative to the 3D preview.
-        const dims = SUDOMOCK_ZONE_DIMENSIONS[zoneId];
+        const dims = getZoneDimensions(zoneId);
         const dataUrl = await renderZoneLayersToDataURL(
           layers,
           dims ? { width: dims.width * 2, height: dims.height * 2 } : 1024,
@@ -942,12 +934,10 @@ export default function TshirtCustomizerPanel({
         type: designType,
         category: designType,
         zoneLayers: uploadedLayers,
-        // Legacy fields kept for AdminOrders.js and any other reader that
-        // hasn't been updated to the stacked-layer shape yet. Lossy for
-        // multi-image zones (bottom image only) - see deriveLegacyShape.
         zones: legacyZones,
         zoneTexts: legacyZoneTexts,
         shirtColor,
+        zoneColors,
         productColor: shirtColor,
         baseColor: shirtColor,
         generatedImageUrl: primaryImage,
@@ -977,11 +967,22 @@ export default function TshirtCustomizerPanel({
             setSelectedLayerId(null);
             setActiveZone(zones[0] || null);
             applyShirtColor("#ffffff");
+            setZoneColors({});
             setSliderHue(0);
             onClear?.();
           }}
         >
           Clear All
+        </button>
+      )}
+      {designType === "tshirt" && (
+        <button
+          type="button"
+          className="tsc-clear-btn"
+          disabled={!hasAnyDesign}
+          onClick={handleSudoMockPreview}
+        >
+          View SudoMock Preview
         </button>
       )}
       <button
@@ -1034,28 +1035,6 @@ export default function TshirtCustomizerPanel({
           </button>
         </div>
       )}
-
-      {/* Edit / Preview mode toggle - Printify-style */}
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
-        <div className="tsc-mode-toggle">
-          <button
-            type="button"
-            className={`tsc-mode-btn${mode === "edit" ? " active" : ""}`}
-            onClick={() => setMode("edit")}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className={`tsc-mode-btn${mode === "preview" ? " active" : ""}`}
-            onClick={() => setMode("preview")}
-            disabled={!hasAnyDesign}
-            title={!hasAnyDesign ? "Add a design first" : "Preview on the 3D model"}
-          >
-            Preview
-          </button>
-        </div>
-      </div>
 
       <div className="tsc-layout tsc-4col-layout">
         {/* ── 0. Far-Left Vertical Tabs ────────────────────────── */}
@@ -1140,7 +1119,6 @@ export default function TshirtCustomizerPanel({
             style={{ display: "none" }}
             onChange={handleGalleryFileChange}
           />
-
           {/* Tab 0: Product Specifications */}
           {activeTab === "specs" && (
             <div className="tsc-sidebar-section">
@@ -1441,6 +1419,7 @@ export default function TshirtCustomizerPanel({
                       onChange={(e) =>
                         updateActiveText({ fontSize: Number(e.target.value) })
                       }
+                      className="tsc-slider"
                     />
                   </div>
 
@@ -1557,6 +1536,7 @@ export default function TshirtCustomizerPanel({
                       max={100}
                       value={activeTextLayer.curve || 0}
                       onChange={(e) => updateActiveText({ curve: Number(e.target.value) })}
+                      className="tsc-slider"
                     />
                   </div>
                 </>
@@ -1643,6 +1623,41 @@ export default function TshirtCustomizerPanel({
                   ))}
                 </div>
               </div>
+
+              <div className="tsc-color-section" style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
+                <div className="tsc-color-label">HEM COLORS</div>
+                {HEM_ZONE_OPTIONS.map(({ id, label }) => (
+                  <div
+                    key={id}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}
+                  >
+                    <label className="tsc-spec-label" style={{ margin: 0 }}>{label}</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="color"
+                        value={zoneColors[id] || shirtColor}
+                        onChange={(e) => applyZoneColor(id, e.target.value)}
+                      />
+                      {zoneColors[id] && (
+                        <button
+                          type="button"
+                          className="tsc-text-toggle-btn"
+                          title="Match base color"
+                          onClick={() =>
+                            setZoneColors((prev) => {
+                              const next = { ...prev };
+                              delete next[id];
+                              return next;
+                            })
+                          }
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1716,20 +1731,11 @@ export default function TshirtCustomizerPanel({
                     title={`Add ${PATTERN_LABELS[patternType]}`}
                   >
                     <div className="mv-thumb-img">
-                      <svg viewBox="0 0 100 100" width="100%" height="100%">
-                        <defs>
-                          <pattern
-                            id={`pattern-preview-${patternType}`}
-                            width="20"
-                            height="20"
-                            patternUnits="userSpaceOnUse"
-                            dangerouslySetInnerHTML={{
-                              __html: buildPatternSvgDef(patternType, 20, "#111827", "#ffffff"),
-                            }}
-                          />
-                        </defs>
-                        <rect width="100" height="100" fill={`url(#pattern-preview-${patternType})`} />
-                      </svg>
+                      <img
+                        src={buildPatternPreviewDataUrl(patternType, 20, "#111827", "#ffffff")}
+                        alt={PATTERN_LABELS[patternType]}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
                     </div>
                     <span className="mv-thumb-label">{PATTERN_LABELS[patternType]}</span>
                   </button>
@@ -1762,6 +1768,45 @@ export default function TshirtCustomizerPanel({
                 value={activeShapeLayer.fillColor}
                 onChange={(e) => updateActiveShape({ fillColor: e.target.value })}
               />
+
+              <div style={{ marginTop: 12 }}>
+                <div className="tsc-sidebar-header-row" style={{ marginBottom: 8 }}>
+                  <label className="tsc-spec-label" style={{ margin: 0 }}>
+                    Outline
+                  </label>
+                  <button
+                    type="button"
+                    className={`tsc-text-toggle-btn${activeShapeLayer.strokeColor ? " active" : ""}`}
+                    onClick={() =>
+                      updateActiveShape({
+                        strokeColor: activeShapeLayer.strokeColor ? null : "#000000",
+                        strokeWidth: activeShapeLayer.strokeWidth || 4,
+                      })
+                    }
+                  >
+                    {activeShapeLayer.strokeColor ? "On" : "Off"}
+                  </button>
+                </div>
+                {activeShapeLayer.strokeColor && (
+                  <>
+                    <input
+                      type="color"
+                      value={activeShapeLayer.strokeColor}
+                      onChange={(e) => updateActiveShape({ strokeColor: e.target.value })}
+                      style={{ marginBottom: 8 }}
+                    />
+                    <label className="tsc-spec-label">Outline width ({activeShapeLayer.strokeWidth})</label>
+                    <input
+                      type="range"
+                      min={1}
+                      max={20}
+                      value={activeShapeLayer.strokeWidth}
+                      onChange={(e) => updateActiveShape({ strokeWidth: Number(e.target.value) })}
+                      className="tsc-slider"
+                    />
+                  </>
+                )}
+              </div>
             </div>
           )}
 
@@ -1795,129 +1840,259 @@ export default function TshirtCustomizerPanel({
                 max={40}
                 value={activePatternLayer.tileSize}
                 onChange={(e) => updateActivePattern({ tileSize: Number(e.target.value) })}
+                className="tsc-slider"
               />
             </div>
           )}
 
-          {/* Image/Text/Shape Size controls - shown whenever a layer is selected */}
-          {selectedLayerData && (
-            <div className="tsc-sidebar-section tsc-size-controls">
-              <div className="tsc-size-header">
-                <div>
-                  <strong>
-                    {selectedLayerData.kind === "image"
-                      ? "Image Size"
-                      : selectedLayerData.kind === "shape"
-                        ? "Shape Size"
-                        : selectedLayerData.kind === "pattern"
-                          ? "Pattern Area Size"
-                          : "Text Size"}
-                  </strong>
-                  <span>Adjust width and height</span>
-                </div>
-
+          {/* Opacity + lock - applies to every layer kind. */}
+          {selectedLayer && (
+            <div className="tsc-sidebar-section">
+              <div className="tsc-sidebar-header-row">
+                <h4 className="tsc-section-title">
+                  <FaLayerGroup className="tsc-section-title-icon" />
+                  Layer
+                </h4>
                 <button
                   type="button"
-                  className="tsc-size-close"
-                  onClick={() => setSelectedLayerId(null)}
+                  className={`lp-lock-btn${selectedLayer.locked ? " active" : ""}`}
+                  title={selectedLayer.locked ? "Unlock layer" : "Lock layer"}
+                  onClick={toggleActiveLayerLock}
                 >
-                  ×
+                  {selectedLayer.locked ? <FaLock size={11} /> : <FaLockOpen size={11} />}
+                </button>
+              </div>
+              <div className="tsc-text-editor-field">
+                <label className="tsc-spec-label">
+                  Opacity ({Math.round((selectedLayer.opacity ?? 1) * 100)}%)
+                </label>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  value={Math.round((selectedLayer.opacity ?? 1) * 100)}
+                  onChange={(e) => updateActiveLayer({ opacity: Number(e.target.value) / 100 })}
+                  className="tsc-slider"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Gradient fill - shape, pattern, and text layers only. */}
+          {selectedLayer && selectedLayer.kind !== "image" && (
+            <div className="tsc-sidebar-section">
+              <div className="tsc-sidebar-header-row">
+                <h4>Gradient Fill</h4>
+                <button
+                  type="button"
+                  className={`tsc-text-toggle-btn${selectedLayer.gradient ? " active" : ""}`}
+                  onClick={() => {
+                    if (selectedLayer.gradient) {
+                      updateActiveLayer({ gradient: null });
+                      return;
+                    }
+                    const baseColor =
+                      selectedLayer.kind === "text" ? selectedLayer.color : selectedLayer.fillColor;
+                    updateActiveLayer({
+                      gradient: {
+                        type: "linear",
+                        angle: 0,
+                        stops: [
+                          { offset: 0, color: baseColor || "#111827" },
+                          { offset: 1, color: "#ffffff" },
+                        ],
+                      },
+                    });
+                  }}
+                >
+                  {selectedLayer.gradient ? "On" : "Off"}
                 </button>
               </div>
 
-              <div className="tsc-size-control">
-                <div className="tsc-size-label-row">
-                  <span>Width</span>
-                  <strong>{Math.round(selectedLayerData.w)}%</strong>
-                </div>
+              {selectedLayer.gradient && (
+                <>
+                  <div
+                    className="tsc-gradient-preview"
+                    style={{
+                      background: `linear-gradient(${selectedLayer.gradient.angle || 0}deg, ${selectedLayer.gradient.stops[0].color}, ${selectedLayer.gradient.stops[1].color})`,
+                    }}
+                  />
+                  <div className="tsc-gradient-stops-row">
+                    <input
+                      type="color"
+                      value={selectedLayer.gradient.stops[0].color}
+                      onChange={(e) =>
+                        updateActiveLayer({
+                          gradient: {
+                            ...selectedLayer.gradient,
+                            stops: [
+                              { ...selectedLayer.gradient.stops[0], color: e.target.value },
+                              selectedLayer.gradient.stops[1],
+                            ],
+                          },
+                        })
+                      }
+                    />
+                    <input
+                      type="color"
+                      value={selectedLayer.gradient.stops[1].color}
+                      onChange={(e) =>
+                        updateActiveLayer({
+                          gradient: {
+                            ...selectedLayer.gradient,
+                            stops: [
+                              selectedLayer.gradient.stops[0],
+                              { ...selectedLayer.gradient.stops[1], color: e.target.value },
+                            ],
+                          },
+                        })
+                      }
+                    />
+                    <select
+                      className="tsc-select-control"
+                      value={selectedLayer.gradient.type}
+                      onChange={(e) =>
+                        updateActiveLayer({ gradient: { ...selectedLayer.gradient, type: e.target.value } })
+                      }
+                    >
+                      <option value="linear">Linear</option>
+                      <option value="radial">Radial</option>
+                    </select>
+                  </div>
+                  {selectedLayer.gradient.type === "linear" && (
+                    <div className="tsc-text-editor-field">
+                      <label className="tsc-spec-label">Angle ({selectedLayer.gradient.angle || 0}°)</label>
+                      <input
+                        type="range"
+                        min={0}
+                        max={360}
+                        value={selectedLayer.gradient.angle || 0}
+                        onChange={(e) =>
+                          updateActiveLayer({
+                            gradient: { ...selectedLayer.gradient, angle: Number(e.target.value) },
+                          })
+                        }
+                        className="tsc-slider"
+                      />
+                    </div>
+                  )}
+                  {selectedLayer.kind === "text" && selectedLayer.curve ? (
+                    <p className="tsc-gallery-empty" style={{ marginTop: 6 }}>
+                      Curved text renders gradients as a flat color approximation.
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          )}
 
+          {/* Image filters - image layers only. */}
+          {selectedLayer?.kind === "image" && (
+            <div className="tsc-sidebar-section">
+              <div className="tsc-sidebar-header-row">
+                <h4 className="tsc-section-title">
+                  <FaSlidersH className="tsc-section-title-icon" />
+                  Image Filters
+                </h4>
+              </div>
+              <div className="tsc-filter-row">
+                {[
+                  ["grayscale", "Grayscale"],
+                  ["sepia", "Sepia"],
+                  ["invert", "Invert"],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`tsc-text-toggle-btn${selectedLayer.filters?.[key] ? " active" : ""}`}
+                    onClick={() =>
+                      updateActiveLayer({
+                        filters: { ...(selectedLayer.filters || {}), [key]: !selectedLayer.filters?.[key] },
+                      })
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="tsc-text-editor-field">
+                <label className="tsc-spec-label">
+                  Brightness ({Math.round((selectedLayer.filters?.brightness || 0) * 100)})
+                </label>
                 <input
                   type="range"
-                  min="5"
-                  max="100"
-                  step="1"
-                  value={Math.round(selectedLayerData.w)}
+                  min={-100}
+                  max={100}
+                  value={Math.round((selectedLayer.filters?.brightness || 0) * 100)}
                   onChange={(e) =>
-                    resizeSelectedLayer(e.target.value, selectedLayerData.h)
+                    updateActiveLayer({
+                      filters: { ...(selectedLayer.filters || {}), brightness: Number(e.target.value) / 100 },
+                    })
                   }
-                  className="tsc-size-slider"
+                  className="tsc-slider"
                 />
               </div>
 
-              <div className="tsc-size-control">
-                <div className="tsc-size-label-row">
-                  <span>Height</span>
-                  <strong>{Math.round(selectedLayerData.h)}%</strong>
-                </div>
-
+              <div className="tsc-text-editor-field">
+                <label className="tsc-spec-label">
+                  Contrast ({Math.round((selectedLayer.filters?.contrast || 0) * 100)})
+                </label>
                 <input
                   type="range"
-                  min="5"
-                  max="100"
-                  step="1"
-                  value={Math.round(selectedLayerData.h)}
+                  min={-100}
+                  max={100}
+                  value={Math.round((selectedLayer.filters?.contrast || 0) * 100)}
                   onChange={(e) =>
-                    resizeSelectedLayer(selectedLayerData.w, e.target.value)
+                    updateActiveLayer({
+                      filters: { ...(selectedLayer.filters || {}), contrast: Number(e.target.value) / 100 },
+                    })
                   }
-                  className="tsc-size-slider"
+                  className="tsc-slider"
                 />
               </div>
 
-              <button
-                type="button"
-                className="tsc-size-reset"
-                onClick={() => {
-                  if (selectedLayerData.kind === "image") {
-                    resizeSelectedLayer(80, 80);
-                  } else if (selectedLayerData.kind === "shape") {
-                    resizeSelectedLayer(40, 40);
-                  } else if (selectedLayerData.kind === "pattern") {
-                    resizeSelectedLayer(80, 80);
-                  } else {
-                    resizeSelectedLayer(80, 20);
+              <div className="tsc-text-editor-field">
+                <label className="tsc-spec-label">
+                  Blur ({Math.round((selectedLayer.filters?.blur || 0) * 100)})
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round((selectedLayer.filters?.blur || 0) * 100)}
+                  onChange={(e) =>
+                    updateActiveLayer({
+                      filters: { ...(selectedLayer.filters || {}), blur: Number(e.target.value) / 100 },
+                    })
                   }
-                }}
-              >
-                Reset Size
-              </button>
+                  className="tsc-slider"
+                />
+              </div>
             </div>
           )}
 
           {/* Persistent Layers panel - replaces the old per-zone upload
               slot list. Visible under every tab, shows the active
-              zone's full stack with DPI badges, reorder, and delete. */}
+              zone's full stack with DPI badges, reorder, lock, and delete. */}
           <LayersPanel
             layers={activeZoneLayers}
             selectedLayerId={selectedLayerId}
             onSelect={(layerId) => handleLayerSelect(activeZone, layerId)}
             onRemove={(layerId) => handleLayerRemove(activeZone, layerId)}
             onMove={(layerId, direction) => handleMoveLayer(activeZone, layerId, direction)}
+            onToggleLock={(layerId) => setZoneLayers((prev) => toggleLayerLock(prev, activeZone, layerId))}
             onApplyToAll={zones.length > 1 ? handleApplyToAllAreas : undefined}
             dpiByLayerId={dpiByLayerId}
           />
         </div>
 
-        {/* ── 2/3. Main Canvas - Edit (flat) or Preview (3D) ───── */}
-        {mode === "edit" ? (
-          <div className="tsc-right-preview">
-            <div className="tsc-preview-panel">
-              {zones.length === 2 && zones.includes("front") && zones.includes("back") ? (
-                <TshirtSideView
-                  zoneLayers={zoneLayers}
-                  selectedLayerId={selectedLayerId}
-                  activeZone={activeZone}
-                  onZoneSelect={handleZoneSelect}
-                  onLayerSelect={handleLayerSelect}
-                  onLayerChange={handleLayerUpdate}
-                  onLayerRemove={handleLayerRemove}
-                  onZoneClear={handleClearZone}
-                  onUploadClick={handleZoneUploadClick}
-                  printSizeInches={printSizeInches}
-                  bleedInches={product?.bleedInches}
-                  safeMarginInches={product?.safeMarginInches}
-                />
-              ) : (
-                <TshirtZoneCanvas
+        {/* ── 2. Main column - always the 3D preview + readiness/
+              mockup rail ─────────────────────────────────────────── */}
+        <div className="tsc-right-preview">
+            <div className="tsc-preview-panel" style={{ display: "flex", gap: 16, flexDirection: "row" }}>
+              <div className="tsc-inline-zone-canvas" style={{ display: "flex", justifyContent: "center" }}>
+                <FabricZoneCanvas
                   zones={zones}
                   zoneLayers={zoneLayers}
                   selectedLayerId={selectedLayerId}
@@ -1928,24 +2103,20 @@ export default function TshirtCustomizerPanel({
                   onLayerRemove={handleLayerRemove}
                   onZoneClear={handleClearZone}
                   onUploadClick={handleZoneUploadClick}
-                  aspectRatio={aspectRatio}
                   printSizeInches={printSizeInches}
                   bleedInches={product?.bleedInches}
                   safeMarginInches={product?.safeMarginInches}
                 />
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="tsc-right-preview">
-            <div className="tsc-preview-panel" style={{ display: "flex", gap: 16, flexDirection: "row" }}>
+              </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <PreviewComponent
                   {...(previewSupportsMockupView ? { ref: previewRef } : {})}
                   modelPath={modelPath}
                   shirtColor={shirtColor}
+                  zoneColors={zoneColors}
                   zoneDesigns={previewLegacyShape.zones}
                   zoneTexts={previewLegacyShape.zoneTexts}
+                  zoneLayers={zoneLayers}
                   selectedSide={selectedSide}
                   zones={zones}
                   selectedSize={selectedSize}
@@ -1955,148 +2126,8 @@ export default function TshirtCustomizerPanel({
                   {...mergedPreviewProps}
                 />
               </div>
-
-              {previewSupportsMockupView && (
-                <div style={{ width: 190, flexShrink: 0, display: "flex", flexDirection: "column", gap: 16 }}>
-                  {readinessScore && (
-                    <div className="lp-panel" style={{ borderTop: "none", paddingTop: 0, marginTop: 0 }}>
-                      <div className="lp-header" style={{ marginBottom: 14 }}>
-                        <span>Print Readiness</span>
-                      </div>
-
-                      {(() => {
-                        const score = readinessScore.overall;
-                        const color = score >= 80 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626";
-                        const circumference = 2 * Math.PI * 42;
-                        const dashOffset = circumference * (1 - score / 100);
-                        return (
-                          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                            <svg width="100" height="100" viewBox="0 0 100 100">
-                              <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" strokeWidth="8" />
-                              <circle
-                                cx="50" cy="50" r="42" fill="none"
-                                stroke={color} strokeWidth="8" strokeLinecap="round"
-                                strokeDasharray={circumference}
-                                strokeDashoffset={dashOffset}
-                                transform="rotate(-90 50 50)"
-                                style={{ transition: "stroke-dashoffset 0.4s ease" }}
-                              />
-                              <text x="50" y="46" textAnchor="middle" fontSize="24" fontWeight="700" fill="#111827">
-                                {score}
-                              </text>
-                              <text x="50" y="63" textAnchor="middle" fontSize="9" fill="#6b7280">
-                                / 100
-                              </text>
-                            </svg>
-                          </div>
-                        );
-                      })()}
-
-                      {[
-                        { label: "Resolution", data: readinessScore.resolution },
-                        { label: "Safe Area", data: readinessScore.safeArea },
-                        { label: "Color Contrast", data: readinessScore.colorContrast },
-                      ].map(({ label, data }) => (
-                        <div
-                          key={label}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            fontSize: 12,
-                            padding: "6px 0",
-                            borderTop: "1px solid #f1f5f9",
-                          }}
-                        >
-                          <span style={{ color: "#374151" }}>
-                            {data.score >= 80 ? "✓" : data.score >= 50 ? "⚠" : "✕"} {label}
-                          </span>
-                          <span style={{ fontWeight: 600, color: data.score >= 80 ? "#16a34a" : data.score >= 50 ? "#d97706" : "#dc2626" }}>
-                            {data.score}/100
-                          </span>
-                        </div>
-                      ))}
-
-                      {readinessScore.overall < 80 && (
-                        <p style={{ fontSize: 11, color: "#6b7280", marginTop: 10, lineHeight: 1.5 }}>
-                          {readinessScore.resolution.score < 80 && "Try a higher-resolution image for crisper printing. "}
-                          {readinessScore.safeArea.score < 80 && "Move your design further from the edge. "}
-                          {readinessScore.colorContrast.score < 80 && "This design may be hard to see on this shirt color. "}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-              <div className="lp-panel" style={{ borderTop: "none", paddingTop: 0, marginTop: 0 }}>
-                  <div className="lp-header" style={{ marginBottom: 12 }}>
-                    <span>Mockup View</span>
-                  </div>
-                  <div className="mv-grid">
-                    {[
-                      { id: "front", label: "Front" },
-                      { id: "back", label: "Back" },
-                      { id: "left", label: "Left" },
-                      { id: "right", label: "Right" },
-                    ].map((v) => (
-                      <button
-                        key={v.id}
-                        type="button"
-                        className={`mv-thumb${activeMockupView === v.id ? " active" : ""}`}
-                        onClick={() => handleSetMockupView(v.id)}
-                      >
-                        <div className="mv-thumb-img">
-                          {mockupThumbnails?.[v.id] ? (
-                            <img src={mockupThumbnails[v.id]} alt={v.label} />
-                          ) : (
-                            <span className="mv-thumb-spinner" />
-                          )}
-                        </div>
-                        <span className="mv-thumb-label">{v.label}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {mockupThumbnailsLoading && (
-                    <p style={{ fontSize: 11, color: "#9ca3af", textAlign: "center", marginTop: 4 }}>
-                      Rendering angles…
-                    </p>
-                  )}
-
-                  <button
-                    type="button"
-                    className="lp-apply-all-btn"
-                    style={{ width: "100%", marginTop: 12 }}
-                    onClick={handleDownloadMockup}
-                  >
-                    Download mockup
-                  </button>
-
-                  {designType === "tshirt" && (
-  <>
-    <button
-      type="button"
-      className="tsc-use-btn-header"
-      style={{ width: "100%", marginTop: 8 }}
-      onClick={handleRealLifePreview}
-    >
-      View in Real Life Picture Preview
-    </button>
-    <button
-      type="button"
-      className="tsc-use-btn-header"
-      style={{ width: "100%", marginTop: 8 }}
-      onClick={handleSudoMockPreview}
-    >
-      View SudoMock Preview
-    </button>
-  </>
-)}
-                </div>
-              </div>
-              )}
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {realLifePreview && (

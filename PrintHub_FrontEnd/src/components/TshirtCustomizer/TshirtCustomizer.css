@@ -741,7 +741,9 @@
 
 .tsc-zone-card {
   position: relative;
-  width: 100%;
+  width: auto;
+  max-height: 540px;
+  margin: 0 auto;
   border: 2px solid #cbd5e1;
   border-radius: 12px;
   cursor: pointer;
@@ -1011,7 +1013,7 @@
   width: 100%;
   height: 520px;
   max-height: 520px;
-  background: #1e2433;
+  background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
 }
 
 .tsc-preview-loading {
@@ -1924,144 +1926,6 @@
   border-color: #2563eb;
   background: #eff6ff;
 }
-/* =========================================================
-   IMAGE / TEXT SIZE CONTROLS
-   Rendered as a normal sidebar section, directly above the
-   "Design Print Areas" (ZoneUploadSlots) card.
-   ========================================================= */
-
-.tsc-size-controls {
-  /* Inherits card look from .tsc-sidebar-section; just tune spacing */
-  padding: 14px 16px;
-}
-
-.tsc-size-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.tsc-size-header > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.tsc-size-header strong {
-  font-size: 13px;
-  color: #0f172a;
-  font-weight: 800;
-}
-
-.tsc-size-header span {
-  font-size: 10px;
-  color: #64748b;
-}
-
-.tsc-size-close {
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 50%;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 16px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.tsc-size-close:hover {
-  background: #e2e8f0;
-}
-
-.tsc-size-control {
-  margin-bottom: 12px;
-}
-
-.tsc-size-control:last-of-type {
-  margin-bottom: 12px;
-}
-
-.tsc-size-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 5px;
-  font-size: 12px;
-  color: #475569;
-}
-
-.tsc-size-label-row strong {
-  color: #2563eb;
-  font-size: 12px;
-}
-
-.tsc-size-slider {
-  width: 100%;
-  height: 6px;
-  margin: 0;
-  accent-color: #2563eb;
-  cursor: pointer;
-}
-
-.tsc-size-reset {
-  width: 100%;
-  margin-top: 2px;
-  padding: 9px 10px;
-
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-
-  background: #f8fafc;
-  color: #475569;
-
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.tsc-size-reset:hover {
-  background: #f1f5f9;
-}
-
-/* MOBILE */
-
-@media (max-width: 640px) {
-  .tsc-size-controls {
-    padding: 12px;
-  }
-
-  .tsc-size-header {
-    margin-bottom: 10px;
-  }
-
-  .tsc-size-header strong {
-    font-size: 13px;
-  }
-
-  .tsc-size-header span {
-    font-size: 9px;
-  }
-
-  .tsc-size-control {
-    margin-bottom: 10px;
-  }
-
-  .tsc-size-slider {
-    height: 8px;
-  }
-
-  .tsc-size-reset {
-    min-height: 40px;
-    font-size: 12px;
-  }
-}
 /* ── LayersPanel ─────────────────────────────────────────────────── */
 .lp-panel {
   border-top: 1px solid #e5e7eb;
@@ -2287,4 +2151,360 @@
   font-size: 20px;
   font-weight: 700;
   color: #9ca3af;
+}
+/* ── Zone tab selector (Front/Back/Sleeve buttons) ─────────────────── */
+.tsc-zone-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.tsc-zone-tab {
+  position: relative;
+  padding: 10px 20px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.tsc-zone-tab:hover {
+  border-color: #6ee7b7;
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.tsc-zone-tab.active {
+  background: #10b981;
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
+}
+
+.tsc-zone-tab-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  margin-left: 7px;
+  vertical-align: middle;
+}
+
+.tsc-zone-tab.active .tsc-zone-tab-dot {
+  background: #ffffff;
+}
+
+/* ── Single large active-zone stage - replaces the old grid of every
+   zone shown at once and cramped into a small column. ─────────────── */
+.tsc-zone-stage {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.tsc-zone-stage .tsc-zone-wrapper {
+  width: 100%;
+  max-width: 460px;
+}
+
+.tsc-zone-stage .tsc-zone-card {
+  max-height: 640px;
+}
+
+.tsc-zone-stage .tsc-zone-inner {
+  min-height: 320px;
+}
+
+.tsc-inline-zone-canvas {
+  width: 480px;
+  flex-shrink: 0;
+}
+
+.tsc-inline-zone-canvas .tsc-canvas-wrap {
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+}
+
+.tsc-inline-zone-canvas .tsc-canvas-hint {
+  display: none;
+}
+
+.tsc-inline-zone-canvas .tsc-zone-stage {
+  width: 100%;
+  height: 100%;
+  align-items: center;
+}
+
+.tsc-inline-zone-canvas .tsc-zone-wrapper {
+  width: 100%;
+}
+/* ── Layer opacity / lock ────────────────────────────────────────── */
+.lp-lock-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: #f3f4f6;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #4b5563;
+}
+.lp-lock-btn.active {
+  background: #fef3c7;
+  color: #b45309;
+}
+.lp-opacity-badge {
+  display: inline-block;
+  font-size: 10px;
+  color: #6b7280;
+  margin-left: 6px;
+}
+
+/* ── Gradient fill controls ──────────────────────────────────────── */
+.tsc-gradient-stops-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.tsc-gradient-preview {
+  width: 100%;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  margin-bottom: 10px;
+}
+
+/* ── Image filter toggle row ─────────────────────────────────────── */
+.tsc-filter-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+/* ── Unified slider style - used everywhere a bare <input type="range">
+   previously fell back to the browser default look, which is the main
+   thing that made stacked sidebar cards feel inconsistent. ────────── */
+.tsc-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+  margin: 2px 0;
+}
+.tsc-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.tsc-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+.tsc-slider::-moz-range-track {
+  height: 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+/* ── Section title with icon - gives each sidebar card a visual anchor
+   instead of every card reading as an identical gray box. ──────────── */
+.tsc-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.tsc-section-title-icon {
+  font-size: 13px;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+/* ── Calmer stacked-card rhythm - the previous heavy identical shadow
+   on every consecutive .tsc-sidebar-section made them read as loose,
+   disconnected boxes rather than one organized panel. ──────────────── */
+.tsc-sidebar-section {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.tsc-sidebar-section + .tsc-sidebar-section {
+  margin-top: 2px;
+}
+/* ─── Brand re-theme: blue accent → site's emerald green ───────────
+   Overrides earlier blue-accent rules by source order (same
+   specificity, declared later wins) so every active/selected/focus
+   state matches the navbar + "Use This Design" green instead of a
+   leftover blue that was never part of the site's palette. ───────── */
+
+.tsc-vtab-btn.active {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.tsc-sidebar-tab-btn.active {
+  color: #059669;
+}
+
+.tsc-select-control:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.tsc-canvas-hint {
+  color: #059669;
+  border-color: #6ee7b7;
+}
+
+.tsc-zone-header-tag:hover .tsc-zone-position-label,
+.tsc-zone-header-tag.active .tsc-zone-position-label {
+  color: #059669;
+  border-color: #6ee7b7;
+  background: #ecfdf5;
+}
+
+.tsc-zone-header-tag.active .tsc-zone-position-label {
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.tsc-zone-card:hover {
+  border-color: #10b981;
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.15);
+}
+
+.tsc-zone-card.active {
+  border-color: #10b981;
+  box-shadow:
+    0 0 0 3px rgba(16, 185, 129, 0.2),
+    0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.tsc-zone.active .tsc-zone-crosshair-h,
+.tsc-zone.active .tsc-zone-crosshair-v {
+  border-color: #10b981;
+}
+
+.tsc-align-btn:hover {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #059669;
+}
+
+.tsc-modal-done-btn {
+  background: #10b981;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.tsc-modal-done-btn:hover {
+  background: #059669;
+}
+
+.tsc-zone-upload-trigger {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.tsc-zone-upload-trigger:hover {
+  background: rgba(16, 185, 129, 0.18);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.15);
+}
+
+.tsc-zone-upload-trigger svg {
+  color: #10b981;
+}
+
+.tsc-zone-addtext-btn {
+  background: rgba(16, 185, 129, 0.9);
+}
+
+.tsc-zone-addtext-btn:hover {
+  background: #059669;
+}
+
+.tsc-text-toggle-btn.active {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #059669;
+}
+
+.tsc-text-layer.active {
+  outline-color: #10b981;
+}
+
+.tsc-text-layer-resize {
+  border-color: #10b981;
+}
+
+.tsc-zone-resize-handle {
+  border-color: #10b981;
+}
+
+.tsc-hex-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.tsc-more-colors-btn:hover {
+  border-color: #10b981;
+}
+
+.tsc-gallery-thumb.selected {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.tsc-gallery-thumb:hover {
+  border-color: #10b981;
+}
+
+.lp-row-selected {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+}
+
+.lp-apply-all-btn {
+  color: #059669;
+  border-color: #6ee7b7;
+}
+
+.lp-apply-all-btn:hover {
+  background: #ecfdf5;
+}
+
+.tsc-slider::-webkit-slider-thumb {
+  background: #10b981;
+}
+
+.tsc-slider::-moz-range-thumb {
+  background: #10b981;
+}
+
+.tsc-section-title-icon {
+  color: #10b981;
 }

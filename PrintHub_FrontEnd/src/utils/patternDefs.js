@@ -1,18 +1,18 @@
-// src/utils/patternDefs.js  (new file)
+// src/utils/patternDefs.js  (replace entire file)
 /**
  * patternDefs
- * Repeating tileable patterns - a design element like a "fill the whole
- * zone with stripes/dots/etc" option, distinct from the single-icon
- * Shapes library. Each pattern has two implementations that must stay
- * visually consistent:
- *   - buildPatternSvgDef() - SVG string for a live <pattern> def (used
- *     in the flat editor).
- *   - fillPatternRect() - draws the tiled pattern into a rect on a
- *     Canvas 2D context (used by the flatten/export step).
+ * Repeating tileable patterns. Every tile is now built from real Fabric
+ * objects on a small offscreen fabric.StaticCanvas - one implementation
+ * shared by the sidebar preview swatch AND the actual pattern fill used
+ * when flattening a layer, instead of the old split (a hand-written SVG
+ * string for the swatch, a separate hand-written Canvas 2D drawer for
+ * the real fill) that could silently drift out of sync with each other.
  *
- * Verified: all 5 patterns were rasterized and visually confirmed to
- * tile cleanly with no seams or misalignment before this was written.
+ * Every shape used here (Rect/Circle/Triangle) is a solid fill with no
+ * image loading, so building + rendering a tile is fully synchronous.
  */
+import * as fabric from "fabric";
+import { buildGradientFill } from "./fabricGradient";
 
 export const PATTERN_TYPES = ["stripes", "dots", "checkerboard", "chevron", "gingham"];
 
@@ -25,81 +25,64 @@ export const PATTERN_LABELS = {
 };
 
 /**
- * SVG <pattern> inner content (as a string, for dangerouslySetInnerHTML
- * or direct JSX string interpolation) for one tile, sized tileSize square.
+ * Builds one tile (tileSize square) as a raw <canvas> element.
+ * `gradient` (optional) overrides fgColor with a gradient fill, using
+ * the same descriptor shape shapes/text use.
  */
-export function buildPatternSvgDef(patternType, tileSize, fgColor, bgColor) {
+function buildPatternTileCanvas(patternType, tileSize, fgColor, bgColor, gradient) {
   const t = tileSize;
-  switch (patternType) {
-    case "stripes":
-      return `<rect width="${t}" height="${t}" fill="${bgColor}"/><rect width="${t / 2}" height="${t}" fill="${fgColor}"/>`;
-    case "dots":
-      return `<rect width="${t}" height="${t}" fill="${bgColor}"/><circle cx="${t / 2}" cy="${t / 2}" r="${t * 0.3}" fill="${fgColor}"/>`;
-    case "checkerboard":
-      return `<rect width="${t}" height="${t}" fill="${bgColor}"/><rect width="${t / 2}" height="${t / 2}" fill="${fgColor}"/><rect x="${t / 2}" y="${t / 2}" width="${t / 2}" height="${t / 2}" fill="${fgColor}"/>`;
-    case "chevron":
-      return `<rect width="${t}" height="${t}" fill="${bgColor}"/><path d="M0,${t} L${t / 2},0 L${t},${t} Z" fill="${fgColor}"/>`;
-    case "gingham":
-      return `<rect width="${t}" height="${t}" fill="${bgColor}"/><rect width="${t / 2}" height="${t}" fill="${fgColor}" opacity="0.5"/><rect width="${t}" height="${t / 2}" fill="${fgColor}" opacity="0.5"/>`;
-    default:
-      return `<rect width="${t}" height="${t}" fill="${bgColor}"/>`;
-  }
-}
+  const canvasEl = document.createElement("canvas");
+  canvasEl.width = t;
+  canvasEl.height = t;
 
-/**
- * Draws ONE tile of the pattern at (0,0) on a canvas context, sized
- * tileSize square. Caller tiles this across the target area in a loop.
- */
-function drawTile(ctx, patternType, tileSize, fgColor, bgColor) {
-  const t = tileSize;
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, 0, t, t);
-  ctx.fillStyle = fgColor;
+  const staticCanvas = new fabric.StaticCanvas(canvasEl, { width: t, height: t });
+  const fgFill = buildGradientFill(gradient, t, t) || fgColor;
+
+  staticCanvas.add(new fabric.Rect({ left: 0, top: 0, width: t, height: t, fill: bgColor }));
 
   switch (patternType) {
     case "stripes":
-      ctx.fillRect(0, 0, t / 2, t);
+      staticCanvas.add(new fabric.Rect({ left: 0, top: 0, width: t / 2, height: t, fill: fgFill }));
       break;
     case "dots":
-      ctx.beginPath();
-      ctx.arc(t / 2, t / 2, t * 0.3, 0, Math.PI * 2);
-      ctx.fill();
+      staticCanvas.add(
+        new fabric.Circle({
+          left: t / 2,
+          top: t / 2,
+          radius: t * 0.3,
+          fill: fgFill,
+          originX: "center",
+          originY: "center",
+        }),
+      );
       break;
     case "checkerboard":
-      ctx.fillRect(0, 0, t / 2, t / 2);
-      ctx.fillRect(t / 2, t / 2, t / 2, t / 2);
+      staticCanvas.add(new fabric.Rect({ left: 0, top: 0, width: t / 2, height: t / 2, fill: fgFill }));
+      staticCanvas.add(new fabric.Rect({ left: t / 2, top: t / 2, width: t / 2, height: t / 2, fill: fgFill }));
       break;
     case "chevron":
-      ctx.beginPath();
-      ctx.moveTo(0, t);
-      ctx.lineTo(t / 2, 0);
-      ctx.lineTo(t, t);
-      ctx.closePath();
-      ctx.fill();
+      // Fabric's Triangle defaults to apex-up/base-down, which is exactly
+      // the shape the old hand-drawn chevron tile traced by hand.
+      staticCanvas.add(new fabric.Triangle({ left: 0, top: 0, width: t, height: t, fill: fgFill }));
       break;
     case "gingham":
-      ctx.globalAlpha = 0.5;
-      ctx.fillRect(0, 0, t / 2, t);
-      ctx.fillRect(0, 0, t, t / 2);
-      ctx.globalAlpha = 1;
+      staticCanvas.add(new fabric.Rect({ left: 0, top: 0, width: t / 2, height: t, fill: fgFill, opacity: 0.5 }));
+      staticCanvas.add(new fabric.Rect({ left: 0, top: 0, width: t, height: t / 2, fill: fgFill, opacity: 0.5 }));
       break;
     default:
       break;
   }
+
+  staticCanvas.renderAll();
+  return staticCanvas.getElement();
 }
 
 /**
  * Fills a rectangular region (0,0)-(width,height) on the given context
  * with the tiled pattern, clipped to that region.
  */
-export function fillPatternRect(ctx, patternType, width, height, tileSize, fgColor, bgColor) {
-  const tileCanvas = typeof OffscreenCanvas !== "undefined"
-    ? new OffscreenCanvas(tileSize, tileSize)
-    : document.createElement("canvas");
-  tileCanvas.width = tileSize;
-  tileCanvas.height = tileSize;
-  const tileCtx = tileCanvas.getContext("2d");
-  drawTile(tileCtx, patternType, tileSize, fgColor, bgColor);
+export function fillPatternRect(ctx, patternType, width, height, tileSize, fgColor, bgColor, gradient) {
+  const tileCanvas = buildPatternTileCanvas(patternType, tileSize, fgColor, bgColor, gradient);
 
   ctx.save();
   ctx.beginPath();
@@ -111,4 +94,15 @@ export function fillPatternRect(ctx, patternType, width, height, tileSize, fgCol
     }
   }
   ctx.restore();
+}
+
+/** Data URL of one tile - used for the sidebar Graphics preview swatch. */
+export function buildPatternPreviewDataUrl(patternType, tileSize, fgColor, bgColor, gradient) {
+  return buildPatternTileCanvas(patternType, tileSize, fgColor, bgColor, gradient).toDataURL("image/png");
+}
+
+/** A ready-to-use fabric.Pattern for buildPatternObject in fabricZoneRenderer.js. */
+export function buildFabricPatternFill(patternType, tileSize, fgColor, bgColor, gradient) {
+  const tileCanvas = buildPatternTileCanvas(patternType, tileSize, fgColor, bgColor, gradient);
+  return new fabric.Pattern({ source: tileCanvas, repeat: "repeat" });
 }

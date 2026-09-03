@@ -1,14 +1,4 @@
-// src/utils/shapeDefs.js  (new file)
-/**
- * shapeDefs
- * SVG path data (in a 0-100 viewBox) for the Graphics/Shapes library.
- * The same "d" string works both as an <svg><path d="..."/></svg> element
- * (used live in the flat editor) and as a Canvas 2D Path2D (used when
- * flattening layers for the 3D texture / Printful export) - Path2D
- * natively understands SVG path syntax, so there's one source of truth
- * instead of maintaining separate SVG and canvas-drawing code per shape.
- */
-
+// src/utils/shapeDefs.js  (replace entire file)
 export const SHAPE_PATHS = {
   square: "M0,0 H100 V100 H0 Z",
   circle:
@@ -21,6 +11,12 @@ export const SHAPE_PATHS = {
   heart:
     "M50,88 C20,65 0,45 0,25 C0,10 12,0 25,0 C35,0 45,7 50,18 " +
     "C55,7 65,0 75,0 C88,0 100,10 100,25 C100,45 80,65 50,88 Z",
+  arrow: "M0,35 H60 V15 L100,50 L60,85 V65 H0 Z",
+  hexagon: "M98,50 L74,91.57 L26,91.57 L2,50 L26,8.43 L74,8.43 Z",
+  speech_bubble:
+    "M10,10 H90 Q95,10 95,20 V60 Q95,70 90,70 H40 L25,90 L30,70 H10 " +
+    "Q5,70 5,60 V20 Q5,10 10,10 Z",
+  ribbon: "M20,0 H80 V60 L50,45 L20,60 Z",
 };
 
 export const SHAPE_LABELS = {
@@ -30,4 +26,8 @@ export const SHAPE_LABELS = {
   line: "Line",
   star: "Star",
   heart: "Heart",
+  arrow: "Arrow",
+  hexagon: "Hexagon",
+  speech_bubble: "Speech Bubble",
+  ribbon: "Ribbon",
 };

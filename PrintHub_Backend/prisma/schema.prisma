@@ -1,4 +1,3 @@
-// prisma/schema.prisma  (replace entire file)
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,85 +8,59 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-enum StaffRole {
-  DESIGN_APPROVER              // Checks canvas DPI & borders
-  PAYMENT_VERIFIER             // Confirms customer payment before production starts
-  PRINT_TECHNICIAN             // Controls print machinery & triggers ink reduction
-  QUALITY_ASSURANCE_INSPECTOR  // Checks for printing smudges and errors
-  LOGISTICS_PACKER             // Packages shirts & triggers PDF shipping slips
-  INVENTORY_CONTROLLER         // Monitors raw material forecasting charts
-  PROCUREMENT_OFFICER          // Approves automated supplier purchase sheets
-  CUSTOMER_SUPPORT
-}
-
-enum ProductionStatus {
-  PENDING_FILE_CHECK
-  AWAITING_PAYMENT
-  PRINTING_QUEUE
-  QUALITY_ASSURANCE
-  PACKAGING_READY
-  COMPLETED
-}
-
 model User {
-  id          Int      @id @default(autoincrement())
-  first_name  String?  @map("first_name")
-  last_name   String?  @map("last_name")
-  email       String   @unique
-  password    String
-  phone       String?
-  address     String?
-  role        Int
-  status      String? 
-  last_login  DateTime? @map("last_login")
-  join_date   DateTime? @map("join_date")
-  gender      String?
-  birthday    DateTime?
-  avatar_url  String?  @map("avatar_url")
-  position    String?
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  orders       Order[]
-  inquiries    Inquiry[]
-  cartItems    CartItem[]
-  staffRoles   UserStaffRole[]
-  notifications     Notification[]
-  conversations         Conversation[]
-  supportAssignments    Conversation[] @relation("SupportAssignedStaff")
+  id                 Int             @id @default(autoincrement())
+  first_name         String?         @map("first_name")
+  last_name          String?         @map("last_name")
+  email              String          @unique
+  password           String
+  phone              String?
+  address            String?
+  role               Int
+  status             String?
+  last_login         DateTime?       @map("last_login")
+  join_date          DateTime?       @map("join_date")
+  gender             String?
+  birthday           DateTime?
+  position           String?
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+  avatar_url         String?         @map("avatar_url")
+  cartItems          CartItem[]
+  supportAssignments Conversation[]  @relation("SupportAssignedStaff")
+  conversations      Conversation[]
+  inquiries          Inquiry[]
+  notifications      Notification[]
+  orders             Order[]
+  staffRoles         UserStaffRole[]
 }
 
 model Notification {
   id        Int      @id @default(autoincrement())
   userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
   body      String
-  type      String   // "order_status" | "design_approved" | "payment_due" | "low_stock" | "requisition" | "assignment"
-  link      String?  // frontend route to deep-link to, e.g. "/orders/74"
+  type      String
+  link      String?
   metadata  Json?
   isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([createdAt])
 }
 
-enum ConversationStatus {
-  OPEN
-  CLOSED
-}
-
 model Conversation {
-  id             Int                 @id @default(autoincrement())
-  userId         Int                 @map("user_id")
-  user           User                @relation(fields: [userId], references: [id])
-  status         ConversationStatus  @default(OPEN)
+  id              Int                @id @default(autoincrement())
+  userId          Int                @map("user_id")
+  status          ConversationStatus @default(OPEN)
   assignedStaffId Int?               @map("assigned_staff_id")
-  assignedStaff  User?               @relation("SupportAssignedStaff", fields: [assignedStaffId], references: [id])
-  lastMessageAt  DateTime            @default(now()) @map("last_message_at")
-  createdAt      DateTime            @default(now()) @map("created_at")
-
-  messages       Message[]
+  lastMessageAt   DateTime           @default(now()) @map("last_message_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  assignedStaff   User?              @relation("SupportAssignedStaff", fields: [assignedStaffId], references: [id])
+  user            User               @relation(fields: [userId], references: [id])
+  messages        Message[]
 
   @@index([userId])
   @@index([status])
@@ -97,24 +70,24 @@ model Conversation {
 model Message {
   id             Int          @id @default(autoincrement())
   conversationId Int          @map("conversation_id")
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       Int          @map("sender_id")
-  senderRole     String       @map("sender_role") // "customer" | "staff"
-  body           String       @db.Text
+  senderRole     String       @map("sender_role")
+  body           String
   readAt         DateTime?    @map("read_at")
   createdAt      DateTime     @default(now()) @map("created_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId])
 }
 
 model UserStaffRole {
   id           Int       @id @default(autoincrement())
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId       Int       @map("user_id")
   role         StaffRole
-  assignedBy   Int?      @map("assigned_by")     // admin's User.id who made the assignment
+  assignedBy   Int?      @map("assigned_by")
   assignedAt   DateTime  @default(now()) @map("assigned_at")
-  unassignedAt DateTime? @map("unassigned_at")   // set when admin reassigns/removes, keeps history
+  unassignedAt DateTime? @map("unassigned_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, role])
   @@index([userId])
@@ -122,10 +95,10 @@ model UserStaffRole {
 }
 
 model ArchivedUser {
-  id          Int      @id @default(autoincrement())
-  user_id     Int?     @map("user_id")
-  first_name  String?  @map("first_name")
-  last_name   String?  @map("last_name")
+  id          Int       @id @default(autoincrement())
+  user_id     Int?      @map("user_id")
+  first_name  String?   @map("first_name")
+  last_name   String?   @map("last_name")
   phone       String?
   address     String?
   email       String
@@ -141,54 +114,52 @@ model ArchivedUser {
 }
 
 model Product {
-  id           Int       @id @default(autoincrement())
-  name         String
-  sku          String?   @unique
-  description  String?
-  price        Decimal   @db.Decimal(12,2)
-  currency     String    @default("PHP")
-  stock        Int       @default(0)
-  width_mm     Int?
-  height_mm    Int?
-  depth_mm     Int?
-  material     String?
-  colorOptions String[]  @default([])
-  color_options      String[]  @default([])
-  size_options       String[]  @default([])
-  material_options   String[]  @default([])
-  side_options       String[]  @default([])
-  finishing_options  String[]  @default([])
-  processing_options String[]  @default([])
-  delivery_options   String[]  @default([])
-  quantity_options   String[]  @default([])
-  shipping_options   String[]  @default([])
-  print_type   String?   // e.g. digital, offset, screen
-  turnaround_hours Int?
-  ai_prompt_rules String?  // strict AI generation/design rules for this product category
-  print_zones  String[]  @default([])  // e.g. ["front","back","left_sleeve","right_sleeve"]
-  category     String?   @default("other")  // tshirt | mug | calling_card | other
-  images       String[]  @default([])
-  quantity_mode String?   // 'dropdown' | 'text' — admin-configurable quantity input mode
-  quantity_count Int?     // threshold for auto-selecting contact/quote when using text mode
-  bleedInches      Float?  @map("bleed_inches")       // how far artwork can extend past the trim edge
-  safeMarginInches Float?  @map("safe_margin_inches")  // recommended inset from trim edge for text/important content
-  substrateMaterialName String? @map("substrate_material_name") // must match InventorySubstrate.materialName
-  substrateUsagePerUnit Float?  @map("substrate_usage_per_unit") // meters consumed per unit, calibrated at reference print size below
-  inkColorChannel       String? @map("ink_color_channel")        // must match InventoryInk.colorChannel
-  inkUsagePerUnit       Float?  @map("ink_usage_per_unit")        // ml consumed per unit, calibrated at reference print size below
-  unitMaterialName      String? @map("unit_material_name")   // must match InventoryUnit.itemName
-  unitUsagePerUnit       Int?    @map("unit_usage_per_unit")   // blanks consumed per piece produced, usually 1
-  referenceWidthInches  Float?  @map("reference_width_inches")   // print width the usage rates above were calibrated for
-  referenceHeightInches Float?  @map("reference_height_inches")  // print height the usage rates above were calibrated for
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  deleted_at   DateTime? @map("deleted_at")
-
-  orderItems   OrderItem[]
-  cartItems    CartItem[]
-  
-  mockupViews Json? @map("mockup_views")
+  id                    Int         @id @default(autoincrement())
+  name                  String
+  sku                   String?     @unique
+  description           String?
+  price                 Decimal     @db.Decimal(12, 2)
+  currency              String      @default("PHP")
+  stock                 Int         @default(0)
+  width_mm              Int?
+  height_mm             Int?
+  depth_mm              Int?
+  material              String?
+  colorOptions          String[]    @default([])
+  print_type            String?
+  turnaround_hours      Int?
+  images                String[]    @default([])
+  active                Boolean     @default(true)
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+  deleted_at            DateTime?   @map("deleted_at")
+  color_options         String[]    @default([])
+  delivery_options      String[]    @default([])
+  finishing_options     String[]    @default([])
+  material_options      String[]    @default([])
+  processing_options    String[]    @default([])
+  side_options          String[]    @default([])
+  size_options          String[]    @default([])
+  quantity_options      String[]    @default([])
+  shipping_options      String[]    @default([])
+  ai_prompt_rules       String?
+  quantity_count        Int?
+  quantity_mode         String?
+  category              String?     @default("other")
+  print_zones           String[]    @default([])
+  inkColorChannel       String?     @map("ink_color_channel")
+  inkUsagePerUnit       Float?      @map("ink_usage_per_unit")
+  substrateMaterialName String?     @map("substrate_material_name")
+  substrateUsagePerUnit Float?      @map("substrate_usage_per_unit")
+  referenceHeightInches Float?      @map("reference_height_inches")
+  referenceWidthInches  Float?      @map("reference_width_inches")
+  mockupViews           Json?       @map("mockup_views")
+  unitMaterialName      String?     @map("unit_material_name")
+  unitUsagePerUnit      Int?        @map("unit_usage_per_unit")
+  bleedInches           Float?      @map("bleed_inches")
+  safeMarginInches      Float?      @map("safe_margin_inches")
+  cartItems             CartItem[]
+  orderItems            OrderItem[]
 }
 
 model InventorySubstrate {
@@ -215,7 +186,7 @@ model InventoryInk {
 
 model InventoryUnit {
   id              Int      @id @default(autoincrement())
-  itemName        String   @unique @map("item_name") // e.g. "plain_ceramic_mug", "plain_cap"
+  itemName        String   @unique @map("item_name")
   stockUnits      Int      @map("stock_units")
   safetyThreshold Int      @default(15) @map("safety_threshold")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -224,69 +195,59 @@ model InventoryUnit {
   @@index([itemName])
 }
 
-enum RequisitionStatus {
-  PENDING
-  ORDERED
-  RECEIVED
-  CANCELLED
-}
-
 model PurchaseRequisition {
-  id               Int               @id @default(autoincrement())
-  materialType     String            @map("material_type") // "substrate" | "ink"
-  materialName     String            @map("material_name")  // matches InventorySubstrate.materialName or InventoryInk.colorChannel
-  currentStock     Float             @map("current_stock")
-  safetyThreshold  Float             @map("safety_threshold")
-  requestedAmount  Float             @map("requested_amount") // suggested restock quantity
-  status           RequisitionStatus @default(PENDING)
-  triggeredByOrderId Int?            @map("triggered_by_order_id") // which order's decrement caused this
-  documentText     String            @db.Text // the formatted restock log sheet text
-  generatedBy      Int?              @map("generated_by") // staff/admin id, null if system-generated
-  createdAt        DateTime          @default(now()) @map("created_at")
-  resolvedAt        DateTime?        @map("resolved_at")
+  id                 Int               @id @default(autoincrement())
+  materialType       String            @map("material_type")
+  materialName       String            @map("material_name")
+  currentStock       Float             @map("current_stock")
+  safetyThreshold    Float             @map("safety_threshold")
+  requestedAmount    Float             @map("requested_amount")
+  status             RequisitionStatus @default(PENDING)
+  triggeredByOrderId Int?              @map("triggered_by_order_id")
+  documentText       String
+  generatedBy        Int?              @map("generated_by")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  resolvedAt         DateTime?         @map("resolved_at")
 
   @@index([status])
   @@index([materialName])
 }
 
 model Order {
-  id              Int         @id @default(autoincrement())
-  user            User?       @relation(fields: [userId], references: [id])
-  userId          Int?
-  branchId  Int?
-  branch    Branch?  @relation(fields: [branchId], references: [id])
-  total           Decimal     @db.Decimal(14,2)
-  currency        String      @default("PHP")
-  status          String      @default("pending")
-  shipping_address String?
-  billing_address String?
-  proofApproved        Boolean     @default(false)
-  designReviewStatus   String?     @default("submitted") @map("design_review_status")
-  designReviewNotes    String?     @map("design_review_notes")
-  designReviewedAt     DateTime?   @map("design_reviewed_at")
-  designReviewedBy     Int?        @map("design_reviewed_by")
-  payment_status       String      @default("unpaid")
-  isBulkOrder          Boolean     @default(false) @map("is_bulk_order")
-  amountPaid           Decimal     @default(0) @db.Decimal(14,2) @map("amount_paid")
-  pendingPaymentAmount Decimal?    @db.Decimal(14,2) @map("pending_payment_amount")
+  id                   Int              @id @default(autoincrement())
+  userId               Int?
+  total                Decimal          @db.Decimal(14, 2)
+  currency             String           @default("PHP")
+  status               String           @default("pending")
+  shipping_address     String?
+  billing_address      String?
+  proofApproved        Boolean          @default(false)
+  due_date             DateTime?
+  delivered_at         DateTime?
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+  deleted_at           DateTime?        @map("deleted_at")
+  payment_status       String           @default("unpaid")
+  checkout_url         String?
   payment_method       String?
   payment_reference    String?
   paymongo_session_id  String?
-  checkout_url         String?
-  due_date             DateTime?
-  delivered_at         DateTime?
-  createdAt            DateTime    @default(now()) @map("created_at")
-  updatedAt            DateTime    @updatedAt @map("updated_at")
-  deleted_at           DateTime?   @map("deleted_at")
-
-  // --- Manufacturing workflow fields ---
+  baseColorHex         String?          @map("base_color_hex")
+  mockupImageUrl       String?          @map("mockup_image_url")
+  printHeightInches    Float?           @map("print_height_inches")
+  printWidthInches     Float?           @map("print_width_inches")
   productionStatus     ProductionStatus @default(PENDING_FILE_CHECK) @map("production_status")
-  mockupImageUrl       String?     @map("mockup_image_url") // Fabric.js base64 data stream
-  baseColorHex         String?     @map("base_color_hex")
-  printWidthInches     Float?      @map("print_width_inches")
-  printHeightInches    Float?      @map("print_height_inches")
-
-  items           OrderItem[]
+  amountPaid           Decimal          @default(0) @map("amount_paid") @db.Decimal(14, 2)
+  isBulkOrder          Boolean          @default(false) @map("is_bulk_order")
+  pendingPaymentAmount Decimal?         @map("pending_payment_amount") @db.Decimal(14, 2)
+  branchId             Int?
+  designReviewNotes    String?          @map("design_review_notes")
+  designReviewStatus   String?          @default("submitted") @map("design_review_status")
+  designReviewedAt     DateTime?        @map("design_reviewed_at")
+  designReviewedBy     Int?             @map("design_reviewed_by")
+  branch               Branch?          @relation(fields: [branchId], references: [id])
+  user                 User?            @relation(fields: [userId], references: [id])
+  items                OrderItem[]
 
   @@index([productionStatus])
 }
@@ -297,50 +258,43 @@ model Branch {
   address   String?
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at")
-
   orders    Order[]
 }
 
-// Join model: which staff member is doing which job (StaffRole) on which order.
-// Supports multiple concurrent assignments per order (e.g. one PRINT_TECHNICIAN
-// + one QUALITY_ASSURANCE_INSPECTOR on the same order) and admin reassignment
-// via unassignedAt instead of hard deletes, preserving history.
-
 model OrderItem {
-  id           Int      @id @default(autoincrement())
-  order        Order    @relation(fields: [orderId], references: [id])
-  orderId      Int
-  product      Product  @relation(fields: [productId], references: [id])
-  productId    Int
-  quantity     Int      @default(1)
-  unit_price   Decimal  @db.Decimal(14,2)
-  total_price  Decimal  @db.Decimal(14,2)
+  id             Int      @id @default(autoincrement())
+  orderId        Int
+  productId      Int
+  quantity       Int      @default(1)
+  unit_price     Decimal  @db.Decimal(14, 2)
+  total_price    Decimal  @db.Decimal(14, 2)
   customizations Json?
-  createdAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+  order          Order    @relation(fields: [orderId], references: [id])
+  product        Product  @relation(fields: [productId], references: [id])
 }
 
 model CartItem {
   id             Int      @id @default(autoincrement())
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId         Int
-  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
   productId      Int?
   title          String
-  price          Decimal  @db.Decimal(14,2)
+  price          Decimal  @db.Decimal(14, 2)
   qty            Int      @default(1)
   productImage   String?
   customizations Json?
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
+  product        Product? @relation(fields: [productId], references: [id])
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([productId])
 }
 
 model Inquiry {
-  id            Int       @id @default(autoincrement())
-  userId        Int?      @map("user_id")
-  user          User?     @relation(fields: [userId], references: [id])
+  id            Int      @id @default(autoincrement())
+  userId        Int?     @map("user_id")
   product_title String?
   subject       String
   name          String
@@ -354,25 +308,27 @@ model Inquiry {
   processing    String?
   delivery      String?
   other         String?
-  design_data     Json?
-  isRushOrder     Boolean   @default(false)
-  rushOrderFee    Decimal?  @db.Decimal(14,2)
-  sizeSurcharge   Decimal?  @db.Decimal(14,2)
-  status        String    @default("new")
-  quoted_price  Decimal?  @db.Decimal(14,2)
+  status        String   @default("new")
+  quoted_price  Decimal? @db.Decimal(14, 2)
   admin_notes   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
   order_id      Int?
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  design_data   Json?
+  isRushOrder   Boolean  @default(false)
+  rushOrderFee  Decimal? @db.Decimal(14, 2)
+  sizeSurcharge Decimal? @db.Decimal(14, 2)
+  user          User?    @relation(fields: [userId], references: [id])
 }
+
 model ActivityLog {
   id          Int      @id @default(autoincrement())
   userId      Int?     @map("user_id")
   userName    String?  @map("user_name")
   userEmail   String?  @map("user_email")
-  userRole    String?  @map("user_role")   // "admin" | "staff"
-  action      String                        // created | updated | deleted | status_changed | restored | logged_in
-  module      String                        // orders | products | users | inquiries | auth
+  userRole    String?  @map("user_role")
+  action      String
+  module      String
   description String
   metadata    Json?
   createdAt   DateTime @default(now()) @map("created_at")
@@ -382,15 +338,10 @@ model ActivityLog {
   @@index([module])
 }
 
-// Reusable starting-point designs staff/admin can create from the
-// customizer and customers can browse/apply before editing further.
-// zoneLayers stores the same stacked-layer shape used by zoneLayerModel.js
-// on the frontend (see TshirtCustomizerPanel.js), so applying a template is
-// just loading it straight into customizer state - no format conversion.
 model DesignTemplate {
   id           Int      @id @default(autoincrement())
   name         String
-  category     String                          // matches Product.category: tshirt | mug | calling_card | other
+  category     String
   thumbnailUrl String?  @map("thumbnail_url")
   zoneLayers   Json     @map("zone_layers")
   baseColor    String?  @map("base_color")
@@ -401,4 +352,36 @@ model DesignTemplate {
 
   @@index([category])
   @@index([active])
+}
+
+enum StaffRole {
+  DESIGN_APPROVER
+  PRINT_TECHNICIAN
+  QUALITY_ASSURANCE_INSPECTOR
+  LOGISTICS_PACKER
+  INVENTORY_CONTROLLER
+  PROCUREMENT_OFFICER
+  PAYMENT_VERIFIER
+  CUSTOMER_SUPPORT
+}
+
+enum ProductionStatus {
+  PENDING_FILE_CHECK
+  PRINTING_QUEUE
+  QUALITY_ASSURANCE
+  PACKAGING_READY
+  COMPLETED
+  AWAITING_PAYMENT
+}
+
+enum ConversationStatus {
+  OPEN
+  CLOSED
+}
+
+enum RequisitionStatus {
+  PENDING
+  ORDERED
+  RECEIVED
+  CANCELLED
 }

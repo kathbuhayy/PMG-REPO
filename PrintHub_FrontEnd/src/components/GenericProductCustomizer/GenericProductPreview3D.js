@@ -99,11 +99,16 @@ export default function GenericProductPreview3D({
   selectedSide = "",
   zones = [],
   fillParent = false,
+  modelRotationY = 0,
+  cylindricalUpAxis = null,
+  cylindricalFrontOffsetDeg = null,
+  cylindricalBackOffsetDeg = null,
   onZoneDesignChange,
   onTextChange,
   onZoneSelect,
   onTextSelect,
 }) {
+
   const mountRef = useRef(null);
   const modelRef = useRef(null);
   const sceneRef = useRef(null);
@@ -157,6 +162,31 @@ export default function GenericProductPreview3D({
 
   const zoneFaceMapRef = useRef(zoneFaceMap);
   zoneFaceMapRef.current = zoneFaceMap;
+
+  // Cylindrical wrap placement (u/v crop box) is driven by decalScale so
+  // it's actually configurable per product, instead of a hardcoded box.
+  // w/h are fractions of the full circumference/height (0-1); x/y are
+  // center offsets as a fraction (-0.5..0.5). Defaults reproduce the old
+  // hardcoded box (0.2-0.8 / 0.1-0.9).
+  const getWrapUVBounds = useCallback((zoneId) => {
+    const scale = decalScaleRef.current[zoneId] || {};
+    const wrapW = scale.w ?? 0.6;
+    const wrapH = scale.h ?? 0.8;
+    const centerU = 0.5 + (scale.x ?? 0);
+    const centerV = 0.5 - (scale.y ?? 0);
+    const uMin = Math.max(0, centerU - wrapW / 2);
+    const uMax = Math.min(1, centerU + wrapW / 2);
+
+    const vMin = Math.max(0, centerV - wrapH / 2);
+    const vMax = Math.min(1, centerV + wrapH / 2);
+
+    return {
+      uMin,
+      uMax,
+      vMin,
+      vMax,
+    };
+  }, []);
 
   const clearDecals = useCallback(() => {
     Object.values(decalsRef.current).forEach((mesh) => {
@@ -227,78 +257,72 @@ export default function GenericProductPreview3D({
   }, []);
 
   const getTargetMesh = useCallback((model) => {
-    // For mug, Object_2 is the outer body mesh (with handle).
-    const mugBody = model.getObjectByName("Object_2");
-    if (mugBody && mugBody.isMesh) return mugBody;
+    // For the mug, the UV report shows a dedicated outer "body"
+    // mesh. Always prefer that over the handle, bottom, or inside.
+    const mugBodyNames = [
+      "body"
+    ];
 
+    for (const name of mugBodyNames) {
+      const mesh = model.getObjectByName(name);
+
+      if (mesh?.isMesh) {
+        return mesh;
+      }
+    }
+
+    // Fallback for products that do not have a named body mesh.
     let target = null;
     let bestVolume = -Infinity;
+
     model.traverse((node) => {
       if (!node.isMesh) return;
+
       const box = new THREE.Box3().setFromObject(node);
       const size = box.getSize(new THREE.Vector3());
       const volume = size.x * size.y * size.z;
+
       if (volume > bestVolume) {
         bestVolume = volume;
         target = node;
       }
     });
+
     return target;
   }, []);
 
   // Generates cylindrical UV mapping coordinates on a geometry.
-  const addCylindricalUVs = useCallback((geometry) => {
+  const addCylindricalUVs = useCallback((mesh) => {
+    let geometry = mesh.geometry;
+
+    // Each triangle needs its own private vertices so the seam fix below
+    // (which shifts u values per-triangle) can't leak into unrelated
+    // triangles that happen to share a vertex across the wrap boundary.
+    if (geometry.index) {
+      const nonIndexed = geometry.toNonIndexed();
+      nonIndexed.userData = geometry.userData;
+      geometry.dispose();
+      geometry = nonIndexed;
+      mesh.geometry = geometry;
+    }
+
     geometry.computeBoundingBox();
     const box = geometry.boundingBox;
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
 
-    // Determine the height axis (longest dimension)
     let heightAxis = "y";
-    if (geometry.userData.isMug) {
-      heightAxis = "z";
+    if (geometry.userData.forcedAxis) {
+      heightAxis = geometry.userData.forcedAxis;
     } else if (size.x > size.y && size.x > size.z) {
       heightAxis = "x";
     } else if (size.z > size.x && size.z > size.y) {
       heightAxis = "z";
     }
 
-    // Correct the center offset for asymmetrical extensions (like handles)
-    let cx = center.x;
-    let cy = center.y;
-    let cz = center.z;
-
-    if (heightAxis === "z") {
-      if (size.x > size.y * 1.1) {
-        if (Math.abs(box.min.x) < Math.abs(box.max.x)) {
-          cx = box.min.x + size.y / 2;
-        } else {
-          cx = box.max.x - size.y / 2;
-        }
-      } else if (size.y > size.x * 1.1) {
-        if (Math.abs(box.min.y) < Math.abs(box.max.y)) {
-          cy = box.min.y + size.x / 2;
-        } else {
-          cy = box.max.y - size.x / 2;
-        }
-      }
-
-      cx += 0.32 * (box.max.x - box.min.x);
-    } else if (heightAxis === "y") {
-      if (size.x > size.z * 1.1) {
-        if (Math.abs(box.min.x) < Math.abs(box.max.x)) {
-          cx = box.min.x + size.z / 2;
-        } else {
-          cx = box.max.x - size.z / 2;
-        }
-      } else if (size.z > size.x * 1.1) {
-        if (Math.abs(box.min.z) < Math.abs(box.max.z)) {
-          cz = box.min.z + size.x / 2;
-        } else {
-          cz = box.max.z - size.x / 2;
-        }
-      }
-    }
+    const cx = center.x;
+    const cy = center.y;
+    const cz = center.z;
 
     const pos = geometry.attributes.position;
     if (!pos) return;
@@ -317,11 +341,10 @@ export default function GenericProductPreview3D({
         u = (theta + Math.PI) / (2 * Math.PI);
         v = (y - cy) / size.y + 0.5;
       } else if (heightAxis === "z") {
-        const adjustmentDegrees = -15;
+        const adjustmentDegrees = geometry.userData.frontOffsetDeg ?? -15;
         const adjustmentRadians = (adjustmentDegrees * Math.PI) / 180;
         let theta =
           Math.atan2(cx - x, y - cy) - Math.PI / 2 + adjustmentRadians;
-        // const theta = Math.atan2(cx - x, y - cy) - (Math.PI / 2) + 3;
         u = (theta + Math.PI) / (2 * Math.PI);
         v = (z - cz) / size.z + 0.5;
       } else {
@@ -331,6 +354,28 @@ export default function GenericProductPreview3D({
       }
 
       uvs.push(u, v);
+    }
+
+    // Seam fix: geometry is now non-indexed, so every 3 consecutive
+    // vertices form one triangle with its own private UVs. atan2 wraps u
+    // from ~1.0 back to ~0.0 at one angle around the mug. A triangle that
+    // straddles that angle ends up with vertices like [0.98, 0.02, 0.99] -
+    // the GPU interpolates across the shorter *numeric* gap, stretching
+    // whatever's near u=0.5 across almost the whole texture for that
+    // triangle. Fix: for each triangle, if its u values span more than
+    // half the texture width, push the low-side ones up by 1.0 so
+    // interpolation goes the short way around the seam instead.
+    for (let t = 0; t < uvs.length / 2; t += 3) {
+      const uA = uvs[t * 2];
+      const uB = uvs[(t + 1) * 2];
+      const uC = uvs[(t + 2) * 2];
+      const maxU = Math.max(uA, uB, uC);
+      const minU = Math.min(uA, uB, uC);
+      if (maxU - minU > 0.5) {
+        if (uA < 0.5) uvs[t * 2] += 1;
+        if (uB < 0.5) uvs[(t + 1) * 2] += 1;
+        if (uC < 0.5) uvs[(t + 2) * 2] += 1;
+      }
     }
 
     geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
@@ -510,13 +555,20 @@ export default function GenericProductPreview3D({
       const zoneId = cylZoneEntry;
       const design = designsRef.current[zoneId] || null;
 
-      if (!persistentCanvasRef.current) {
+            if (!persistentCanvasRef.current) {
         const canvas = document.createElement("canvas");
         canvas.width = 2048;
         canvas.height = 2048;
         persistentCanvasRef.current = canvas;
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
+        // Required by the seam-safe UVs in addCylindricalUVs, which push
+        // some triangles' u values past 1.0 so they interpolate the short
+        // way around the seam. Without RepeatWrapping, u > 1 clamps to the
+        // canvas's right-edge pixel instead of wrapping - showing up as a
+        // flat, wrong-colored vertical bar right at the seam.
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
         persistentTextureRef.current = texture;
       }
 
@@ -529,7 +581,16 @@ export default function GenericProductPreview3D({
         ctx.fillStyle = colorRef.current;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        const uMin = 0.2, uMax = 0.8, vMin = 0.1, vMax = 0.9;
+        const { uMin, uMax, vMin, vMax } = getWrapUVBounds(zoneId);
+        console.log("[MUG UV PRINT AREA]", {
+          zoneId,
+          uMin,
+          uMax,
+          vMin,
+          vMax,
+          widthPercent: (uMax - uMin) * 100,
+          heightPercent: (vMax - vMin) * 100,
+        });
         const x = uMin * canvas.width;
         const y = vMin * canvas.height;
         const w = (uMax - uMin) * canvas.width;
@@ -597,10 +658,6 @@ export default function GenericProductPreview3D({
         getZoneProjectionMode(zoneId) !== "cylindrical"
     );
 
-    console.log("activeZoneIds:", Array.from(activeZoneIds));
-    console.log("decalZoneIds:", decalZoneIds);
-    console.log("target mesh found:", target?.name, target);
-
     // drop meshes for zones that no longer have image or text
     Object.keys(decalsRef.current).forEach((zoneId) => {
       if (!decalZoneIds.includes(zoneId)) clearDecal(zoneId);
@@ -609,7 +666,6 @@ export default function GenericProductPreview3D({
     if (decalZoneIds.length === 0) return;
 
     decalZoneIds.forEach((zoneId) => {
-      console.log("Building decal for zone:", zoneId, "design:", designsRef.current[zoneId], "texts:", zoneTextsRef.current[zoneId]);
       const design = designsRef.current[zoneId] || null;
       const texts = zoneTextsRef.current[zoneId] || [];
       const face = zoneFaceMapRef.current[zoneId] || ZONE_FACE[zoneId] || "front";
@@ -718,6 +774,7 @@ export default function GenericProductPreview3D({
     clearDecals,
     createPlaneOverlay,
     getTargetMesh,
+    getWrapUVBounds,
     getZoneProjectionMode,
     zones,
   ]);
@@ -839,13 +896,13 @@ export default function GenericProductPreview3D({
       raycaster.setFromCamera(pointerNDC, camera);
       const hits = raycaster.intersectObject(target, false);
       if (!hits.length || !hits[0].uv) return null;
-      const uMin = 0.2, uMax = 0.8, vMin = 0.1, vMax = 0.9;
-      const pctX = ((hits[0].uv.x - uMin) / (uMax - uMin)) * 100;
-      const pctY = (1 - ((hits[0].uv.y - vMin) / (vMax - vMin))) * 100;
       const zoneId = Object.keys({ ...designsRef.current, ...zoneTextsRef.current }).find(
         (zId) => getZoneProjectionMode(zId) === "cylindrical"
       );
       if (!zoneId) return null;
+      const { uMin, uMax, vMin, vMax } = getWrapUVBounds(zoneId);
+      const pctX = ((hits[0].uv.x - uMin) / (uMax - uMin)) * 100;
+      const pctY = (1 - ((hits[0].uv.y - vMin) / (vMax - vMin))) * 100;
       return { zoneId, pct: { x: pctX, y: pctY } };
     };
 
@@ -930,15 +987,25 @@ export default function GenericProductPreview3D({
       const model = createFlatModel(flatShape);
       modelRef.current = model;
       scene.add(model);
+      model.rotation.y = modelRotationY;
       applyBaseColor();
 
       const target = getTargetMesh(model);
       if (target && target.geometry) {
+        if (cylindricalUpAxis) {
+          target.geometry.userData.forcedAxis = cylindricalUpAxis;
+        } 
+        if (cylindricalFrontOffsetDeg !== null) {
+          target.geometry.userData.frontOffsetDeg = cylindricalFrontOffsetDeg;
+        }
+        if (cylindricalBackOffsetDeg !== null) {
+          target.geometry.userData.backOffsetDeg = cylindricalBackOffsetDeg;
+        }
         const hasCyl = Object.values(projectionMode).some(
           (mode) => mode === "cylindrical"
         );
-        if (hasCyl) {
-          addCylindricalUVs(target.geometry);
+         if (hasCyl) {
+          addCylindricalUVs(target);   // was: addCylindricalUVs(target.geometry)
         }
       }
 
@@ -952,19 +1019,26 @@ export default function GenericProductPreview3D({
           const model = gltf.scene;
           modelRef.current = model;
           scene.add(model);
+          model.rotation.y = modelRotationY;
           applyBaseColor();
 
           const target = getTargetMesh(model);
           if (target && target.geometry) {
-            if (target.name === "Object_2") {
-              target.geometry.userData.isMug = true;
+            if (cylindricalUpAxis) {
+              target.geometry.userData.forcedAxis = cylindricalUpAxis;
             }
+            if (cylindricalFrontOffsetDeg !== null) {
+              target.geometry.userData.frontOffsetDeg = cylindricalFrontOffsetDeg;
+            }
+            if (cylindricalBackOffsetDeg !== null) {
+          target.geometry.userData.backOffsetDeg = cylindricalBackOffsetDeg;
+        }
             const hasCyl = Object.values(projectionMode).some(
               (mode) => mode === "cylindrical"
             );
-            if (hasCyl) {
-              addCylindricalUVs(target.geometry);
-            }
+             if (hasCyl) {
+          addCylindricalUVs(target);   // was: addCylindricalUVs(target.geometry)
+        }
           }
 
           rebuildDecals();

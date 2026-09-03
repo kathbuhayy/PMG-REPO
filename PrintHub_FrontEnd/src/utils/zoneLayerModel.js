@@ -3,27 +3,20 @@
  * zoneLayerModel
  * Unified stacked-layer data model for the customizer.
  *
- * Replaces the old two-shape state (`zoneDesigns` = one image per zone,
- * `zoneTexts` = array of text layers per zone) with a single ordered
- * array per zone:
+ *   zoneLayers = { [zoneId]: Layer[] }   // index 0 = bottom of stack
  *
- *   zoneLayers = {
- *     [zoneId]: Layer[]   // index 0 = bottom of stack, last = top
- *   }
+ * Common fields (every kind): id, kind, x, y, w, h, rotation, opacity
+ * (0-1, default 1), locked (bool, default false).
+ *   image:   imageUrl, naturalWidth, naturalHeight, filters
+ *            ({ grayscale, sepia, invert, brightness, contrast, blur })
+ *   text:    text, fontFamily, fontSize, color, bold, italic, align,
+ *            outline, outlineColor, outlineWidth, shadow, shadowColor,
+ *            shadowBlur, curve, gradient
+ *   shape:   shapeType, fillColor, strokeColor, strokeWidth, gradient
+ *   pattern: patternType, fillColor, backgroundColor, tileSize, gradient
  *
- * Layer shape (union of image/text/shape/pattern — keep every field
- * optional so kinds can share one array without a discriminated-union
- * headache):
- *   {
- *     id, kind: 'image' | 'text' | 'shape' | 'pattern',
- *     x, y, w, h, rotation,
- *     // image-only: imageUrl, naturalWidth, naturalHeight
- *     // text-only: text, fontFamily, fontSize, color, bold, italic, align,
- *     //   outline, outlineColor, outlineWidth, shadow, shadowColor,
- *     //   shadowBlur, curve
- *     // shape-only: shapeType, fillColor
- *     // pattern-only: patternType, fillColor, backgroundColor, tileSize
- *   }
+ * gradient shape (shape/pattern/text - optional, null = solid color):
+ *   { type: 'linear'|'radial', angle: 0-360, stops: [{offset,color}] }
  *
  * IMPORTANT: production orders already have `design_data` JSON saved in
  * the OLD shape (`zones` + `zoneTexts`, see AdminOrders.js). Nothing here
@@ -38,7 +31,7 @@ function makeId(prefix) {
 
 export function createImageLayer({ imageUrl, x = 10, y = 10, w = 80, h = 80, rotation = 0 } = {}) {
   return {
-    id: makeId("img"),
+    id: makeId("image"),
     kind: "image",
     imageUrl,
     x,
@@ -46,6 +39,9 @@ export function createImageLayer({ imageUrl, x = 10, y = 10, w = 80, h = 80, rot
     w,
     h,
     rotation,
+    opacity: 1,
+    locked: false,
+    filters: null,
   };
 }
 
@@ -72,14 +68,18 @@ export function createTextLayer(overrides = {}) {
     shadowColor: "#000000",
     shadowBlur: 4,
     curve: 0,
+    opacity: 1,
+    locked: false,
+    gradient: null,
     ...overrides,
   };
 }
 
-export const SHAPE_TYPES = ["star", "heart", "line", "triangle", "circle", "square"];
+export const SHAPE_TYPES = [
+  "star", "heart", "line", "triangle", "circle", "square",
+  "arrow", "hexagon", "speech_bubble", "ribbon",
+];
 
-/** Simple geometric shape layer - a design element like Printify's
- * Graphics library, rendered as an SVG path scaled to fill its box. */
 export function createShapeLayer({
   shapeType = "star",
   x = 20,
@@ -99,11 +99,14 @@ export function createShapeLayer({
     h,
     rotation,
     fillColor,
+    strokeColor: null,
+    strokeWidth: 0,
+    opacity: 1,
+    locked: false,
+    gradient: null,
   };
 }
 
-/** Repeating tileable pattern layer (stripes, dots, checkerboard, chevron,
- * gingham) - fills its box with a tiled fill rather than a single icon. */
 export function createPatternLayer({
   patternType = "stripes",
   x = 10,
@@ -127,14 +130,12 @@ export function createPatternLayer({
     fillColor,
     backgroundColor,
     tileSize,
+    opacity: 1,
+    locked: false,
+    gradient: null,
   };
 }
 
-/**
- * Convert legacy { zones: {zoneId: {imageUrl,x,y,w,h}}, zoneTexts: {zoneId: [...]}}
- * into the new { zoneId: Layer[] } shape. Image goes to the bottom of the
- * stack (matches old rendering order, where texts always drew on top).
- */
 export function legacyToZoneLayers(legacyZoneDesigns = {}, legacyZoneTexts = {}) {
   const zoneLayers = {};
   const zoneIds = new Set([
@@ -147,7 +148,7 @@ export function legacyToZoneLayers(legacyZoneDesigns = {}, legacyZoneTexts = {})
     const design = legacyZoneDesigns?.[zoneId];
     if (design?.imageUrl) {
       layers.push({
-        id: makeId("img"),
+        id: makeId("image"),
         kind: "image",
         imageUrl: design.imageUrl,
         x: design.x ?? 10,
@@ -155,10 +156,13 @@ export function legacyToZoneLayers(legacyZoneDesigns = {}, legacyZoneTexts = {})
         w: design.w ?? 80,
         h: design.h ?? 80,
         rotation: design.rotation ?? 0,
+        opacity: 1,
+        locked: false,
+        filters: null,
       });
     }
     (legacyZoneTexts?.[zoneId] || []).forEach((t) => {
-      layers.push({ ...t, kind: "text" });
+      layers.push({ opacity: 1, locked: false, gradient: null, ...t, kind: "text" });
     });
     zoneLayers[zoneId] = layers;
   });
@@ -166,30 +170,16 @@ export function legacyToZoneLayers(legacyZoneDesigns = {}, legacyZoneTexts = {})
   return zoneLayers;
 }
 
-/**
- * True if a saved design object is already in the new shape. We key off
- * a `zoneLayers` field being present — legacy saves never had this key.
- */
 export function isNewShape(designObj) {
   return !!designObj && typeof designObj === "object" && "zoneLayers" in designObj;
 }
 
-/**
- * Normalize any incoming saved/WIP design (old or new shape) into
- * { zoneId: Layer[] }. Safe to call on undefined/null.
- */
 export function normalizeToZoneLayers(designObj) {
   if (!designObj) return {};
   if (isNewShape(designObj)) return designObj.zoneLayers || {};
   return legacyToZoneLayers(designObj.zones || designObj.zoneDesigns, designObj.zoneTexts);
 }
 
-/**
- * Derive the OLD shape from the new one, for as long as downstream
- * consumers (AdminOrders.js today; possibly others later) only read
- * `zones` / `zoneTexts`. Multi-image zones collapse to their bottom-most
- * image layer here — that's a lossy fallback, not the source of truth.
- */
 export function deriveLegacyShape(zoneLayers = {}) {
   const zones = {};
   const zoneTexts = {};
@@ -231,7 +221,6 @@ export function updateLayer(zoneLayers, zoneId, layerId, updates) {
   };
 }
 
-/** Move a layer up (+1) or down (-1) in stacking order. */
 export function moveLayer(zoneLayers, zoneId, layerId, direction) {
   const existing = [...(zoneLayers[zoneId] || [])];
   const idx = existing.findIndex((l) => l.id === layerId);
@@ -242,7 +231,6 @@ export function moveLayer(zoneLayers, zoneId, layerId, direction) {
   return { ...zoneLayers, [zoneId]: existing };
 }
 
-/** Reorder by dragging: move layerId to sit at targetIndex. */
 export function reorderLayer(zoneLayers, zoneId, layerId, targetIndex) {
   const existing = [...(zoneLayers[zoneId] || [])];
   const fromIdx = existing.findIndex((l) => l.id === layerId);
@@ -252,7 +240,16 @@ export function reorderLayer(zoneLayers, zoneId, layerId, targetIndex) {
   return { ...zoneLayers, [zoneId]: existing };
 }
 
-/** Copy one zone's full layer stack onto other zones ("Apply to all areas"). Deep-clones layers with fresh ids so drags in one zone don't affect another. */
+/** Toggle a single layer's locked flag. */
+export function toggleLayerLock(zoneLayers, zoneId, layerId) {
+  const existing = zoneLayers[zoneId] || [];
+  return {
+    ...zoneLayers,
+    [zoneId]: existing.map((l) => (l.id === layerId ? { ...l, locked: !l.locked } : l)),
+  };
+}
+
+/** Copy one zone's full layer stack onto other zones ("Apply to all areas"). */
 export function applyToZones(zoneLayers, sourceZoneId, targetZoneIds) {
   const sourceLayers = zoneLayers[sourceZoneId] || [];
   const next = { ...zoneLayers };
@@ -260,7 +257,7 @@ export function applyToZones(zoneLayers, sourceZoneId, targetZoneIds) {
     if (zoneId === sourceZoneId) return;
     next[zoneId] = sourceLayers.map((l) => ({
       ...l,
-      id: makeId(l.kind === "image" ? "img" : "text"),
+      id: makeId(l.kind),
     }));
   });
   return next;
