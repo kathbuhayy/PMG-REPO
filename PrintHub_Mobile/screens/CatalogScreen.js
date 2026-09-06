@@ -112,6 +112,38 @@ const FALLBACK_PRODUCTS = [
 ];
 
 /* =========================================================
+   CATEGORY DATA
+   IMAGE ONLY
+========================================================= */
+
+const CATEGORY_DATA = [
+  {
+    id: "APPAREL",
+    image: require("../assets/category-images/apparel.png"),
+  },
+  {
+    id: "WEARABLES",
+    image: require("../assets/category-images/wearables.png"),
+  },
+  {
+    id: "STICKERS_LABELS",
+    image: require("../assets/category-images/stickers-labels.png"),
+  },
+  {
+    id: "PAPER_CARDS",
+    image: require("../assets/category-images/paper-cards.png"),
+  },
+  {
+    id: "LARGE_FORMAT_SIGNAGE",
+    image: require("../assets/category-images/large-format-signage.png"),
+  },
+  {
+    id: "PROMOTIONAL_PERSONALIZED",
+    image: require("../assets/category-images/promotional-personalized.png"),
+  },
+];
+
+/* =========================================================
    HELPERS
 ========================================================= */
 
@@ -273,43 +305,6 @@ const productImageSource = (product) => {
 };
 
 /* =========================================================
-   CATEGORY DATA
-========================================================= */
-
-const CATEGORY_DATA = [
-  {
-    id: "APPAREL",
-    name: "T-Shirts",
-    image: require("../assets/product-images/shirt-front.png"),
-  },
-  {
-    id: "PROMOTIONAL",
-    name: "Tote Bags",
-    image: require("../assets/product-images/tote-bag.png"),
-  },
-  {
-    id: "PROMOTIONAL",
-    name: "Caps",
-    image: require("../assets/product-images/cap.png"),
-  },
-  {
-    id: "BUSINESS",
-    name: "Business Cards",
-    image: require("../assets/product-images/business-card.png"),
-  },
-  {
-    id: "PAPER",
-    name: "Flyers",
-    image: require("../assets/product-images/flyers.png"),
-  },
-  {
-    id: "LARGE FORMAT",
-    name: "Posters",
-    image: require("../assets/product-images/poster.png"),
-  },
-];
-
-/* =========================================================
    COMPONENT
 ========================================================= */
 
@@ -318,11 +313,6 @@ export default function CatalogScreen({
 }) {
   const { width } =
     useWindowDimensions();
-
-
-  /* =======================================================
-     RESPONSIVE BREAKPOINTS
-  ======================================================= */
 
   const isSmall =
     width <= 360;
@@ -356,10 +346,6 @@ export default function CatalogScreen({
     return xlarge;
   };
 
-  /* =======================================================
-     RESPONSIVE DIMENSIONS
-  ======================================================= */
-
   const SIDE_PADDING = scale(
     14,
     18,
@@ -390,38 +376,22 @@ export default function CatalogScreen({
 
   const CATEGORY_CARD_WIDTH =
     scale(
-      168,
-      178,
-      195,
-      215
+      118,
+      128,
+      140,
+      155
     );
 
   const CATEGORY_CARD_HEIGHT =
     scale(
-      205,
-      215,
-      225,
-      240
+      150,
+      160,
+      172,
+      190
     );
-
-  const CATEGORY_IMAGE_SIZE =
-    scale(
-      88,
-      98,
-      110,
-      125
-    );
-
-  /* =======================================================
-     REFS
-  ======================================================= */
 
   const scrollRef =
     useRef(null);
-
-  /* =======================================================
-     FONTS
-  ======================================================= */
 
   const [fontsLoaded] =
     useFonts({
@@ -443,10 +413,6 @@ export default function CatalogScreen({
       BebasNeue:
         BebasNeue_400Regular,
     });
-
-  /* =======================================================
-     STATE
-  ======================================================= */
 
   const [products, setProducts] =
     useState(
@@ -596,8 +562,28 @@ export default function CatalogScreen({
     ] ||
     FALLBACK_PRODUCTS[0];
 
+      /* =======================================================
+     AUTO HERO CAROUSEL
+  ======================================================= */
+
+  useEffect(() => {
+    if (heroProducts.length < 2) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setHeroIndex((index) =>
+        (index + 1) % heroProducts.length
+      );
+    }, 5000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [heroProducts.length]);
+
   /* =======================================================
-     NAVIGATION HELPERS
+     NAVIGATION
   ======================================================= */
 
   const getRootNavigation =
@@ -609,6 +595,7 @@ export default function CatalogScreen({
 
       while (parent) {
         root = parent;
+
         parent =
           root?.getParent?.();
       }
@@ -679,7 +666,14 @@ export default function CatalogScreen({
     );
   };
 
-  const openProducts = () => {
+  /*
+   * UPDATED:
+   * This now accepts a category and passes it
+   * to ProductOverview.
+   */
+  const openProducts = (
+    category = "ALL"
+  ) => {
     setMenuVisible(false);
 
     const root =
@@ -691,7 +685,10 @@ export default function CatalogScreen({
 
     try {
       root.navigate(
-        "ProductOverview"
+        "ProductOverview",
+        {
+          category,
+        }
       );
     } catch (error) {
       console.warn(
@@ -707,27 +704,24 @@ export default function CatalogScreen({
     );
   };
 
-  /* =======================================================
-     AI CHAT
-     
-     IMPORTANT:
-     AI CHAT NOW OPENS THE ROOT STACK SCREEN
-     "Chatbot", WHICH USES Chatbot.js
-  ======================================================= */
-
   const openChat = () => {
     setMenuVisible(false);
-  
-    const root = getRootNavigation();
-  
+
+    const root =
+      getRootNavigation();
+
     if (!root) {
       return;
     }
-  
+
     try {
-      root.navigate("Main", {
-        screen: "ChatbotTab",
-      });
+      root.navigate(
+        "Main",
+        {
+          screen:
+            "ChatbotTab",
+        }
+      );
     } catch (error) {
       console.warn(
         "Unable to open AI Chat:",
@@ -738,17 +732,22 @@ export default function CatalogScreen({
 
   const openCart = () => {
     setMenuVisible(false);
-  
-    const root = getRootNavigation();
-  
+
+    const root =
+      getRootNavigation();
+
     if (!root) {
       return;
     }
-  
+
     try {
-      root.navigate("Main", {
-        screen: "CartTab",
-      });
+      root.navigate(
+        "Main",
+        {
+          screen:
+            "CartTab",
+        }
+      );
     } catch (error) {
       console.warn(
         "Unable to open CartScreen:",
@@ -802,7 +801,7 @@ export default function CatalogScreen({
   };
 
   /* =======================================================
-     CATEGORY CLICK
+     UPDATED CATEGORY CLICK
   ======================================================= */
 
   const selectCategory =
@@ -812,15 +811,19 @@ export default function CatalogScreen({
       );
 
       setMenuVisible(false);
-    };
 
-  /* =======================================================
-     SEARCH
-  ======================================================= */
+      /*
+       * Open ProductOverview immediately
+       * and send the selected category.
+       */
+      openProducts(category);
+    };
 
   const submitSearch =
     () => {
-      setSearchVisible(false);
+      setSearchVisible(
+        false
+      );
     };
 
   /* =======================================================
@@ -874,14 +877,12 @@ export default function CatalogScreen({
     );
   }
 
-  /* =======================================================
-     MAIN SCREEN
-  ======================================================= */
-
-    return (
-      <View
-        style={styles.safeArea}
-      >
+  return (
+    <View
+      style={
+        styles.safeArea
+      }
+    >
       <StatusBar
         barStyle="light-content"
         backgroundColor={
@@ -890,9 +891,7 @@ export default function CatalogScreen({
         translucent={false}
       />
 
-      {/* =================================================
-          HEADER
-      ================================================= */}
+      {/* HEADER */}
 
       <View
         style={[
@@ -924,8 +923,6 @@ export default function CatalogScreen({
             },
           ]}
         >
-          {/* MENU */}
-
           <TouchableOpacity
             style={
               styles.headerIconButton
@@ -951,8 +948,6 @@ export default function CatalogScreen({
             />
           </TouchableOpacity>
 
-          {/* LOGO */}
-
           <TouchableOpacity
             style={
               styles.logoWrapper
@@ -975,15 +970,11 @@ export default function CatalogScreen({
             />
           </TouchableOpacity>
 
-          {/* HEADER ACTIONS */}
-
           <View
             style={
               styles.headerActions
             }
           >
-            {/* SEARCH */}
-
             <TouchableOpacity
               style={
                 styles.headerIconButton
@@ -999,17 +990,15 @@ export default function CatalogScreen({
                 name="search-outline"
                 size={scale(
                   23,
-                  26,
-                  29,
-                  32
+                  25,
+                  27,
+                  29
                 )}
                 color={
                   COLORS.white
                 }
               />
             </TouchableOpacity>
-
-            {/* CART */}
 
             <TouchableOpacity
               style={
@@ -1023,35 +1012,10 @@ export default function CatalogScreen({
               <Ionicons
                 name="cart-outline"
                 size={scale(
-                  25,
+                  24,
+                  26,
                   28,
-                  31,
-                  34
-                )}
-                color={
-                  COLORS.white
-                }
-              />
-            </TouchableOpacity>
-
-            {/* PROFILE */}
-
-            <TouchableOpacity
-              style={
-                styles.headerIconButton
-              }
-              onPress={
-                openProfile
-              }
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name="person-outline"
-                size={scale(
-                  25,
-                  28,
-                  31,
-                  34
+                  31
                 )}
                 color={
                   COLORS.white
@@ -1068,10 +1032,6 @@ export default function CatalogScreen({
         />
       </View>
 
-      {/* =================================================
-          MAIN CONTENT
-      ================================================= */}
-
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={
@@ -1080,16 +1040,14 @@ export default function CatalogScreen({
         contentContainerStyle={{
           paddingBottom:
             scale(
+              30,
               35,
               40,
-              45,
-              50
+              45
             ),
         }}
       >
-        {/* =================================================
-            HERO
-        ================================================= */}
+        {/* HERO */}
 
         <View
           style={[
@@ -1097,64 +1055,9 @@ export default function CatalogScreen({
             {
               height:
                 HERO_HEIGHT,
-
-              paddingHorizontal:
-                SIDE_PADDING,
             },
           ]}
         >
-          {/* DECORATIVE CIRCLES */}
-
-          <View
-            style={[
-              styles.heroCircle,
-              styles.heroCircleTop,
-              {
-                width:
-                  scale(
-                    270,
-                    310,
-                    360,
-                    430
-                  ),
-
-                height:
-                  scale(
-                    270,
-                    310,
-                    360,
-                    430
-                  ),
-              },
-            ]}
-          />
-
-          <View
-            style={[
-              styles.heroCircle,
-              styles.heroCircleBottom,
-              {
-                width:
-                  scale(
-                    310,
-                    350,
-                    400,
-                    480
-                  ),
-
-                height:
-                  scale(
-                    310,
-                    350,
-                    400,
-                    480
-                  ),
-              },
-            ]}
-          />
-
-          {/* BORDER */}
-
           <View
             style={
               styles.heroBorderLeft
@@ -1167,25 +1070,19 @@ export default function CatalogScreen({
             }
           />
 
-          {/* HERO CONTENT */}
-
           <View
-            style={
-              styles.heroContent
-            }
+            style={[
+              styles.heroContent,
+              {
+                paddingHorizontal:
+                  SIDE_PADDING,
+              },
+            ]}
           >
-            {/* LEFT */}
-
             <View
-              style={[
-                styles.heroLeft,
-                {
-                  width:
-                    isSmall
-                      ? "58%"
-                      : "56%",
-                },
-              ]}
+              style={
+                styles.heroLeft
+              }
             >
               <View
                 style={
@@ -1193,23 +1090,11 @@ export default function CatalogScreen({
                 }
               >
                 <Text
-                  style={[
-                    styles.heroBadgeText,
-                    {
-                      fontSize:
-                        scale(
-                          11,
-                          12,
-                          13,
-                          14
-                        ),
-                    },
-                  ]}
+                  style={
+                    styles.heroBadgeText
+                  }
                 >
-                  {productCategory(
-                    currentProduct
-                  ) ||
-                    "BANNERS"}
+                  PMG PRINTING HOUSE
                 </Text>
               </View>
 
@@ -1219,30 +1104,38 @@ export default function CatalogScreen({
                   {
                     fontSize:
                       scale(
-                        43,
+                        42,
                         48,
-                        55,
-                        62
-                      ),
-
-                    lineHeight:
-                      scale(
-                        43,
-                        48,
-                        55,
-                        62
+                        56,
+                        64
                       ),
                   },
                 ]}
               >
-                MAKE YOUR{"\n"}
-                MESSAGE{"\n"}
+                PRINT
+              </Text>
+
+              <Text
+                style={[
+                  styles.heroTitle,
+                  {
+                    fontSize:
+                      scale(
+                        42,
+                        48,
+                        56,
+                        64
+                      ),
+                  },
+                ]}
+              >
+                CREATE{" "}
                 <Text
                   style={
                     styles.greenText
                   }
                 >
-                  STAND OUT.
+                  DELIVER
                 </Text>
               </Text>
 
@@ -1252,25 +1145,25 @@ export default function CatalogScreen({
                   {
                     fontSize:
                       scale(
-                        13,
-                        14,
-                        16,
-                        17
+                        10,
+                        11,
+                        12,
+                        13
                       ),
-
                     lineHeight:
                       scale(
-                        21,
-                        23,
-                        25,
-                        27
+                        15,
+                        16,
+                        18,
+                        20
                       ),
                   },
                 ]}
               >
-                Premium printing
-                services from PMG
-                Printing House.
+                Quality printing products
+                made for your business,
+                events, and personal
+                projects.
               </Text>
 
               <TouchableOpacity
@@ -1279,15 +1172,17 @@ export default function CatalogScreen({
                   {
                     height:
                       scale(
-                        55,
-                        60,
-                        65,
-                        72
+                        45,
+                        48,
+                        52,
+                        56
                       ),
                   },
                 ]}
-                onPress={
-                  openProducts
+                onPress={() =>
+                  openProducts(
+                    "ALL"
+                  )
                 }
                 activeOpacity={0.85}
               >
@@ -1297,62 +1192,56 @@ export default function CatalogScreen({
                     {
                       fontSize:
                         scale(
+                          10,
+                          11,
                           12,
-                          14,
-                          16,
-                          18
+                          13
                         ),
                     },
                   ]}
                 >
-                  SHOP NOW
+                  SHOP PRODUCTS
                 </Text>
 
                 <Ionicons
                   name="arrow-forward"
-                  size={scale(
-                    23,
-                    26,
-                    29,
-                    32
-                  )}
+                  size={20}
                   color="#071000"
                 />
               </TouchableOpacity>
             </View>
 
-            {/* PRODUCT */}
-
-            <View
-              style={[
-                styles.heroProduct,
-                {
-                  width:
-                    isSmall
-                      ? "43%"
-                      : "44%",
-                },
-              ]}
+            <TouchableOpacity
+              style={
+                styles.heroProduct
+              }
+              onPress={() =>
+                goToProduct(
+                  currentProduct
+                )
+              }
+              activeOpacity={0.85}
             >
               <Image
-                source={productImageSource(
-                  currentProduct
-                )}
+                source={
+                  productImageSource(
+                    currentProduct
+                  )
+                }
                 style={{
                   width:
                     scale(
-                      132,
-                      158,
-                      190,
-                      220
+                      145,
+                      175,
+                      215,
+                      260
                     ),
-
                   height:
                     scale(
-                      170,
-                      205,
-                      245,
-                      285
+                      180,
+                      210,
+                      250,
+                      300
                     ),
                 }}
                 resizeMode="contain"
@@ -1370,186 +1259,97 @@ export default function CatalogScreen({
                 >
                   {productName(
                     currentProduct
-                  )
-                    .toUpperCase()
-                    .slice(
-                      0,
-                      13
-                    )}
+                  ).toUpperCase()}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
           </View>
-
-          {/* LEFT ARROW */}
-
-          {heroProducts.length >
-            1 && (
-            <TouchableOpacity
-              style={[
-                styles.heroArrow,
-                {
-                  left:
-                    scale(
-                      -5,
-                      -6,
-                      -7,
-                      -8
-                    ),
-
-                  top:
-                    "50%",
-                },
-              ]}
-              onPress={() =>
-                setHeroIndex(
-                  (index) =>
-                    (index -
-                      1 +
-                      heroProducts.length) %
-                    heroProducts.length
-                )
-              }
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={scale(
-                  22,
-                  25,
-                  29,
-                  32
-                )}
-                color={
-                  COLORS.primary
-                }
-              />
-            </TouchableOpacity>
-          )}
-
-          {/* RIGHT ARROW */}
-
-          {heroProducts.length >
-            1 && (
-            <TouchableOpacity
-              style={[
-                styles.heroArrow,
-                {
-                  right:
-                    scale(
-                      -5,
-                      -6,
-                      -7,
-                      -8
-                    ),
-
-                  top:
-                    "50%",
-                },
-              ]}
-              onPress={() =>
-                setHeroIndex(
-                  (index) =>
-                    (index + 1) %
-                    heroProducts.length
-                )
-              }
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="chevron-forward"
-                size={scale(
-                  22,
-                  25,
-                  29,
-                  32
-                )}
-                color={
-                  COLORS.primary
-                }
-              />
-            </TouchableOpacity>
-          )}
-
-          {/* DOTS */}
 
           <View
             style={
               styles.heroDots
             }
           >
-            {heroProducts
-              .slice(0, 4)
-              .map(
-                (_, index) => (
-                  <View
-                    key={
+            {heroProducts.map(
+              (_, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() =>
+                    setHeroIndex(
                       index
-                    }
-                    style={[
-                      styles.heroDot,
-                      index ===
-                        heroIndex %
-                          4 &&
-                        styles.heroDotActive,
-                    ]}
-                  />
-                )
-              )}
+                    )
+                  }
+                  style={[
+                    styles.heroDot,
+                    index ===
+                      heroIndex &&
+                      styles.heroDotActive,
+                  ]}
+                />
+              )
+            )}
           </View>
         </View>
 
-        {/* =================================================
-            CATEGORIES
-        ================================================= */}
+        {/* CATEGORIES */}
 
         <View
           style={[
-            styles.section,
+            styles.categorySection,
             {
-              paddingHorizontal:
+              paddingLeft:
                 SIDE_PADDING,
             },
           ]}
         >
-          <Text
-            style={[
-              styles.sectionEyebrow,
-              {
-                fontSize:
-                  scale(
-                    10,
-                    11,
-                    12,
-                    13
-                  ),
-              },
-            ]}
-          >
-            EXPLORE
-          </Text>
-
           <View
             style={
-              styles.sectionHeader
+              styles.categoryHeader
             }
           >
             <Text
               style={[
-                styles.sectionTitle,
+                styles.categoryTitle,
                 {
                   fontSize:
                     scale(
-                      34,
-                      37,
-                      40,
-                      44
+                      11,
+                      12,
+                      13,
+                      14
                     ),
                 },
               ]}
             >
               CATEGORIES
             </Text>
+
+            <TouchableOpacity
+              style={
+                styles.categoryViewAll
+              }
+              onPress={() =>
+                openProducts(
+                  "ALL"
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.categoryViewAllText
+                }
+              >
+                VIEW ALL
+              </Text>
+
+              <Ionicons
+                name="arrow-forward"
+                size={17}
+                color={
+                  COLORS.primary
+                }
+              />
+            </TouchableOpacity>
           </View>
 
           <ScrollView
@@ -1560,73 +1360,63 @@ export default function CatalogScreen({
             contentContainerStyle={{
               paddingRight:
                 SIDE_PADDING,
+              paddingVertical: 4,
             }}
           >
             {CATEGORY_DATA.map(
-              (category, index) => (
-                <TouchableOpacity
-                  key={`${category.name}-${index}`}
-                  style={[
-                    styles.categoryCard,
-                    {
-                      width:
-                        CATEGORY_CARD_WIDTH,
+              (category) => {
+                const isSelected =
+                  selectedCategory ===
+                  category.id;
 
-                      height:
-                        CATEGORY_CARD_HEIGHT,
-                    },
-                  ]}
-                  onPress={() =>
-                    selectCategory(
+                return (
+                  <TouchableOpacity
+                    key={
                       category.id
-                    )
-                  }
-                  activeOpacity={0.8}
-                >
-                  <Image
-                    source={
-                      category.image
                     }
-                    style={{
-                      width:
-                        CATEGORY_IMAGE_SIZE,
-
-                      height:
-                        CATEGORY_IMAGE_SIZE,
-
-                      marginBottom:
-                        12,
-                    }}
-                    resizeMode="contain"
-                  />
-
-                  <Text
                     style={[
-                      styles.categoryText,
+                      styles.categoryCard,
                       {
-                        fontSize:
-                          scale(
-                            11,
-                            12,
-                            13,
-                            14
-                          ),
+                        width:
+                          CATEGORY_CARD_WIDTH,
+                        height:
+                          CATEGORY_CARD_HEIGHT,
                       },
+                      isSelected &&
+                        styles.categoryCardSelected,
                     ]}
-                  >
-                    {
-                      category.name
+                    onPress={() =>
+                      selectCategory(
+                        category.id
+                      )
                     }
-                  </Text>
-                </TouchableOpacity>
-              )
+                    activeOpacity={
+                      0.82
+                    }
+                  >
+                    <View
+                      style={
+                        styles.categoryImageArea
+                      }
+                    >
+                      <Image
+                        source={
+                          category.image
+                        }
+                        style={
+                          styles.categoryImage
+                        }
+                        resizeMode="contain"
+                      />
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
             )}
           </ScrollView>
         </View>
 
-        {/* =================================================
-            POPULAR PRODUCTS
-        ================================================= */}
+        {/* POPULAR PRODUCTS */}
 
         <View
           style={[
@@ -1648,7 +1438,7 @@ export default function CatalogScreen({
                   styles.sectionEyebrow
                 }
               >
-                PICKS
+                EXPLORE
               </Text>
 
               <Text
@@ -1665,13 +1455,15 @@ export default function CatalogScreen({
                   },
                 ]}
               >
-                POPULAR
+                POPULAR PRODUCTS
               </Text>
             </View>
 
             <TouchableOpacity
-              onPress={
-                openProducts
+              onPress={() =>
+                openProducts(
+                  "ALL"
+                )
               }
             >
               <Text
@@ -1689,15 +1481,14 @@ export default function CatalogScreen({
             showsHorizontalScrollIndicator={
               false
             }
-            contentContainerStyle={{
-              paddingRight:
-                SIDE_PADDING,
-            }}
           >
             {products
               .slice(0, 8)
               .map(
-                (product) => {
+                (
+                  product,
+                  index
+                ) => {
                   const price =
                     productPrice(
                       product
@@ -1706,11 +1497,9 @@ export default function CatalogScreen({
                   return (
                     <TouchableOpacity
                       key={
-                        product.id ||
-                        product._id ||
-                        productName(
-                          product
-                        )
+                        product?.id ||
+                        product?._id ||
+                        index
                       }
                       style={[
                         styles.popularCard,
@@ -1718,9 +1507,9 @@ export default function CatalogScreen({
                           width:
                             scale(
                               170,
-                              180,
-                              195,
-                              215
+                              185,
+                              205,
+                              225
                             ),
                         },
                       ]}
@@ -1729,7 +1518,9 @@ export default function CatalogScreen({
                           product
                         )
                       }
-                      activeOpacity={0.85}
+                      activeOpacity={
+                        0.85
+                      }
                     >
                       <View
                         style={
@@ -1737,9 +1528,11 @@ export default function CatalogScreen({
                         }
                       >
                         <Image
-                          source={productImageSource(
-                            product
-                          )}
+                          source={
+                            productImageSource(
+                              product
+                            )
+                          }
                           style={{
                             width:
                               "90%",
@@ -1812,9 +1605,7 @@ export default function CatalogScreen({
           </ScrollView>
         </View>
 
-        {/* =================================================
-            WHY CHOOSE PMG
-        ================================================= */}
+        {/* WHY CHOOSE PMG */}
 
         <View
           style={[
@@ -1881,9 +1672,7 @@ export default function CatalogScreen({
           </View>
         </View>
 
-        {/* =================================================
-            CTA
-        ================================================= */}
+        {/* CTA */}
 
         <View
           style={[
@@ -1958,9 +1747,7 @@ export default function CatalogScreen({
           </LinearGradient>
         </View>
 
-        {/* =================================================
-            FOOTER
-        ================================================= */}
+        {/* FOOTER */}
 
         <View
           style={
@@ -2006,9 +1793,7 @@ export default function CatalogScreen({
         </View>
       </ScrollView>
 
-      {/* ===================================================
-          SEARCH MODAL
-      =================================================== */}
+      {/* SEARCH MODAL */}
 
       <Modal
         visible={
@@ -2123,9 +1908,7 @@ export default function CatalogScreen({
         </View>
       </Modal>
 
-      {/* ===================================================
-          SIDE MENU
-      =================================================== */}
+      {/* SIDE MENU */}
 
       <Modal
         visible={
@@ -2156,8 +1939,6 @@ export default function CatalogScreen({
                       : isLarge
                         ? "72%"
                         : "65%",
-
-                        paddingTop: 32,
               },
             ]}
           >
@@ -2221,8 +2002,10 @@ export default function CatalogScreen({
             <MenuItem
               icon="grid-outline"
               title="PRODUCTS"
-              onPress={
-                openProducts
+              onPress={() =>
+                openProducts(
+                  "ALL"
+                )
               }
             />
 
@@ -2407,10 +2190,6 @@ const styles =
       marginTop: 14,
     },
 
-    /* =====================================================
-       HEADER
-    ===================================================== */
-
     headerWrapper: {
       width: "100%",
       backgroundColor:
@@ -2463,10 +2242,6 @@ const styles =
         "flex-end",
     },
 
-    /* =====================================================
-       HERO
-    ===================================================== */
-
     hero: {
       position:
         "relative",
@@ -2497,6 +2272,7 @@ const styles =
       justifyContent:
         "center",
       zIndex: 10,
+      flex: 1,
     },
 
     heroProduct: {
@@ -2523,7 +2299,6 @@ const styles =
         50,
       borderBottomLeftRadius:
         50,
-      zIndex: 2,
     },
 
     heroBorderRight: {
@@ -2542,26 +2317,6 @@ const styles =
         50,
       borderBottomRightRadius:
         50,
-      zIndex: 2,
-    },
-
-    heroCircle: {
-      position:
-        "absolute",
-      borderRadius:
-        999,
-      backgroundColor:
-        "rgba(38,105,17,0.48)",
-    },
-
-    heroCircleTop: {
-      right: -100,
-      top: 30,
-    },
-
-    heroCircleBottom: {
-      right: -45,
-      bottom: 45,
     },
 
     heroBadge: {
@@ -2582,6 +2337,7 @@ const styles =
       fontFamily:
         "MontserratBold",
       letterSpacing: 1.5,
+      fontSize: 9,
     },
 
     heroTitle: {
@@ -2589,7 +2345,6 @@ const styles =
         COLORS.white,
       fontFamily:
         "BebasNeue",
-      letterSpacing: 0.2,
     },
 
     greenText: {
@@ -2638,7 +2393,6 @@ const styles =
       borderRadius: 20,
       paddingHorizontal: 12,
       paddingVertical: 5,
-      marginTop: 3,
     },
 
     heroProductLabelText: {
@@ -2648,29 +2402,6 @@ const styles =
         "MontserratBold",
       fontSize: 9,
       letterSpacing: 1,
-    },
-
-    heroArrow: {
-      position:
-        "absolute",
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor:
-        "rgba(2,13,8,.88)",
-      borderWidth: 2,
-      borderColor:
-        COLORS.primary,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      zIndex: 20,
-      transform: [
-        {
-          translateY: -36,
-        },
-      ],
     },
 
     heroDots: {
@@ -2686,7 +2417,6 @@ const styles =
       alignItems:
         "center",
       gap: 9,
-      zIndex: 20,
     },
 
     heroDot: {
@@ -2703,9 +2433,82 @@ const styles =
         COLORS.primary,
     },
 
-    /* =====================================================
-       SECTIONS
-    ===================================================== */
+    categorySection: {
+      marginTop: 26,
+    },
+
+    categoryHeader: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "space-between",
+      marginBottom: 12,
+      paddingRight: 14,
+    },
+
+    categoryTitle: {
+      color:
+        COLORS.primary,
+      fontFamily:
+        "MontserratExtraBold",
+      letterSpacing: 2.2,
+    },
+
+    categoryViewAll: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 6,
+    },
+
+    categoryViewAllText: {
+      color:
+        COLORS.primary,
+      fontFamily:
+        "MontserratBold",
+      fontSize: 9,
+      letterSpacing: 1,
+    },
+
+    categoryCard: {
+      backgroundColor:
+        "#07140C",
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor:
+        "rgba(91,155,40,.28)",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      marginRight: 10,
+      overflow:
+        "hidden",
+    },
+
+    categoryCardSelected: {
+      borderColor:
+        "rgba(182,255,0,.7)",
+      backgroundColor:
+        "#092014",
+    },
+
+    categoryImageArea: {
+      width: "92%",
+      height: "92%",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+    },
+
+    categoryImage: {
+      width: "91%",
+      height: "91%",
+    },
 
     section: {
       marginTop: 30,
@@ -2746,37 +2549,7 @@ const styles =
         "MontserratBold",
       fontSize: 9,
       letterSpacing: 1,
-      marginBottom: 5,
     },
-
-    /* =====================================================
-       CATEGORIES
-    ===================================================== */
-
-    categoryCard: {
-      backgroundColor:
-        "#07140C",
-      borderRadius: 22,
-      borderWidth: 1,
-      borderColor:
-        "rgba(182,255,0,.22)",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      marginRight: 14,
-    },
-
-    categoryText: {
-      color:
-        COLORS.white,
-      fontFamily:
-        "MontserratSemiBold",
-    },
-
-    /* =====================================================
-       POPULAR
-    ===================================================== */
 
     popularCard: {
       backgroundColor:
@@ -2857,10 +2630,6 @@ const styles =
         "center",
     },
 
-    /* =====================================================
-       BENEFITS
-    ===================================================== */
-
     benefitGrid: {
       flexDirection:
         "row",
@@ -2891,7 +2660,6 @@ const styles =
         "MontserratBold",
       fontSize: 11,
       marginTop: 12,
-      letterSpacing: 0.4,
     },
 
     benefitText: {
@@ -2904,10 +2672,6 @@ const styles =
       marginTop: 7,
     },
 
-    /* =====================================================
-       CTA
-    ===================================================== */
-
     ctaGradient: {
       paddingHorizontal: 22,
       paddingVertical: 30,
@@ -2915,8 +2679,6 @@ const styles =
       borderColor:
         "rgba(182,255,0,.2)",
       borderRadius: 25,
-      overflow:
-        "hidden",
     },
 
     ctaTitle: {
@@ -2924,7 +2686,6 @@ const styles =
         COLORS.white,
       fontFamily:
         "BebasNeue",
-      letterSpacing: 0.5,
     },
 
     ctaText: {
@@ -2958,12 +2719,7 @@ const styles =
       fontFamily:
         "MontserratBold",
       fontSize: 12,
-      letterSpacing: 0.5,
     },
-
-    /* =====================================================
-       FOOTER
-    ===================================================== */
 
     footer: {
       alignItems:
@@ -2990,10 +2746,6 @@ const styles =
       fontSize: 9,
       marginTop: 5,
     },
-
-    /* =====================================================
-       SEARCH MODAL
-    ===================================================== */
 
     modalOverlay: {
       flex: 1,
@@ -3031,7 +2783,6 @@ const styles =
       fontFamily:
         "MontserratBold",
       fontSize: 14,
-      letterSpacing: 0.6,
     },
 
     searchInputWrapper: {
@@ -3079,10 +2830,6 @@ const styles =
       letterSpacing: 1,
     },
 
-    /* =====================================================
-       SIDE MENU
-    ===================================================== */
-
     menuOverlay: {
       flex: 1,
       flexDirection:
@@ -3099,7 +2846,6 @@ const styles =
       borderRightWidth: 1,
       borderRightColor:
         "rgba(182,255,0,.18)",
-      zIndex: 10,
     },
 
     menuOutside: {
@@ -3113,6 +2859,7 @@ const styles =
         "center",
       justifyContent:
         "space-between",
+      paddingTop: 32,
       paddingBottom: 15,
     },
 
