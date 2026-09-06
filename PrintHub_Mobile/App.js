@@ -1,14 +1,39 @@
 import React, { useState, useEffect } from "react";
-import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { Ionicons } from "@expo/vector-icons";
+
+import {
+  NavigationContainer,
+} from "@react-navigation/native";
+
+import {
+  createNativeStackNavigator,
+} from "@react-navigation/native-stack";
+
+import {
+  createBottomTabNavigator,
+} from "@react-navigation/bottom-tabs";
+
+import {
+  Ionicons,
+} from "@expo/vector-icons";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ActivityIndicator, View } from "react-native";
+
+import {
+  ActivityIndicator,
+  View,
+} from "react-native";
+
+// ============================================================
+// SCREENS
+// ============================================================
 
 import CatalogScreen from "./screens/CatalogScreen";
+import ProductOverview from "./screens/ProductOverview";
 import ProductDetailScreen from "./screens/ProductDetailScreen";
-import CustomizerWebViewScreen from "./screens/CustomizerWebViewScreen";
+
+import CustomizerWebViewScreen
+  from "./screens/CustomizerWebViewScreen";
+
 import CartScreen from "./screens/CartScreen";
 import LoginScreen from "./screens/LoginScreen";
 import ProfileScreen from "./screens/ProfileScreen";
@@ -28,202 +53,506 @@ import ResetPasswordScreen from "./screens/ResetPasswordScreen";
 
 import { COLORS } from "./theme";
 
-const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+// ============================================================
+// NAVIGATORS
+// ============================================================
+
+const Stack =
+  createNativeStackNavigator();
+
+const Tab =
+  createBottomTabNavigator();
+
+// ============================================================
+// TAB NAVIGATOR
+//
+// IMPORTANT:
+// The real React Navigation tab bar is completely hidden.
+// CatalogScreen and ProductOverview have their own custom
+// bottom navigation when needed.
+// ============================================================
 
 function TabNavigator() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
-          let iconName;
-          if (route.name === "CatalogTab") {
-            iconName = "grid-outline";
-          } else if (route.name === "OrdersTab") {
-            iconName = "receipt-outline";
-          } else if (route.name === "PaymentsTab") {
-            iconName = "card-outline";
-          } else if (route.name === "InquiriesTab") {
-            iconName = "chatbubbles-outline";
-          } else if (route.name === "ChatbotTab") {
-            iconName = "sparkles-outline";
-          } else if (route.name === "CartTab") {
-            iconName = "cart-outline";
-          } else if (route.name === "ProfileTab") {
-            iconName = "person-outline";
-          }
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-        tabBarActiveTintColor: COLORS.accentCyan,
-        tabBarInactiveTintColor: COLORS.textMuted,
+      initialRouteName="CatalogTab"
+      screenOptions={{
+        headerShown: false,
+
+        // ====================================================
+        // HIDE DEFAULT REACT NAVIGATION BAR
+        // ====================================================
+
         tabBarStyle: {
-          backgroundColor: COLORS.cardBg,
-          borderTopColor: COLORS.borderLight,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
+          display: "none",
         },
-        headerStyle: { backgroundColor: COLORS.primaryDark },
-        headerTintColor: COLORS.textLight,
-        headerTitleStyle: { fontWeight: "800", fontSize: 16 },
-      })}
+
+        tabBarShowLabel: false,
+
+        tabBarActiveTintColor:
+          COLORS.primary,
+
+        tabBarInactiveTintColor:
+          COLORS.textMuted,
+      }}
     >
+
+      {/* ======================================================
+          HOME
+      ====================================================== */}
+
       <Tab.Screen
         name="CatalogTab"
         component={CatalogScreen}
-        options={{ title: "Catalog" }}
+        options={{
+          title: "Catalog",
+        }}
       />
+
+      {/* ======================================================
+          ORDERS
+      ====================================================== */}
+
       <Tab.Screen
         name="OrdersTab"
         component={OrdersScreen}
-        options={{ title: "Orders" }}
+        options={{
+          title: "Orders",
+        }}
       />
+
+      {/* ======================================================
+          INQUIRIES
+      ====================================================== */}
+
       <Tab.Screen
         name="InquiriesTab"
         component={InquiriesScreen}
-        options={{ title: "Inquiries" }}
+        options={{
+          title: "Inquiries",
+        }}
       />
+
+      {/* ======================================================
+          AI CHAT
+      ====================================================== */}
+
       <Tab.Screen
         name="ChatbotTab"
         component={ChatbotScreen}
-        options={{ title: "AI Chat" }}
+        options={{
+          title: "AI Chat",
+        }}
       />
+
+      {/* ======================================================
+          CART
+      ====================================================== */}
+
       <Tab.Screen
         name="CartTab"
         component={CartScreen}
-        options={{ title: "Cart" }}
+        options={{
+          title: "Cart",
+        }}
       />
+
+      {/* ======================================================
+          PROFILE
+      ====================================================== */}
+
       <Tab.Screen
         name="ProfileTab"
         component={ProfileScreen}
-        options={{ title: "Profile" }}
+        options={{
+          title: "Profile",
+        }}
       />
+
+      {/* ======================================================
+          PAYMENTS
+      ====================================================== */}
+
       <Tab.Screen
         name="PaymentsTab"
         component={PaymentLogsScreen}
-        options={{ title: "Payments" }}
+        options={{
+          title: "Payments",
+        }}
       />
+
     </Tab.Navigator>
   );
 }
 
+// ============================================================
+// APP
+// ============================================================
+
 export default function App() {
-  const [initialRoute, setInitialRoute] = useState(null);
+
+  const [
+    initialRoute,
+    setInitialRoute,
+  ] = useState(null);
+
+  // ==========================================================
+  // AUTH CHECK
+  // ==========================================================
 
   useEffect(() => {
     checkAuth();
   }, []);
 
   const checkAuth = async () => {
+
     try {
-      const savedUser = await AsyncStorage.getItem("user");
+
+      const savedUser =
+        await AsyncStorage.getItem(
+          "user"
+        );
+
       if (savedUser) {
-        setInitialRoute("Main");
+
+        setInitialRoute(
+          "Main"
+        );
+
       } else {
-        setInitialRoute("Landing");
+
+        setInitialRoute(
+          "Landing"
+        );
+
       }
-    } catch (err) {
-      console.error("[checkAuth] {ReadStorage}: " + err.message);
-      setInitialRoute("Landing");
+
+    } catch (error) {
+
+      console.error(
+        "[checkAuth]",
+        error?.message || error
+      );
+
+      setInitialRoute(
+        "Landing"
+      );
     }
   };
 
+  // ==========================================================
+  // LOADING
+  // ==========================================================
+
   if (!initialRoute) {
+
     return (
       <View
         style={{
           flex: 1,
-          justify: "center",
-          alignItems: "center",
-          backgroundColor: COLORS.primaryDark,
+
+          justifyContent:
+            "center",
+
+          alignItems:
+            "center",
+
+          backgroundColor:
+            COLORS.backgroundDeep,
         }}
       >
-        <ActivityIndicator size="large" color={COLORS.accentCyan} />
+
+        <View
+          style={{
+            width: 72,
+            height: 72,
+
+            borderRadius: 22,
+
+            backgroundColor:
+              COLORS.primary,
+
+            justifyContent:
+              "center",
+
+            alignItems:
+              "center",
+
+            marginBottom: 20,
+          }}
+        >
+
+          <Ionicons
+            name="print"
+            size={34}
+            color={
+              COLORS.textDark
+            }
+          />
+
+        </View>
+
+        <ActivityIndicator
+          size="large"
+          color={
+            COLORS.primary
+          }
+        />
+
       </View>
     );
   }
 
+  // ==========================================================
+  // ROOT NAVIGATION
+  // ==========================================================
+
   return (
     <NavigationContainer>
+
       <Stack.Navigator
-        initialRouteName={initialRoute}
+        initialRouteName={
+          initialRoute
+        }
         screenOptions={{
-          headerStyle: { backgroundColor: COLORS.primaryDark },
-          headerTintColor: COLORS.textLight,
-          headerTitleStyle: { fontWeight: "800" },
+          headerStyle: {
+            backgroundColor:
+              COLORS.backgroundDeep,
+          },
+
+          headerTintColor:
+            COLORS.textPrimary,
+
+          headerTitleStyle: {
+            fontWeight: "800",
+            color:
+              COLORS.textPrimary,
+          },
+
+          headerTitleAlign:
+            "center",
+
+          headerShadowVisible:
+            false,
+
+          headerBackTitleVisible:
+            false,
         }}
       >
+
+        {/* ====================================================
+            LANDING
+        ==================================================== */}
+
         <Stack.Screen
           name="Landing"
           component={LandingScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
+        {/* ====================================================
+            MAIN
+        ==================================================== */}
+
         <Stack.Screen
           name="Main"
           component={TabNavigator}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
+        {/* ====================================================
+            PRODUCT OVERVIEW
+        ==================================================== */}
+
         <Stack.Screen
-          name="OrderDetail"
-          component={OrderDetailScreen}
-          options={{ title: "Order Details" }}
+          name="ProductOverview"
+          component={ProductOverview}
+          options={{
+            headerShown: false,
+          }}
         />
+
+        {/* ====================================================
+            PRODUCT DETAILS
+
+            IMPORTANT:
+            ProductDetailScreen already has its own custom
+            Product Details header.
+
+            Therefore React Navigation's header is disabled here.
+            This prevents the Product Details header from appearing
+            twice.
+        ==================================================== */}
+
         <Stack.Screen
           name="ProductDetail"
           component={ProductDetailScreen}
-          options={{ title: "Product Details" }}
+          options={{
+            headerShown: false,
+          }}
         />
+
+        {/* ====================================================
+            ORDER DETAILS
+        ==================================================== */}
+
+        <Stack.Screen
+          name="OrderDetail"
+          component={OrderDetailScreen}
+          options={{
+            title:
+              "Order Details",
+          }}
+        />
+
+        {/* ====================================================
+            CUSTOMIZER
+        ==================================================== */}
+
         <Stack.Screen
           name="CustomizerWebView"
-          component={CustomizerWebViewScreen}
-          options={{ title: "3D Customizer" }}
+          component={
+            CustomizerWebViewScreen
+          }
+          options={{
+            title:
+              "3D Customizer",
+          }}
         />
+
+        {/* ====================================================
+            PAYMENT
+        ==================================================== */}
+
         <Stack.Screen
           name="Payment"
           component={PaymentScreen}
-          options={{ title: "Mobile Checkout" }}
+          options={{
+            title:
+              "Mobile Checkout",
+          }}
         />
+
+        {/* ====================================================
+            PAYMENT LOGS
+        ==================================================== */}
+
         <Stack.Screen
           name="PaymentLogs"
-          component={PaymentLogsScreen}
-          options={{ title: "Payments" }}
+          component={
+            PaymentLogsScreen
+          }
+          options={{
+            title:
+              "Payments",
+          }}
         />
+
+        {/* ====================================================
+            LOGIN
+        ==================================================== */}
+
         <Stack.Screen
           name="Login"
           component={LoginScreen}
-          options={{ title: "Sign In" }}
+          options={{
+            title:
+              "Sign In",
+          }}
         />
+
+        {/* ====================================================
+            EDIT PROFILE
+        ==================================================== */}
+
         <Stack.Screen
           name="EditProfile"
-          component={EditProfileScreen}
-          options={{ title: "Edit Profile" }}
+          component={
+            EditProfileScreen
+          }
+          options={{
+            headerShown: false,
+          }}
         />
+
+        {/* ====================================================
+            PASSWORD SECURITY
+        ==================================================== */}
+
         <Stack.Screen
           name="PasswordSecurity"
-          component={PasswordSecurityScreen}
-          options={{ title: "Passwords & Security" }}
+          component={
+            PasswordSecurityScreen
+          }
+          options={{
+            headerShown: false,
+          }}
         />
+
+        {/* ====================================================
+            REGISTER
+        ==================================================== */}
+
         <Stack.Screen
           name="Register"
-          component={RegisterScreen}
-          options={{ title: "Create Account" }}
+          component={
+            RegisterScreen
+          }
+          options={{
+            title:
+              "Create Account",
+          }}
         />
+
+        {/* ====================================================
+            FORGOT PASSWORD
+        ==================================================== */}
+
         <Stack.Screen
           name="ForgotPassword"
-          component={ForgotPasswordScreen}
-          options={{ title: "Forgot Password" }}
+          component={
+            ForgotPasswordScreen
+          }
+          options={{
+            title:
+              "Forgot Password",
+          }}
         />
+
+        {/* ====================================================
+            OTP
+        ==================================================== */}
+
         <Stack.Screen
           name="Otp"
           component={OtpScreen}
-          options={{ title: "Verify OTP" }}
+          options={{
+            title:
+              "Verify OTP",
+          }}
         />
+
+        {/* ====================================================
+            RESET PASSWORD
+        ==================================================== */}
+
         <Stack.Screen
           name="ResetPassword"
-          component={ResetPasswordScreen}
-          options={{ title: "Reset Password" }}
+          component={
+            ResetPasswordScreen
+          }
+          options={{
+            title:
+              "Reset Password",
+          }}
         />
+
       </Stack.Navigator>
+
     </NavigationContainer>
   );
 }
