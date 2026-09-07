@@ -1,16 +1,5 @@
-import FlatPreview3D from "../FlatCustomizer/FlatPreview3D";
+import PostersPreview3D from "./PostersPreview3D";
 
-export default function PosterPreview3D({
-  shirtColor = "#ffffff",
-  zoneDesigns = {},
-  selectedSize = "",
-}) {
-  return (
-    <FlatPreview3D
-      productType="poster"
-      baseColor={shirtColor}
-      zoneDesigns={zoneDesigns}
-      selectedSize={selectedSize}
-    />
-  );
+export default function PosterPreview3D(props) {
+  return <PostersPreview3D modelPath="/models/posters.glb" {...props} />;
 }
