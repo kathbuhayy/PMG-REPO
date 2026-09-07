@@ -61,6 +61,13 @@ function AdminReports() {
 
   return (
     <div>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Reports &amp; Analytics</h1>
+        <p className="admin-page-header-desc">
+          Revenue, orders, and performance over a chosen date range.
+        </p>
+      </div>
+
       <div
         style={{
           display: "flex",

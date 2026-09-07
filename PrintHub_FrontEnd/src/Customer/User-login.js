@@ -398,9 +398,9 @@ function UserLoginPage() {
                   }
                 >
                   {showPassword ? (
-                    <MdVisibilityOff size={19} />
-                  ) : (
                     <MdVisibility size={19} />
+                  ) : (
+                    <MdVisibilityOff size={19} />
                   )}
                 </button>
               </div>

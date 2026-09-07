@@ -136,6 +136,13 @@ function ProductionQueue() {
 
   return (
     <div>
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Production Queue</h1>
+        <p className="admin-page-header-desc">
+          Orders moving through each stage of production.
+        </p>
+      </div>
+
       {toast && (
         <div className="app-toast-container success">
           <span>{toast}</span>

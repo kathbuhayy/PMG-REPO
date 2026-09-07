@@ -116,9 +116,9 @@ function AdminLoginPage() {
                     className="show-password-button"
                   >
                     {showPassword ? (
-                      <MdVisibilityOff size={20} />
-                    ) : (
                       <MdVisibility size={20} />
+                    ) : (
+                      <MdVisibilityOff size={20} />
                     )}
                   </button>
                 </div>

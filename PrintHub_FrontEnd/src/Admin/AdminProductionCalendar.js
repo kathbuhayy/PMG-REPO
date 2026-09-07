@@ -224,6 +224,13 @@ function AdminProductionCalendar() {
 
   return (
     <div className="dashpage dashpage-orders">
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Production Calendar</h1>
+        <p className="admin-page-header-desc">
+          Schedule and track production across upcoming dates.
+        </p>
+      </div>
+
       {/* Connection / sync indicator */}
       <div
         style={{

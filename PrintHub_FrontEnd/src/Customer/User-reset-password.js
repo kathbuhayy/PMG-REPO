@@ -164,9 +164,9 @@ function UserResetPasswordPage() {
               style={{ paddingTop: "35px" }}
             >
               {showPassword ? (
-                <MdVisibilityOff size={22} color="#555" />
-              ) : (
                 <MdVisibility size={22} color="#555" />
+              ) : (
+                <MdVisibilityOff size={22} color="#555" />
               )}
             </button>
           </div>
@@ -200,9 +200,9 @@ function UserResetPasswordPage() {
               style={{ paddingTop: "35px" }}
             >
               {showConfirmPassword ? (
-                <MdVisibilityOff size={22} color="#555" />
-              ) : (
                 <MdVisibility size={22} color="#555" />
+              ) : (
+                <MdVisibilityOff size={22} color="#555" />
               )}
             </button>
           </div>

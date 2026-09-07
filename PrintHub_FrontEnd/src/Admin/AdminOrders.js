@@ -701,6 +701,13 @@ function AdminOrders() {
 
   return (
     <div className="dashpage dashpage-orders">
+      <div className="admin-page-header">
+        <h1 className="admin-page-header-title">Orders</h1>
+        <p className="admin-page-header-desc">
+          Track and manage every customer order.
+        </p>
+      </div>
+
       {/* Stats Cards */}
       <div className="dashpage-stats">
         <div className="dashpage-stat-card">
