@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { FaHistory } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 
+// Known literal `action` strings (see ACTIVITY_ACTION_FILTER_GROUPS in
+// PrintHub_Backend/server.js) mapped to clean display titles. Anything not
+// listed here falls back to auto-titleizing the raw snake_case string —
+// see formatActionLabel below.
 const ACTION_LABELS = {
   created: "Created",
   updated: "Updated",
@@ -9,6 +13,17 @@ const ACTION_LABELS = {
   status_changed: "Status Changed",
   restored: "Restored",
   logged_in: "Logged In",
+  staff_role_granted: "Role Granted",
+  staff_role_revoked: "Role Revoked",
+  role_updated: "Role Updated",
+  account_status_changed: "Account Status Changed",
+  stock_added: "Stock Added",
+  payment_recorded: "Payment Recorded",
+  design_approved: "Design Approved",
+  delivered: "Delivered",
+  item_removed: "Item Removed",
+  requisition_status_changed: "Requisition Status Changed",
+  converted: "Converted",
 };
 
 const MODULE_LABELS = {
@@ -20,46 +35,69 @@ const MODULE_LABELS = {
   auth: "Authentication",
 };
 
-// Maps each filter dropdown value to the set of substrings that should count
-// as a match against a log's raw `module`/`action` string. The backend
-// writes a wider variety of literal action strings (e.g. "stock_added",
-// "requisition_status_changed", "staff_role_granted") than the dropdown has
-// options for, so matching is substring-based rather than exact-equality —
-// that's what lets "Status Changed" also catch "requisition_status_changed",
-// "Restored" catch a differently-cased/spaced variant, etc.
-const MODULE_FILTER_MATCHERS = {
-  orders: ["order"],
-  products: ["product"],
-  users: ["user", "account", "staff"],
-  inquiries: ["inquir", "support"],
-  inventory: ["inventor", "requisition", "material", "stock"],
-  auth: ["auth", "login", "logged", "session"],
+// Formats a raw action string for the table's Action column: uses the
+// curated label above when known, otherwise auto-titleizes the raw
+// snake_case value (e.g. an action added later without an ACTION_LABELS
+// entry yet still renders as "Some New Action" instead of "some_new_action").
+const formatActionLabel = (action) => {
+  if (!action) return "";
+  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+  return action
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
-const ACTION_FILTER_MATCHERS = {
-  created: ["create", "add"],
-  updated: ["update", "edit"],
-  deleted: ["delete", "remove"],
-  status_changed: ["status", "change"],
-  restored: ["restor", "recover"],
-  logged_in: ["login", "logged", "signed_in", "sign_in"],
+// Maps each filter dropdown value to every literal module/action string
+// that should count as a match. Mirrors ACTIVITY_MODULE_FILTER_GROUPS /
+// ACTIVITY_ACTION_FILTER_GROUPS in PrintHub_Backend/server.js — the server
+// applies these same groups via a Prisma `{ in: [...] }` clause, so this
+// copy is a client-side safety-net re-check on whatever page comes back,
+// not an independent guess. Keep both lists in sync if either changes.
+const MODULE_FILTER_GROUPS = {
+  orders: ["orders"],
+  products: ["products"],
+  users: ["users"],
+  inquiries: ["inquiries"],
+  inventory: ["inventory"],
+  auth: ["auth"],
 };
 
-// Case-insensitive substring test against a normalized (lowercased,
-// underscores/hyphens turned into spaces) copy of the raw value, so
-// "Logged In" filters match "logged_in", "logged-in", "LOGIN", etc.
+const ACTION_FILTER_GROUPS = {
+  created: ["created"],
+  updated: [
+    "updated",
+    "stock_added",
+    "staff_role_granted",
+    "staff_role_revoked",
+    "role_updated",
+  ],
+  deleted: ["deleted", "item_removed"],
+  status_changed: [
+    "status_changed",
+    "requisition_status_changed",
+    "delivered",
+    "converted",
+    "payment_recorded",
+    "design_approved",
+    "account_status_changed",
+  ],
+  restored: ["restored"],
+  logged_in: ["logged_in"],
+};
+
+// Case-insensitive, whitespace/underscore/hyphen-tolerant normalization so
+// "logged_in", "logged-in", "LOGIN " etc. all compare equal.
 const normalize = (value) =>
   String(value || "")
     .toLowerCase()
     .replace(/[_-]+/g, " ")
     .trim();
 
-const matchesFilter = (rawValue, filterValue, matchers) => {
+const matchesFilter = (rawValue, filterValue, groups) => {
   if (!filterValue) return true; // "All" — ignore this filter entirely
   const normalizedValue = normalize(rawValue);
-  const normalizedFilter = normalize(filterValue);
-  const substrings = matchers[filterValue] || [normalizedFilter];
-  return substrings.some((s) => normalizedValue.includes(normalize(s)));
+  const members = groups[filterValue] || [filterValue];
+  return members.some((member) => normalize(member) === normalizedValue);
 };
 
 function AdminActivityLog() {
@@ -78,24 +116,20 @@ function AdminActivityLog() {
     to: "",
   });
 
-  // Module/Action matching now happens client-side (below), since the
-  // backend only exact-matches its raw action/module strings and those
-  // don't line up 1:1 with the dropdown's canonical values. When either
-  // filter is active we fetch a much larger batch for that date range so
-  // there's a meaningful pool to filter against, instead of narrowing an
-  // already-tiny 25-row page down to nothing.
-  const hasModuleOrActionFilter = Boolean(filters.module || filters.action);
-  const FILTER_FETCH_LIMIT = 1000;
-
+  // The backend now expands each Module/Action filter into its full group
+  // of matching literal values (see ACTIVITY_*_FILTER_GROUPS in server.js),
+  // so normal server-side pagination works correctly again — the client
+  // just re-applies the same category/substring matching below as a
+  // safety-net refinement over whatever page comes back.
   const fetchLogs = useCallback(
     async (page = 1) => {
       setLoading(true);
       try {
         const params = new URLSearchParams({
-          page: String(hasModuleOrActionFilter ? 1 : page),
-          limit: String(
-            hasModuleOrActionFilter ? FILTER_FETCH_LIMIT : pagination.limit,
-          ),
+          page: String(page),
+          limit: String(pagination.limit),
+          ...(filters.module && { module: filters.module }),
+          ...(filters.action && { action: filters.action }),
           ...(filters.from && { from: filters.from }),
           ...(filters.to && { to: filters.to }),
         });
@@ -113,7 +147,7 @@ function AdminActivityLog() {
         setLoading(false);
       }
     },
-    [filters, pagination.limit, hasModuleOrActionFilter],
+    [filters, pagination.limit],
   );
 
   useEffect(() => {
@@ -136,19 +170,20 @@ function AdminActivityLog() {
   const hasActiveFilters =
     filters.module || filters.action || filters.from || filters.to;
 
-  // Case-insensitive, substring-based AND match on Module + Action; either
-  // side is skipped entirely when its filter is "All" (empty string).
+  // Safety-net re-check on top of the server's own filtering (case- and
+  // formatting-tolerant); AND match on Module + Action, either side
+  // skipped entirely when its filter is "All" (empty string).
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       const matchesModule = matchesFilter(
         log.module,
         filters.module,
-        MODULE_FILTER_MATCHERS,
+        MODULE_FILTER_GROUPS,
       );
       const matchesAction = matchesFilter(
         log.action,
         filters.action,
-        ACTION_FILTER_MATCHERS,
+        ACTION_FILTER_GROUPS,
       );
       return matchesModule && matchesAction;
     });
@@ -233,17 +268,6 @@ function AdminActivityLog() {
               />
             </div>
 
-            {hasActiveFilters && (
-              <button
-                type="button"
-                className="row-btn"
-                onClick={() =>
-                  setFilters({ module: "", action: "", from: "", to: "" })
-                }
-              >
-                Clear
-              </button>
-            )}
           </div>
         </div>
 
@@ -284,7 +308,7 @@ function AdminActivityLog() {
                       {log.userRole || "—"}
                     </td>
                     <td>{MODULE_LABELS[log.module] || log.module}</td>
-                    <td>{ACTION_LABELS[log.action] || log.action}</td>
+                    <td>{formatActionLabel(log.action)}</td>
                     <td>{log.description}</td>
                     <td>{formatTimestamp(log.createdAt)}</td>
                   </tr>
@@ -294,7 +318,7 @@ function AdminActivityLog() {
           </table>
         </div>
 
-        {!hasModuleOrActionFilter && pagination.pages > 1 && (
+        {pagination.pages > 1 && (
           <div
             style={{
               display: "flex",
