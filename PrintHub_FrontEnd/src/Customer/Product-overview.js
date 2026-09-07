@@ -72,26 +72,6 @@ const priceRanges = [
 ];
 
 
-const ratingRanges = [
-  {
-    label: "Any rating",
-    value: "all",
-  },
-  {
-    label: "★★★★★ 4.5 & up",
-    value: "4.5",
-  },
-  {
-    label: "★★★★☆ 4.0 & up",
-    value: "4.0",
-  },
-  {
-    label: "★★★☆☆ 3.5 & up",
-    value: "3.5",
-  },
-];
-
-
 const getCustomerUser = () => {
   try {
     const parsed = JSON.parse(
@@ -305,15 +285,10 @@ function ProductOverview() {
     useState("all");
 
 
-  const [ratingRange, setRatingRange] =
-    useState("all");
-
-
   const [appliedFilters, setAppliedFilters] =
     useState({
       types: [],
       price: "all",
-      rating: "all",
     });
 
 
@@ -410,9 +385,6 @@ function ProductOverview() {
     appliedFilters.types.length +
     (appliedFilters.price !== "all"
       ? 1
-      : 0) +
-    (appliedFilters.rating !== "all"
-      ? 1
       : 0);
 
 
@@ -422,6 +394,7 @@ function ProductOverview() {
         const name = String(
           product?.name || ""
         );
+
 
         const productType =
           normalizeProductType(
@@ -452,29 +425,10 @@ function ProductOverview() {
           );
 
 
-        const index =
-          products.indexOf(product);
-
-
-        const productRating =
-          4.4 +
-          ((index % 6) / 10);
-
-
-        const matchesRating =
-          appliedFilters.rating ===
-            "all" ||
-          productRating >=
-            Number(
-              appliedFilters.rating
-            );
-
-
         return (
           matchesSearch &&
           matchesType &&
-          matchesPrice &&
-          matchesRating
+          matchesPrice
         );
       }
     );
@@ -517,22 +471,14 @@ function ProductOverview() {
   };
 
 
-  const clearRating = () => {
-    setRatingRange("all");
-  };
-
-
   const clearAllFilters = () => {
     setSelectedTypes([]);
 
     setPriceRange("all");
 
-    setRatingRange("all");
-
     setAppliedFilters({
       types: [],
       price: "all",
-      rating: "all",
     });
   };
 
@@ -543,7 +489,6 @@ function ProductOverview() {
         ...selectedTypes,
       ],
       price: priceRange,
-      rating: ratingRange,
     });
 
     setShowFilters(false);
@@ -869,87 +814,6 @@ function ProductOverview() {
                   </section>
 
 
-                  {/* RATING */}
-
-                  <section className="po-filter-section po-rating-section">
-
-                    <div className="po-filter-section-heading">
-
-                      <h3>
-                        Rating
-                      </h3>
-
-                      <button
-                        type="button"
-                        onClick={
-                          clearRating
-                        }
-                      >
-                        Clear
-                      </button>
-
-                    </div>
-
-
-                    <div className="po-radio-row po-rating-row">
-
-                      {ratingRanges.map(
-                        (item) => (
-                          <label
-                            key={
-                              item.value
-                            }
-                            className={`po-radio-option ${
-                              ratingRange ===
-                              item.value
-                                ? "checked"
-                                : ""
-                            }`}
-                          >
-
-                            <input
-                              type="radio"
-                              name="ratingRange"
-                              value={
-                                item.value
-                              }
-                              checked={
-                                ratingRange ===
-                                item.value
-                              }
-                              onChange={() =>
-                                setRatingRange(
-                                  item.value
-                                )
-                              }
-                            />
-
-
-                            <span className="po-custom-radio"></span>
-
-
-                            <span
-                              className={
-                                item.value !==
-                                "all"
-                                  ? "po-rating-stars"
-                                  : ""
-                              }
-                            >
-                              {
-                                item.label
-                              }
-                            </span>
-
-                          </label>
-                        )
-                      )}
-
-                    </div>
-
-                  </section>
-
-
                   {/* FILTER ACTIONS */}
 
                   <div className="po-filter-footer">
@@ -1010,7 +874,7 @@ function ProductOverview() {
           <div className="po-grid">
 
             {filtered.map(
-              (product, index) => (
+              (product) => (
                 <button
                   key={product.id}
                   type="button"
@@ -1053,16 +917,6 @@ function ProductOverview() {
                           product
                         )}
                       </span>
-
-
-                      <strong>
-                        ★{" "}
-                        {(
-                          4.4 +
-                          ((index % 6) /
-                            10)
-                        ).toFixed(1)}
-                      </strong>
 
                     </div>
 

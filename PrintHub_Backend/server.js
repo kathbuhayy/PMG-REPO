@@ -1360,7 +1360,10 @@ app.get("/api/user/:id/orders", async (req, res) => {
 });
 
 const normalizeCartCustomizations = (value) => {
-  if (!value || typeof value !== "object") return {};
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
   return value;
 };
 
@@ -1371,14 +1374,434 @@ const cartItemPayload = (item) => ({
   name: item.title,
   price: Number(item.price),
   qty: item.qty,
+
+  // REAL PRODUCT STOCK
+  stock:
+    item.product?.stock ??
+    null,
+
+  product: item.product
+    ? {
+        id: item.product.id,
+        name: item.product.name,
+        stock: item.product.stock,
+        images:
+          item.product.images || [],
+      }
+    : null,
+
   productImage:
     item.productImage ||
     item.customizations?.imageUrl ||
     item.product?.images?.[0] ||
     null,
-  images: item.product?.images || [],
-  customizations: item.customizations || {},
+
+  images:
+    item.product?.images || [],
+
+  customizations:
+    item.customizations || {},
 });
+
+
+// =================================================
+// CUSTOMER CART API
+// =================================================
+
+// GET USER CART
+app.get(
+  "/api/user/:id/cart",
+  async (req, res) => {
+    const userId = parseInt(
+      req.params.id,
+      10
+    );
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "Invalid user id",
+      });
+    }
+
+    try {
+      const userExists =
+        await prisma.user.findUnique({
+          where: {
+            id: userId,
+          },
+        });
+
+      if (!userExists) {
+        return res.status(404).json({
+          message: "User not found",
+        });
+      }
+
+      const items =
+        await prisma.cartItem.findMany({
+          where: {
+            userId,
+          },
+
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+
+                // IMPORTANT
+                stock: true,
+
+                images: true,
+              },
+            },
+          },
+
+          orderBy: {
+            createdAt: "asc",
+          },
+        });
+
+      res.json(
+        items.map(cartItemPayload)
+      );
+    } catch (e) {
+      console.error(
+        "GET CART ERROR:",
+        e
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to load cart",
+      });
+    }
+  }
+);
+
+
+// ADD TO CART
+app.post(
+  "/api/user/:id/cart",
+  async (req, res) => {
+    const userId = parseInt(
+      req.params.id,
+      10
+    );
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "Invalid user id",
+      });
+    }
+
+    const {
+      productId,
+      title,
+      name,
+      price,
+      qty = 1,
+      productImage,
+      images,
+      customizations,
+    } = req.body || {};
+
+    if (
+      !productId ||
+      !(title || name)
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid cart item",
+      });
+    }
+
+    try {
+      const userExists =
+        await prisma.user.findUnique({
+          where: {
+            id: userId,
+          },
+        });
+
+      if (!userExists) {
+        return res.status(404).json({
+          message:
+            "User not found",
+        });
+      }
+
+      const normalizedCustomizations =
+        normalizeCartCustomizations(
+          customizations
+        );
+
+      const existingItems =
+        await prisma.cartItem.findMany({
+          where: {
+            userId,
+            productId:
+              Number(productId),
+          },
+        });
+
+      const match =
+        existingItems.find(
+          (item) =>
+            JSON.stringify(
+              item.customizations ||
+                {}
+            ) ===
+            JSON.stringify(
+              normalizedCustomizations
+            )
+        );
+
+      const saved = match
+        ? await prisma.cartItem.update({
+            where: {
+              id: match.id,
+            },
+
+            data: {
+              qty: {
+                increment:
+                  Number(qty) || 1,
+              },
+            },
+
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  stock: true,
+                  images: true,
+                },
+              },
+            },
+          })
+        : await prisma.cartItem.create({
+            data: {
+              userId,
+
+              productId:
+                Number(productId),
+
+              title:
+                title || name,
+
+              price:
+                Number(price || 0),
+
+              qty: Math.max(
+                1,
+                Number(qty) || 1
+              ),
+
+              productImage:
+                productImage ||
+                images?.[0] ||
+                null,
+
+              customizations:
+                normalizedCustomizations,
+            },
+
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  stock: true,
+                  images: true,
+                },
+              },
+            },
+          });
+
+      res
+        .status(match ? 200 : 201)
+        .json(
+          cartItemPayload(saved)
+        );
+    } catch (e) {
+      console.error(
+        "ADD CART ERROR:",
+        e
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to save cart item",
+      });
+    }
+  }
+);
+
+
+// UPDATE CART QUANTITY
+app.patch(
+  "/api/user/:id/cart/:itemId",
+  async (req, res) => {
+    const userId = parseInt(
+      req.params.id,
+      10
+    );
+
+    const itemId = parseInt(
+      req.params.itemId,
+      10
+    );
+
+    const qty = Math.floor(
+      Number(
+        req.body?.qty || 0
+      )
+    );
+
+    if (
+      !userId ||
+      !itemId
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid cart item",
+      });
+    }
+
+    try {
+      if (qty < 1) {
+        await prisma.cartItem.deleteMany(
+          {
+            where: {
+              id: itemId,
+              userId,
+            },
+          }
+        );
+
+        return res.json({
+          message:
+            "Cart item removed",
+        });
+      }
+
+      const existing =
+        await prisma.cartItem.findFirst({
+          where: {
+            id: itemId,
+            userId,
+          },
+        });
+
+      if (!existing) {
+        return res.status(404).json({
+          message:
+            "Cart item not found",
+        });
+      }
+
+      const item =
+        await prisma.cartItem.update({
+          where: {
+            id: existing.id,
+          },
+
+          data: {
+            qty,
+          },
+
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+
+                // IMPORTANT
+                stock: true,
+
+                images: true,
+              },
+            },
+          },
+        });
+
+      res.json(
+        cartItemPayload(item)
+      );
+    } catch (e) {
+      console.error(
+        "UPDATE CART ERROR:",
+        e
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to update cart item",
+      });
+    }
+  }
+);
+
+
+// DELETE CART ITEM
+app.delete(
+  "/api/user/:id/cart/:itemId",
+  async (req, res) => {
+    const userId = parseInt(
+      req.params.id,
+      10
+    );
+
+    const itemId = parseInt(
+      req.params.itemId,
+      10
+    );
+
+    if (
+      !userId ||
+      !itemId
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid cart item",
+      });
+    }
+
+    try {
+      const result =
+        await prisma.cartItem.deleteMany({
+          where: {
+            id: itemId,
+            userId,
+          },
+        });
+
+      if (result.count === 0) {
+        return res.status(404).json({
+          message:
+            "Cart item not found",
+        });
+      }
+
+      res.json({
+        message:
+          "Cart item removed",
+      });
+    } catch (e) {
+      console.error(
+        "DELETE CART ERROR:",
+        e
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to delete cart item",
+      });
+    }
+  }
+);
 
 // Customer cart API - shared by web and mobile clients.
 app.get("/api/user/:id/cart", async (req, res) => {
