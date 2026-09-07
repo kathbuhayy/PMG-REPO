@@ -168,6 +168,7 @@ model InventorySubstrate {
   materialName    String   @unique @map("material_name")
   stockMeters     Float    @map("stock_meters")
   safetyThreshold Float    @default(15.0) @map("safety_threshold")
+  costPerMeter    Float?   @map("cost_per_meter")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -179,6 +180,7 @@ model InventoryInk {
   colorChannel    String   @unique @map("color_channel")
   volumeMl        Float    @map("volume_ml")
   safetyThreshold Float    @default(15.0) @map("safety_threshold")
+  costPerMl       Float?   @map("cost_per_ml")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -190,6 +192,7 @@ model InventoryUnit {
   itemName        String   @unique @map("item_name")
   stockUnits      Int      @map("stock_units")
   safetyThreshold Int      @default(15) @map("safety_threshold")
+  costPerUnit     Float?   @map("cost_per_unit")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

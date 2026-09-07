@@ -26,6 +26,7 @@ export const ZONE_PHYSICAL_INCHES = {
   back_cover: { w: 8.5, h: 11 },
   wrap: { w: 9.5, h: 3.5 }, // mug full wrap
   DEFAULT: { w: 10, h: 10 },
+  hood: { w: 8, h: 8 },
 };
 
 export const DEFAULT_TARGET_DPI = 300;

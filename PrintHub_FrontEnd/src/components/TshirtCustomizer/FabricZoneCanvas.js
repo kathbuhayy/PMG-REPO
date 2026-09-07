@@ -19,7 +19,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import * as fabric from "fabric";
 import { buildFabricObjectFromLayer } from "../../utils/fabricZoneRenderer";
-import { getZoneDimensions } from "../../utils/zoneDimensions";
+import { getZonePhysicalSize } from "../../utils/layerDpiCheck";
 import "./TshirtCustomizer.css";
 
 export const ZONE_META = [
@@ -36,6 +36,34 @@ export const ZONE_META = [
   { id: "back_cover", label: "BACK COVER" },
   { id: "wrap", label: "WRAP" },
 ];
+
+// Pixels-per-inch for the interactive canvas only — purely a crispness
+// choice for on-screen editing. Export/flatten functions (SudoMock,
+// Printful, "Use This Design") already pass their own explicit pixel
+// sizes and are unaffected by this constant.
+const PIXELS_PER_INCH = 60;
+
+/**
+ * Real-world-proportioned pixel size for a zone's interactive canvas.
+ * Flat/paper products use the customer's actual selected size so the
+ * canvas matches the real sheet being printed; garment/wrap zones use
+ * the same ZONE_PHYSICAL_INCHES lookup that drives the DPI print-quality
+ * check, so what the customer sees on screen matches what actually
+ * prints and what production's material-usage scaling assumes.
+ */
+function getZoneDisplayDimensions(zoneId, printSizeInches) {
+  if (printSizeInches?.width > 0 && printSizeInches?.height > 0) {
+    return {
+      width: Math.round(printSizeInches.width * PIXELS_PER_INCH),
+      height: Math.round(printSizeInches.height * PIXELS_PER_INCH),
+    };
+  }
+  const real = getZonePhysicalSize(zoneId);
+  return {
+    width: Math.round(real.w * PIXELS_PER_INCH),
+    height: Math.round(real.h * PIXELS_PER_INCH),
+  };
+}
 
 /**
  * One zone's interactive Fabric canvas. Mounts a real fabric.Canvas at
@@ -63,7 +91,7 @@ function FabricZoneBox({
   const fabricCanvasRef = useRef(null);
   const wrapRef = useRef(null);
 
-  const dims = getZoneDimensions(meta.id);
+  const dims = getZoneDisplayDimensions(meta.id, printSizeInches);
   const hasAnyLayer = layers.length > 0;
 
   // Kept as a ref so the rebuild effect (below) can read the *current*

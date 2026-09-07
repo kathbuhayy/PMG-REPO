@@ -741,8 +741,8 @@
 
 .tsc-zone-card {
   position: relative;
-  width: auto;
-  max-height: 540px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   border: 2px solid #cbd5e1;
   border-radius: 12px;
@@ -1007,6 +1007,9 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  height: auto;
+  overflow-y: visible;
+  align-items: flex-start;
 }
 
 .tsc-right-preview .tsc-preview-3d {
@@ -2218,7 +2221,7 @@
 }
 
 .tsc-zone-stage .tsc-zone-card {
-  max-height: 640px;
+  max-height: 70vh;
 }
 
 .tsc-zone-stage .tsc-zone-inner {
@@ -2232,7 +2235,7 @@
 
 .tsc-inline-zone-canvas .tsc-canvas-wrap {
   width: 100%;
-  height: 100%;
+  height: auto;
   padding: 16px;
 }
 
@@ -2242,8 +2245,7 @@
 
 .tsc-inline-zone-canvas .tsc-zone-stage {
   width: 100%;
-  height: 100%;
-  align-items: center;
+  height: auto;
 }
 
 .tsc-inline-zone-canvas .tsc-zone-wrapper {

@@ -82,6 +82,7 @@ const buildReceiptPayload = (order, statusOverride, emailSent) => {
       totalPrice: item.total_price,
       customizationLabel: formatCustomizations(item.customizations),
       pcsCount: extractPcsFromCustomizations(item.customizations),
+      materialCost: item.customizations?.materialCost || null,
     })),
     mockEmail: {
       to: customerEmail,

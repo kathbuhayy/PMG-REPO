@@ -1,6 +1,6 @@
 const prisma = require("../db/prisma");
 const { roleFromDb } = require("./auth");
-
+const { getZoneRealSize } = require("./zonePhysicalInches");
 // Core roles allowed to hold a production assignment.
 // Confirm these strings match what roleFromDb() actually returns in your auth.js.
 const CLEARED_CORE_ROLES = new Set(["staff", "admin"]);
@@ -34,12 +34,80 @@ async function getRelevantProductionStatuses(userId) {
 }
 
 /**
- * Resolves which raw materials an order item actually consumes.
- * If the product has a materialUsageMap and the customer's selected
- * material matches a key in it, use that branch (per-option consumption).
- * Otherwise fall back to the product's flat substrate/ink/unit fields,
- * so products without a materialUsageMap behave exactly as before.
+ * Converts a saved design (either the new {zoneLayers} shape or the
+ * legacy {zones, zoneTexts} shape used by FlatCustomizerPanel and
+ * older saved orders) into a common { [zoneId]: [{w,h}, ...] } map —
+ * just the fields needed for area math.
  */
+function normalizeDesignToZoneLayers(design) {
+  if (!design) return {};
+  if (design.zoneLayers) return design.zoneLayers;
+
+  const zoneLayers = {};
+  const zoneIds = new Set([
+    ...Object.keys(design.zones || {}),
+    ...Object.keys(design.zoneTexts || {}),
+  ]);
+  zoneIds.forEach((zoneId) => {
+    const layers = [];
+    const img = design.zones?.[zoneId];
+    if (img?.imageUrl) {
+      layers.push({ w: img.w ?? 80, h: img.h ?? 80 });
+    }
+    (design.zoneTexts?.[zoneId] || []).forEach((t) => {
+      layers.push({ w: t.w ?? 70, h: t.h ?? 20 });
+    });
+    zoneLayers[zoneId] = layers;
+  });
+  return zoneLayers;
+}
+
+// A design covering less of the print area than this fraction is
+// still billed as if it covered this much — reflects real per-run
+// setup/prep overhead that doesn't shrink away for a tiny logo.
+const MIN_DESIGN_AREA_SCALE = 0.1;
+
+/**
+ * Fraction (0-1) of the product's full printable area that this order
+ * item's actual saved design covers, used to scale substrate/ink
+ * usage. Returns 1 (no scaling) when there's no saved design or the
+ * product has no defined print zones, so un-customized or legacy
+ * items keep behaving exactly as before.
+ */
+function computeDesignAreaScale(item, product) {
+  const design = item.customizations?.design;
+  const printZones = product.print_zones || [];
+  if (!design || printZones.length === 0) return 1;
+
+  const sizeStr = item.customizations?.size;
+  const zoneLayers = normalizeDesignToZoneLayers(design);
+
+  let actualArea = 0;
+  let fullArea = 0;
+
+  for (const zoneId of printZones) {
+    const { width, height } = getZoneRealSize(zoneId, sizeStr);
+    const zoneArea = width * height;
+    fullArea += zoneArea;
+
+    const layers = zoneLayers[zoneId] || [];
+    if (layers.length === 0) continue;
+
+    const zoneCovered = layers.reduce((sum, layer) => {
+      const w = Number(layer.w) || 0;
+      const h = Number(layer.h) || 0;
+      return sum + (w / 100) * (h / 100) * zoneArea;
+    }, 0);
+    // Cap at the zone's own area so overlapping layers can't push a
+    // single zone's contribution above 100% coverage.
+    actualArea += Math.min(zoneCovered, zoneArea);
+  }
+
+  if (fullArea <= 0) return 1;
+  const scale = actualArea / fullArea;
+  return Math.max(MIN_DESIGN_AREA_SCALE, Math.min(scale, 1));
+}
+
 function resolveMaterialUsage(product, item) {
   const selectedMaterial = item.customizations?.material?.label;
 
@@ -118,13 +186,14 @@ async function decrementMaterialsForOrder(tx, orderId) {
     const product = item.product;
     if (!product) continue;
 
-    const areaScale = getAreaScale(product);
+    const designScale = computeDesignAreaScale(item, product);
+    const itemBreakdown = [];
 
     const usageEntries = resolveMaterialUsage(product, item);
 
     for (const entry of usageEntries) {
       if (entry.type === "substrate") {
-        const amount = entry.usagePerUnit * areaScale * item.quantity;
+        const amount = entry.usagePerUnit * areaScale * designScale * item.quantity;
         const updated = await tx.inventorySubstrate.updateMany({
           where: { materialName: entry.name },
           data: { stockMeters: { decrement: amount } },
@@ -143,8 +212,19 @@ async function decrementMaterialsForOrder(tx, orderId) {
             ? current.stockMeters <= current.safetyThreshold
             : false,
         });
+        itemBreakdown.push({
+          type: "substrate",
+          name: entry.name,
+          unit: "meters",
+          amount: Number(amount.toFixed(4)),
+          unitCost: current?.costPerMeter ?? null,
+          lineCost:
+            current?.costPerMeter != null
+              ? Number((amount * current.costPerMeter).toFixed(2))
+              : null,
+        });
       } else if (entry.type === "ink") {
-        const amount = entry.usagePerUnit * areaScale * item.quantity;
+        const amount = entry.usagePerUnit * areaScale * designScale * item.quantity;
         const updated = await tx.inventoryInk.updateMany({
           where: { colorChannel: entry.name },
           data: { volumeMl: { decrement: amount } },
@@ -162,6 +242,17 @@ async function decrementMaterialsForOrder(tx, orderId) {
           belowThreshold: current
             ? current.volumeMl <= current.safetyThreshold
             : false,
+        });
+        itemBreakdown.push({
+          type: "ink",
+          name: entry.name,
+          unit: "ml",
+          amount: Number(amount.toFixed(4)),
+          unitCost: current?.costPerMl ?? null,
+          lineCost:
+            current?.costPerMl != null
+              ? Number((amount * current.costPerMl).toFixed(2))
+              : null,
         });
       } else if (entry.type === "unit") {
         const amount = entry.usagePerUnit * item.quantity;
@@ -183,7 +274,30 @@ async function decrementMaterialsForOrder(tx, orderId) {
             ? current.stockUnits <= current.safetyThreshold
             : false,
         });
+        itemBreakdown.push({
+          type: "unit",
+          name: entry.name,
+          unit: "pcs",
+          amount,
+          unitCost: current?.costPerUnit ?? null,
+          lineCost:
+            current?.costPerUnit != null
+              ? Number((amount * current.costPerUnit).toFixed(2))
+              : null,
+        });
       }
+    }
+
+    if (itemBreakdown.length > 0) {
+      await tx.orderItem.update({
+        where: { id: item.id },
+        data: {
+          customizations: {
+            ...(item.customizations || {}),
+            materialCost: itemBreakdown,
+          },
+        },
+      });
     }
   }
 
