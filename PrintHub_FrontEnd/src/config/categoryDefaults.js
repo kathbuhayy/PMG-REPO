@@ -125,6 +125,43 @@ export const CATEGORY_DEFAULTS = {
       "- Resolution: 300dpi minimum.",
   },
 
+  "Hoodie": {
+    print_type: "screen-print",
+    material: "Cotton Fleece - 280gsm",
+    color_options: [
+      "Full Color (CMYK) - Direct-to-Garment",
+      "Full Color (Plastisol) - Screen Print",
+      "Single Color - Screen Print",
+      "Multi-Color - Screen Print",
+    ],
+    size_options: ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL"],
+    material_options: [
+      "Cotton Fleece - 280gsm",
+      "Cotton/Poly Blend - 260gsm",
+      "Heavyweight Fleece - 320gsm",
+    ],
+    side_options: ["Front Center", "Back", "Front & Back", "Sleeve", "Hood", "All Sides"],
+    finishing_options: ["None", "Heat Transfer", "Embroidery", "Puff Print"],
+    processing_options: ["Standard (5-7 days)", "Rush (3-4 days)", "Express (1-2 days)"],
+    delivery_options: DELIVERY_OPTIONS,
+    quantity_options: [
+      "5 pcs|₱420.00",
+      "10 pcs|₱400.00",
+      "25 pcs|₱380.00",
+      "50 pcs|₱360.00",
+      "100 pcs|₱340.00",
+    ],
+    shipping_options: ["Pick Up|Free", "Metro Delivery|₱150.00", "Provincial|₱300.00"],
+    ai_prompt_rules:
+      "- Generate a vibrant hoodie design.\n" +
+      "- For screen print: limit to 4-6 colors for cost efficiency.\n" +
+      "- Design must work on the specified print area.\n" +
+      "- Avoid small fine details that won't transfer well on fleece.\n" +
+      "- Hood panel designs should be centered and legible from behind.\n" +
+      "- Safe margin: 0.25in from print edges.\n" +
+      "- Resolution: 300dpi minimum.",
+  },
+
   Brochures: {
     print_type: "offset",
     material: "130gsm Gloss Paper",
@@ -607,6 +644,56 @@ export const CATEGORY_DEFAULTS = {
       "- White background = white ceramic.\n" +
       "- Resolution: 300dpi minimum at print size."
   },
+    "Sweatshirt": {
+    "print_type": "screen-print",
+    "material": "Cotton Fleece - 280gsm",
+    "color_options": [
+      "Full Color (CMYK) - Direct-to-Garment",
+      "Full Color (Plastisol) - Screen Print",
+      "Single Color - Screen Print",
+      "Multi-Color - Screen Print"
+    ],
+    "size_options": ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL"],
+    "material_options": [
+      "Cotton Fleece - 280gsm",
+      "Cotton/Poly Blend - 260gsm",
+      "Heavyweight Fleece - 320gsm"
+    ],
+    "side_options": [
+      "Front Center",
+      "Back",
+      "Front & Back",
+      "Sleeve",
+      "All Sides"
+    ],
+    "finishing_options": ["None", "Heat Transfer", "Embroidery", "Puff Print"],
+    "processing_options": [
+      "Standard (5-7 days)",
+      "Rush (3-4 days)",
+      "Express (1-2 days)"
+    ],
+    "delivery_options": DELIVERY_OPTIONS,
+    "quantity_options": [
+      "5 pcs|₱380.00",
+      "10 pcs|₱360.00",
+      "25 pcs|₱340.00",
+      "50 pcs|₱320.00",
+      "100 pcs|₱300.00"
+    ],
+    "shipping_options": [
+      "Pick Up|Free",
+      "Metro Delivery|₱150.00",
+      "Provincial|₱300.00"
+    ],
+    "ai_prompt_rules":
+      "- Generate a vibrant sweatshirt design.\n" +
+      "- For screen print: limit to 4-6 colors for cost efficiency.\n" +
+      "- Design must work on the specified print area.\n" +
+      "- Avoid small fine details that won't transfer well on fleece.\n" +
+      "- Safe margin: 0.25in from print edges.\n" +
+      "- For DTG: can use full color spectrum without limitations.\n" +
+      "- Resolution: 300dpi minimum."
+  },
 };
 
 export const CATEGORY_NAMES = Object.keys(CATEGORY_DEFAULTS);
@@ -625,6 +712,13 @@ export const CUSTOMIZER_ZONES = {
     { id: "left_sleeve", label: "Left Sleeve", sideOption: "Sleeve (Left)" },
     { id: "right_sleeve", label: "Right Sleeve", sideOption: "Sleeve (Right)" },
   ],
+  "Hoodie": [
+  { id: "front", label: "Front Center", sideOption: "Front Center" },
+  { id: "back", label: "Back", sideOption: "Back" },
+  { id: "left_sleeve", label: "Left Sleeve", sideOption: "Sleeve" },
+  { id: "right_sleeve", label: "Right Sleeve", sideOption: "Sleeve" },
+  { id: "hood", label: "Hood", sideOption: "Hood" },
+],
   "Cap": [
     { id: "front", label: "Front Center", sideOption: "Front Center" },
     { id: "back", label: "Back Closure", sideOption: "Back Closure" },
@@ -655,6 +749,12 @@ export const CUSTOMIZER_ZONES = {
   ],
   "Banners": [
     { id: "front", label: "Front", sideOption: "Single Side" },
+  ],
+    "Sweatshirt": [
+    { id: "front", label: "Front Center", sideOption: "Front Center" },
+    { id: "back", label: "Back", sideOption: "Back" },
+    { id: "left_sleeve", label: "Left Sleeve", sideOption: "Sleeve" },
+    { id: "right_sleeve", label: "Right Sleeve", sideOption: "Sleeve" },
   ],
 };
 
@@ -742,6 +842,8 @@ export const filterZonesBySide = (allZones, selectedSide, designType) => {
   else if (cat === "jersey") zoneKey = "Jersey";
   else if (cat === "mug") zoneKey = "Mug";
   else if (cat === "notebook") zoneKey = "Notebook";
+  else if (cat === "sweatshirt") zoneKey = "Sweatshirt";
+  else if (cat === "hoodie") zoneKey = "Hoodie";
 
   if (zoneKey && CUSTOMIZER_ZONES[zoneKey]) {
     const mappedZones = CUSTOMIZER_ZONES[zoneKey];

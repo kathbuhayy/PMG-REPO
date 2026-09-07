@@ -585,6 +585,49 @@ const PRODUCT_SEEDS = [
     inkColorChannel: "sublimation_ink",
     inkUsagePerUnit: 8.0,
   },
+    {
+    name: "Sweatshirt",
+    sku: "SWEAT-PRINT",
+    description: "Custom printed pullover sweatshirts with full front, back, and sleeve print options.",
+    price: "400.00",
+    stock: 200,
+    category: "sweatshirt",
+    print_type: "screen-print",
+    turnaround_hours: 120,
+    color_options: ["White", "Black", "Navy Blue", "Gray", "Maroon"],
+    size_options: ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL"],
+    material_options: [
+      "Cotton Fleece - 280gsm",
+      "Cotton/Poly Blend - 260gsm",
+      "Heavyweight Fleece - 320gsm",
+    ],
+    side_options: [
+      "Front Center",
+      "Back",
+      "Front & Back",
+      "Sleeve",
+      "All Sides",
+    ],
+    finishing_options: ["None", "Heat Transfer", "Embroidery", "Puff Print"],
+    processing_options: ["Standard", "Rush", "Express"],
+    delivery_options: DELIVERY_OPTIONS,
+    quantity_options: [
+      "5 pcs|₱1,900.00",
+      "10 pcs|₱3,800.00",
+      "25 pcs|₱9,500.00",
+      "50 pcs|₱19,000.00",
+      "100 pcs|₱38,000.00",
+    ],
+    shipping_options: ["Pick Up|Free", "Delivery|₱150.00"],
+    print_zones: ["front", "back", "left_sleeve", "right_sleeve"],
+    ai_prompt_rules:
+      "Generate a vibrant sweatshirt design. For screen print, limit " +
+      "colors. For DTG, full color CMYK. Bleed: 0.25in. Resolution: 300dpi.",
+    substrateMaterialName: "cotton_fabric",
+    substrateUsagePerUnit: 1.3,
+    inkColorChannel: "sublimation_ink",
+    inkUsagePerUnit: 10.0,
+  },
   {
     name: "Notebook",
     sku: "NB-STD",
@@ -914,6 +957,7 @@ async function seedProducts() {
         substrateUsagePerUnit: p.substrateUsagePerUnit || null,
         inkColorChannel: p.inkColorChannel || null,
         inkUsagePerUnit: p.inkUsagePerUnit || null,
+        category: p.category || "other",
       },
       create: {
         name: p.name,
@@ -941,6 +985,7 @@ async function seedProducts() {
         inkColorChannel: p.inkColorChannel || null,
         inkUsagePerUnit: p.inkUsagePerUnit || null,
         images: [],
+        category: p.category || "other",
       },
     });
     console.log(`  ✅ ${p.name} (${p.sku})`);

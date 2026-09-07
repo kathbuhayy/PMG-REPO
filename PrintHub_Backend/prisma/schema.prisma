@@ -158,6 +158,7 @@ model Product {
   unitUsagePerUnit      Int?        @map("unit_usage_per_unit")
   bleedInches           Float?      @map("bleed_inches")
   safeMarginInches      Float?      @map("safe_margin_inches")
+  materialUsageMap      Json?       @map("material_usage_map")
   cartItems             CartItem[]
   orderItems            OrderItem[]
 }

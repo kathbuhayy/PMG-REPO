@@ -1,1 +1,1 @@
-export { default } from "../TshirtCustomizer/TshirtZoneCanvas";
+export { default, ZONE_META } from "../TshirtCustomizer/FabricZoneCanvas";

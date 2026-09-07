@@ -30,6 +30,8 @@ import ThankYouCardCustomizerPanel from "../components/ThankYouCardCustomizer/Th
 import StickerCustomizerPanel from "../components/StickerCustomizer/StickerCustomizerPanel";
 import HangTagCustomizerPanel from "../components/HangTagCustomizer/HangTagCustomizerPanel";
 import TarpaulinCustomizerPanel from "../components/TarpaulinCustomizer/TarpaulinCustomizerPanel";
+import HoodieCustomizerPanel from "../components/HoodieCustomizer/HoodieCustomizerPanel";
+import SweatshirtCustomizerPanel from "../components/SweatshirtCustomizer/SweatshirtCustomizerPanel";
 import AppModal from "../components/AppModal";
 import LoginRequiredModal from "../components/LoginRequiredModal.js";
 import { saveGuestDesignDraft } from "../utils/guestCustomization";
@@ -78,7 +80,9 @@ function AnimatedPrice({ value }) {
 
 const DEFAULT_PRODUCT_ZONES = {
   notebook: ["front_cover", "back_cover"],
+  hoodie: ["front", "back", "left_sleeve", "right_sleeve", "hood"],
   tshirt: ["front", "back", "left_sleeve", "right_sleeve"],
+  sweatshirt: ["front", "back", "left_sleeve", "right_sleeve"],
   jersey: ["front", "back", "left_sleeve", "right_sleeve"],
   jersery: ["front", "back", "left_sleeve", "right_sleeve"],
   cap: ["front", "back", "left_side", "right_side"],
@@ -145,6 +149,10 @@ const SIDE_TO_ZONES = {
   "front only": ["front"],
   "two sides": ["front", "back"],
 
+  // ── Hoodie ────────────────────────────────────────────────────
+  hood: ["hood"],
+  "all sides": ["front", "back", "left_sleeve", "right_sleeve", "hood"],
+
   // ── Flat / Paper ──────────────────────────────────────────────
   "single side": ["front", "front_cover"],
   "double side": ["front", "back", "front_cover", "back_cover"],
@@ -161,6 +169,7 @@ function inferCustomizerCategory({ category, name, title }) {
 
   if (label.includes("flyer")) return "flyers";
   if (label.includes("poster")) return "posters";
+  if (label.includes("hoodie")) return "hoodie";
   if (label.includes("sticker") || label.includes("label"))
     return "stickers";
   if (label.includes("hang tag") || label.includes("hangtag"))
@@ -187,6 +196,7 @@ function inferCustomizerCategory({ category, name, title }) {
   if (label.includes("jersey")) return "jersey";
   if (label.includes("cap") || label.includes("hat")) return "cap";
   if (label.includes("mug") || label.includes("cup")) return "mug";
+  if (label.includes("sweatshirt")) return "sweatshirt";
 
   if (
     label.includes("shirt") ||
@@ -212,6 +222,7 @@ function getCustomizerPanel(category) {
   }
 
   if (normalized === "brochures") return BrochureCustomizerPanel;
+  if (normalized === "hoodie") return HoodieCustomizerPanel;
 
   if (normalized === "flyer" || normalized === "flyers")
     return FlyerCustomizerPanel;
@@ -247,6 +258,9 @@ function getCustomizerPanel(category) {
 
   if (normalized === "mug")
     return MugCustomizerPanel;
+  if (normalized === "sweatshirt") 
+
+    return SweatshirtCustomizerPanel;
 
   return TshirtCustomizerPanel;
 }
@@ -737,6 +751,9 @@ function ProductDetail() {
   const bulkAlertShownRef =
     useRef(false);
 
+  const wipFinalizedRef = 
+    useRef(false);
+
   // AI Builder
   const [activeDesign,
     setActiveDesign] =
@@ -854,6 +871,8 @@ function ProductDetail() {
   useEffect(() => {
     if (!id) return;
 
+    wipFinalizedRef.current = false;
+
     const draft =
       readWipDraft(id);
 
@@ -878,7 +897,7 @@ function ProductDetail() {
   const handleWipChange =
     useCallback(
       (wip) => {
-        if (!product?.id) return;
+        if (!product?.id || wipFinalizedRef.current) return;
 
         setCustomizerWip(wip);
 
@@ -2038,6 +2057,11 @@ function ProductDetail() {
         </div>
 
         <div className="pd-customizer-page-body">
+          {showDraftPrompt ? (
+            <div style={{ padding: 60, textAlign: "center", color: "#64748b" }}>
+              Checking for a saved draft…
+            </div>
+          ) : (
           <CustomizerPanel
             product={
               filteredProductForCustomizer ||
@@ -2119,6 +2143,8 @@ function ProductDetail() {
             onDesignReady={(
               meta,
             ) => {
+              wipFinalizedRef.current = true;
+
               setActiveDesign(
                 meta,
               );
@@ -2309,7 +2335,33 @@ function ProductDetail() {
               clearWip();
             }}
           />
+          )}
         </div>
+
+        <AppModal
+          open={showDraftPrompt}
+          title="Continue your previous customization?"
+          message="You have an unfinished design for this product from an earlier visit. Would you like to pick up where you left off?"
+          confirmText="Continue Editing"
+          cancelText="Start New Design"
+          tone="info"
+          onConfirm={() => {
+            setCustomizerWip(pendingDraft);
+            setShowDraftPrompt(false);
+          }}
+          onCancel={() => {
+            if (product?.id) {
+              try {
+                localStorage.removeItem(wipDraftKey(product.id));
+              } catch (e) {
+                console.warn("Could not clear WIP draft", e);
+              }
+            }
+            setPendingDraft(null);
+            setCustomizerWip(null);
+            setShowDraftPrompt(false);
+          }}
+        />
       </div>
     );
   }

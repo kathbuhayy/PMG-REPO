@@ -1,7 +1,10 @@
+// StageQueue
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
-import { FaExclamationTriangle, FaArrowRight, FaSearch } from "react-icons/fa";
+import { FaExclamationTriangle, FaArrowRight, FaSearch, FaEye, FaCube, FaTimes } from "react-icons/fa";
+import { createPortal } from "react-dom";
+import { render3DPreview } from "../utils/render3DPreview";
 
 const NEXT_STATUS = {
   PENDING_FILE_CHECK: "AWAITING_PAYMENT",
@@ -34,6 +37,8 @@ function StageQueuePage({ stage, title, description, useCardHeader = false }) {
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [toast, setToast] = useState("");
   const [search, setSearch] = useState("");
+  const [designPreviewOrder, setDesignPreviewOrder] = useState(null);
+  const [ai3DPreviewModal, setAi3DPreviewModal] = useState(null);
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -219,6 +224,27 @@ function StageQueuePage({ stage, title, description, useCardHeader = false }) {
                       </span>
                     </td>
                     <td>
+                      {(order.items || []).some((item) => item.customizations?.design) && (
+                        <button
+                          type="button"
+                          onClick={() => setDesignPreviewOrder(order)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            background: "#f1f5f9",
+                            color: "#0f172a",
+                            border: "1px solid #cbd5e1",
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            cursor: "pointer",
+                            marginRight: 8,
+                          }}
+                        >
+                          <FaEye size={11} /> View Design
+                        </button>
+                      )}
                       {NEXT_STATUS[order.productionStatus] ? (
                         <button
                           type="button"
@@ -255,6 +281,146 @@ function StageQueuePage({ stage, title, description, useCardHeader = false }) {
           </table>
         </div>
       </div>
+
+      {designPreviewOrder && createPortal(
+        <div
+          className="ad-logout-overlay"
+          onClick={() => setDesignPreviewOrder(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="ad-logout-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingBottom: 16,
+                borderBottom: "1px solid #e2e8f0",
+                marginBottom: 16,
+              }}
+            >
+              <h3 className="ad-logout-title" style={{ margin: 0 }}>
+                Order #{designPreviewOrder.id} — Design
+              </h3>
+              <button
+                onClick={() => setDesignPreviewOrder(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 4, fontSize: 20 }}
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(designPreviewOrder.items || [])
+                .filter((item) => item.customizations?.design)
+                .map((item) => {
+                  const design = item.customizations.design;
+                  const productName =
+                    item.customizations?.product_title || item.product?.name || `Product #${item.productId}`;
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        background: "#f8fafc",
+                        borderRadius: 8,
+                        padding: "10px 12px",
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      {design.generatedImageUrl && (
+                        <img
+                          src={design.generatedImageUrl}
+                          alt="Submitted design"
+                          style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, border: "2px solid #d4af37" }}
+                        />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#0f172a" }}>{productName}</p>
+                        <button
+                          type="button"
+                          onClick={() => setAi3DPreviewModal({ productName, design })}
+                          style={{
+                            marginTop: 8,
+                            padding: "6px 10px",
+                            fontSize: 11,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            cursor: "pointer",
+                            background: "#2563eb",
+                            border: "none",
+                            color: "#fff",
+                            borderRadius: 4,
+                            fontWeight: 600,
+                          }}
+                        >
+                          <FaCube size={11} />
+                          3D Preview
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {ai3DPreviewModal && createPortal(
+        <div
+          className="ad-logout-overlay"
+          onClick={() => setAi3DPreviewModal(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="ad-logout-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: 900, height: "min(720px, 86vh)", display: "flex", flexDirection: "column" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingBottom: 16,
+                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                marginBottom: 16,
+              }}
+            >
+              <h3 className="ad-logout-title" style={{ margin: 0 }}>3D Design Preview</h3>
+              <button
+                onClick={() => setAi3DPreviewModal(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", padding: 4, fontSize: 20 }}
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div style={{ flex: 1, width: "100%", height: "100%", background: "rgba(15, 23, 42, 0.3)", borderRadius: 8, overflow: "hidden" }}>
+              {render3DPreview(ai3DPreviewModal)}
+            </div>
+            <div style={{ paddingTop: 16, borderTop: "1px solid rgba(255, 255, 255, 0.08)", marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setAi3DPreviewModal(null)}
+                className="ad-logout-btn ghost"
+                style={{ height: 40, padding: "0 16px" }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

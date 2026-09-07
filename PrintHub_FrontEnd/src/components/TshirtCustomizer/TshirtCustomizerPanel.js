@@ -52,7 +52,13 @@ import { TEXT_FONTS, FONT_CATEGORIES, loadGoogleFonts } from "../../config/textF
 import { buildApiUrl } from "../../config/api";
 import { getZoneDimensions } from "../../utils/zoneDimensions";
 
-
+const DEFAULT_HEM_ZONE_OPTIONS = [
+  { id: "neck", label: "Neck Hem" },
+  { id: "front_hem", label: "Bottom Hem (Front)" },
+  { id: "back_hem", label: "Bottom Hem (Back)" },
+  { id: "left_hem", label: "Left Sleeve Hem" },
+  { id: "right_hem", label: "Right Sleeve Hem" },
+];
 
 const TSHIRT_GLB = "/models/texture.glb";
 const QUICK_COLORS = [
@@ -113,6 +119,7 @@ export default function TshirtCustomizerPanel({
   previewProps = {},
   initialWip = null,
   onWipChange,
+  hemZoneOptions = DEFAULT_HEM_ZONE_OPTIONS,
 }) {
   const zones = useMemo(() => {
     return filterZonesBySide(
@@ -356,14 +363,6 @@ export default function TshirtCustomizerPanel({
     setZoneColors((prev) => ({ ...prev, [zoneId]: normalized }));
     return true;
   };
-
-  const HEM_ZONE_OPTIONS = [
-    { id: "neck", label: "Neck Hem" },
-    { id: "front_hem", label: "Bottom Hem (Front)" },
-    { id: "back_hem", label: "Bottom Hem (Back)" },
-    { id: "left_hem", label: "Left Sleeve Hem" },
-    { id: "right_hem", label: "Right Sleeve Hem" },
-  ];
 
   // Synchronize layer image URLs with converted base64 URLs from gallery
   // (blob: URLs get swapped for durable data:/hosted URLs once ready).
@@ -1626,7 +1625,7 @@ export default function TshirtCustomizerPanel({
 
               <div className="tsc-color-section" style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
                 <div className="tsc-color-label">HEM COLORS</div>
-                {HEM_ZONE_OPTIONS.map(({ id, label }) => (
+                {hemZoneOptions.map(({ id, label }) => (
                   <div
                     key={id}
                     style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}

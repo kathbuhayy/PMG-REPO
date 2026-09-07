@@ -1,3 +1,4 @@
+//notification.js
 const { Resend } = require("resend");
 const prisma = require("../db/prisma");
 const { buildReceiptPayload } = require("./paymongo");
@@ -131,8 +132,10 @@ async function sendSystemEmail({ to, subject, text, html }) {
     .replace(emojiRegex, "")
     .trim();
 
+  const toList = Array.isArray(to) ? to : [to];
+
   const payload = {
-    to,
+    to: toList,
     subject: cleanSubject,
     body: text,
     status: resend ? "queued" : "mock",
@@ -163,7 +166,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
   try {
     const { data, error } = await resend.emails.send({
       from: EMAIL_FROM,
-      to: [to],
+      to: toList,
       subject: cleanSubject,
       text: text || undefined,
       html: html || undefined,
@@ -555,7 +558,7 @@ async function notifyLowStockProducts(products, threshold = 10) {
     `</p>`;
 
   return sendSystemEmail({
-    to: recipients.join(","),
+    to: recipients,
     subject: `PrintSync Inventory Alert: Low Stock Items`,
     text: low
       .map(
@@ -615,7 +618,7 @@ async function notifyAdminsNewOrderForReview(order) {
     `</p>`;
 
   return sendSystemEmail({
-    to: recipients.join(","),
+    to: recipients,
     subject: `PrintSync Admin Alert: Order #${order.id} Design Review`,
     text:
       `Order #${order.id} from ${customerName} is waiting ` +
@@ -822,7 +825,7 @@ async function notifyOutOfStockProducts(products) {
     `</p>`;
 
   return sendSystemEmail({
-    to: recipients.join(","),
+    to: recipients,
     subject: `PrintSync Inventory Alert: Out of Stock Items`,
     text: outOfStock
       .map(

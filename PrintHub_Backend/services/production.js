@@ -34,6 +34,46 @@ async function getRelevantProductionStatuses(userId) {
 }
 
 /**
+ * Resolves which raw materials an order item actually consumes.
+ * If the product has a materialUsageMap and the customer's selected
+ * material matches a key in it, use that branch (per-option consumption).
+ * Otherwise fall back to the product's flat substrate/ink/unit fields,
+ * so products without a materialUsageMap behave exactly as before.
+ */
+function resolveMaterialUsage(product, item) {
+  const selectedMaterial = item.customizations?.material?.label;
+
+  const mapEntries = product.materialUsageMap?.material?.[selectedMaterial];
+  if (Array.isArray(mapEntries) && mapEntries.length > 0) {
+    return mapEntries;
+  }
+
+  const fallback = [];
+  if (product.substrateMaterialName && product.substrateUsagePerUnit) {
+    fallback.push({
+      type: "substrate",
+      name: product.substrateMaterialName,
+      usagePerUnit: product.substrateUsagePerUnit,
+    });
+  }
+  if (product.inkColorChannel && product.inkUsagePerUnit) {
+    fallback.push({
+      type: "ink",
+      name: product.inkColorChannel,
+      usagePerUnit: product.inkUsagePerUnit,
+    });
+  }
+  if (product.unitMaterialName && product.unitUsagePerUnit) {
+    fallback.push({
+      type: "unit",
+      name: product.unitMaterialName,
+      usagePerUnit: product.unitUsagePerUnit,
+    });
+  }
+  return fallback;
+}
+
+/**
  * Decrements InventorySubstrate/InventoryInk for every order item whose
  * product has consumption rates set. Must run inside an existing $transaction.
  * Silently skips items whose product has no substrate/ink rate configured.
@@ -80,77 +120,70 @@ async function decrementMaterialsForOrder(tx, orderId) {
 
     const areaScale = getAreaScale(product);
 
-    if (product.substrateMaterialName && product.substrateUsagePerUnit) {
-      const amount = product.substrateUsagePerUnit * areaScale * item.quantity;
-      const updated = await tx.inventorySubstrate.updateMany({
-        where: { materialName: product.substrateMaterialName },
-        data: { stockMeters: { decrement: amount } },
-      });
+    const usageEntries = resolveMaterialUsage(product, item);
 
-      // Re-fetch to check the resulting level against its safety threshold
-      const current = await tx.inventorySubstrate.findUnique({
-        where: { materialName: product.substrateMaterialName },
-      });
-
-      results.push({
-        type: "substrate",
-        materialName: product.substrateMaterialName,
-        amount,
-        matched: updated.count,
-        remainingStock: current?.stockMeters ?? null,
-        safetyThreshold: current?.safetyThreshold ?? null,
-        belowThreshold: current
-          ? current.stockMeters <= current.safetyThreshold
-          : false,
-      });
-    }
-
-    if (product.inkColorChannel && product.inkUsagePerUnit) {
-      const amount = product.inkUsagePerUnit * areaScale * item.quantity;
-      const updated = await tx.inventoryInk.updateMany({
-        where: { colorChannel: product.inkColorChannel },
-        data: { volumeMl: { decrement: amount } },
-      });
-
-      const current = await tx.inventoryInk.findUnique({
-        where: { colorChannel: product.inkColorChannel },
-      });
-
-      results.push({
-        type: "ink",
-        colorChannel: product.inkColorChannel,
-        amount,
-        matched: updated.count,
-        remainingStock: current?.volumeMl ?? null,
-        safetyThreshold: current?.safetyThreshold ?? null,
-        belowThreshold: current
-          ? current.volumeMl <= current.safetyThreshold
-          : false,
-      });
-    }
-
-    if (product.unitMaterialName && product.unitUsagePerUnit) {
-      const amount = product.unitUsagePerUnit * item.quantity;
-      const updated = await tx.inventoryUnit.updateMany({
-        where: { itemName: product.unitMaterialName },
-        data: { stockUnits: { decrement: amount } },
-      });
-
-      const current = await tx.inventoryUnit.findUnique({
-        where: { itemName: product.unitMaterialName },
-      });
-
-      results.push({
-        type: "unit",
-        materialName: product.unitMaterialName,
-        amount,
-        matched: updated.count,
-        remainingStock: current?.stockUnits ?? null,
-        safetyThreshold: current?.safetyThreshold ?? null,
-        belowThreshold: current
-          ? current.stockUnits <= current.safetyThreshold
-          : false,
-      });
+    for (const entry of usageEntries) {
+      if (entry.type === "substrate") {
+        const amount = entry.usagePerUnit * areaScale * item.quantity;
+        const updated = await tx.inventorySubstrate.updateMany({
+          where: { materialName: entry.name },
+          data: { stockMeters: { decrement: amount } },
+        });
+        const current = await tx.inventorySubstrate.findUnique({
+          where: { materialName: entry.name },
+        });
+        results.push({
+          type: "substrate",
+          materialName: entry.name,
+          amount,
+          matched: updated.count,
+          remainingStock: current?.stockMeters ?? null,
+          safetyThreshold: current?.safetyThreshold ?? null,
+          belowThreshold: current
+            ? current.stockMeters <= current.safetyThreshold
+            : false,
+        });
+      } else if (entry.type === "ink") {
+        const amount = entry.usagePerUnit * areaScale * item.quantity;
+        const updated = await tx.inventoryInk.updateMany({
+          where: { colorChannel: entry.name },
+          data: { volumeMl: { decrement: amount } },
+        });
+        const current = await tx.inventoryInk.findUnique({
+          where: { colorChannel: entry.name },
+        });
+        results.push({
+          type: "ink",
+          colorChannel: entry.name,
+          amount,
+          matched: updated.count,
+          remainingStock: current?.volumeMl ?? null,
+          safetyThreshold: current?.safetyThreshold ?? null,
+          belowThreshold: current
+            ? current.volumeMl <= current.safetyThreshold
+            : false,
+        });
+      } else if (entry.type === "unit") {
+        const amount = entry.usagePerUnit * item.quantity;
+        const updated = await tx.inventoryUnit.updateMany({
+          where: { itemName: entry.name },
+          data: { stockUnits: { decrement: amount } },
+        });
+        const current = await tx.inventoryUnit.findUnique({
+          where: { itemName: entry.name },
+        });
+        results.push({
+          type: "unit",
+          materialName: entry.name,
+          amount,
+          matched: updated.count,
+          remainingStock: current?.stockUnits ?? null,
+          safetyThreshold: current?.safetyThreshold ?? null,
+          belowThreshold: current
+            ? current.stockUnits <= current.safetyThreshold
+            : false,
+        });
+      }
     }
   }
 

@@ -23,12 +23,13 @@ import { getZoneDimensions } from "../../utils/zoneDimensions";
 import "./TshirtCustomizer.css";
 
 export const ZONE_META = [
-  { id: "left_sleeve", label: "LEFT SLEEVE" },
-  { id: "right_sleeve", label: "RIGHT SLEEVE" },
-  { id: "left_side", label: "LEFT SIDE" },
-  { id: "right_side", label: "RIGHT SIDE" },
   { id: "front", label: "FRONT" },
   { id: "back", label: "BACK" },
+  { id: "left_sleeve", label: "LEFT SLEEVE" },
+  { id: "right_sleeve", label: "RIGHT SLEEVE" },
+  { id: "hood", label: "HOOD" },
+  { id: "left_side", label: "LEFT SIDE" },
+  { id: "right_side", label: "RIGHT SIDE" },
   { id: "outside", label: "OUTSIDE" },
   { id: "inside", label: "INSIDE" },
   { id: "front_cover", label: "FRONT COVER" },

@@ -1,3 +1,4 @@
+//AdminProducts
 import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -26,6 +27,8 @@ import {
 
 const CATEGORY_ZONES = {
   tshirt: ["front", "back", "left_sleeve", "right_sleeve"],
+  hoodie: ["front", "back", "left_sleeve", "right_sleeve", "hood"],
+  sweatshirt: ["front", "back", "left_sleeve", "right_sleeve"],
   jersey: ["front", "back", "left_sleeve", "right_sleeve"],
   jersery: ["front", "back", "left_sleeve", "right_sleeve"],
   cap: ["front", "back", "left_side", "right_side"],
@@ -51,6 +54,8 @@ const getCategoryZones = (category) =>
 const getCustomizerCategoryKey = (category) => {
   const norm = String(category || "").toLowerCase();
   if (norm === "tshirt" || norm === "t-shirts") return "T-shirts";
+  if (norm === "hoodie") return "Hoodie";
+  if (norm === "sweatshirt") return "Sweatshirt";
   if (norm === "jersey" || norm === "jersery") return "Jersey";
   if (norm === "cap" || norm === "hat") return "Cap";
   if (norm === "mug" || norm === "mugs") return "Mug";
@@ -83,6 +88,42 @@ const generateSideOptions = (category, zones) => {
       zones.includes("right_sleeve")
     ) {
       options.push("Full Body Wrap");
+    }
+  } else if (norm === "sweatshirt") {
+    if (zones.includes("front")) options.push("Front Center");
+    if (zones.includes("back")) options.push("Back");
+    if (zones.includes("front") && zones.includes("back")) {
+      options.push("Front & Back");
+    }
+    if (zones.includes("left_sleeve") || zones.includes("right_sleeve")) {
+      options.push("Sleeve");
+    }
+    if (
+      zones.includes("front") &&
+      zones.includes("back") &&
+      zones.includes("left_sleeve") &&
+      zones.includes("right_sleeve")
+    ) {
+      options.push("All Sides");
+    }
+  } else if (norm === "hoodie") {
+    if (zones.includes("front")) options.push("Front Center");
+    if (zones.includes("back")) options.push("Back");
+    if (zones.includes("front") && zones.includes("back")) {
+      options.push("Front & Back");
+    }
+    if (zones.includes("left_sleeve") || zones.includes("right_sleeve")) {
+      options.push("Sleeve");
+    }
+    if (zones.includes("hood")) options.push("Hood");
+    if (
+      zones.includes("front") &&
+      zones.includes("back") &&
+      zones.includes("left_sleeve") &&
+      zones.includes("right_sleeve") &&
+      zones.includes("hood")
+    ) {
+      options.push("All Sides");
     }
   } else if (norm === "jersey" || norm === "jersery") {
     if (zones.includes("front")) options.push("Front");
@@ -900,15 +941,17 @@ function AdminProducts({
 
     const categoryMap = {
       "T-shirts": "tshirt",
-      Jersey: "jersey",
-      Cap: "cap",
-      Mug: "mug",
-      Notebook: "notebook",
+      "Hoodie": "hoodie",
+      "Sweatshirt": "sweatshirt",
+      "Jersey": "jersey",
+      "Cap": "cap",
+      "Mug": "mug",
+      "Notebook": "notebook",
       "Business Card": "calling_card",
-      Banners: "banners",
+      "Banners": "banners",
       "Stickers & Labels": "stickers",
       "Hang Tags": "hang_tags",
-      Brochures: "brochures",
+      "Brochures": "brochures",
     };
     const dbCategory = categoryMap[categoryName] || "other";
     const newSides = customizerZones
@@ -1717,6 +1760,9 @@ function AdminProducts({
                           >
                             <option value="offset">Offset Print</option>
                             <option value="digital">Digital Print</option>
+                            <option value="screen-print">Screen Print</option>
+                            <option value="embroidery">Embroidery</option>
+                            <option value="large-format">Large Format</option>
                             <option value="service">Service</option>
                           </select>
                         </div>
@@ -1749,9 +1795,10 @@ function AdminProducts({
                             }}
                           >
                             <option value="tshirt">T-shirts</option>
+                            <option value="hoodie">Hoodie</option>
+                            <option value="sweatshirt">Sweatshirt</option>
                             <option value="jersery">Jersey</option>
                             <option value="cap">Cap</option>
-                            <option value="mugs">Mugs</option>
                             <option value="notebook">Notebook</option>
                             <option value="calling_card">Business Card</option>
                             <option value="banners">Banners</option>

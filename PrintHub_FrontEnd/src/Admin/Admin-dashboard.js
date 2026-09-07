@@ -1,3 +1,4 @@
+// Admin-dashboard
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
@@ -7,7 +8,7 @@ import AdminProductionCalendar from "./AdminProductionCalendar";
 import AdminProfile from "./AdminProfile";
 import EditAdminProfile from "./EditAdminProfile";
 import AdminManageAccounts from "./Admin-manageacc";
-import AdminOrders from "./AdminOrders";
+// import AdminOrders from "./AdminOrders";
 import AdminInquiries from "./AdminInquiries";
 import AdminProducts from "./AdminProducts";
 import AdminActivityLog from "./AdminActivityLog";
@@ -581,12 +582,12 @@ function AdminDashboard() {
         label: "MAIN",
         items: [
           { id: "dashboard", label: "Dashboard", icon: <FaTachometerAlt /> },
-          {
-            id: "orders",
-            label: "Orders",
-            icon: <FaShoppingBag />,
-            badge: dashStats.totalOrders || null,
-          },
+          // {
+          //   id: "orders",
+          //   label: "Orders",
+          //   icon: <FaShoppingBag />,
+          //   badge: dashStats.totalOrders || null,
+          // },
           {
             id: "quotations",
             label: "Quotations",
@@ -2720,7 +2721,7 @@ function AdminDashboard() {
           )}
 
           {/* Orders — real component */}
-          {activeItem === "orders" && <AdminOrders />}
+          {/* {activeItem === "orders" && <AdminOrders />} */}
 
           {activeItem === "calendar" && <AdminProductionCalendar />}
           {activeItem === "activity" && <AdminActivityLog />}
