@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { FaHistory } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 
@@ -16,7 +16,50 @@ const MODULE_LABELS = {
   products: "Products",
   users: "Manage Accounts",
   inquiries: "Inquiries",
+  inventory: "Inventory",
   auth: "Authentication",
+};
+
+// Maps each filter dropdown value to the set of substrings that should count
+// as a match against a log's raw `module`/`action` string. The backend
+// writes a wider variety of literal action strings (e.g. "stock_added",
+// "requisition_status_changed", "staff_role_granted") than the dropdown has
+// options for, so matching is substring-based rather than exact-equality —
+// that's what lets "Status Changed" also catch "requisition_status_changed",
+// "Restored" catch a differently-cased/spaced variant, etc.
+const MODULE_FILTER_MATCHERS = {
+  orders: ["order"],
+  products: ["product"],
+  users: ["user", "account", "staff"],
+  inquiries: ["inquir", "support"],
+  inventory: ["inventor", "requisition", "material", "stock"],
+  auth: ["auth", "login", "logged", "session"],
+};
+
+const ACTION_FILTER_MATCHERS = {
+  created: ["create", "add"],
+  updated: ["update", "edit"],
+  deleted: ["delete", "remove"],
+  status_changed: ["status", "change"],
+  restored: ["restor", "recover"],
+  logged_in: ["login", "logged", "signed_in", "sign_in"],
+};
+
+// Case-insensitive substring test against a normalized (lowercased,
+// underscores/hyphens turned into spaces) copy of the raw value, so
+// "Logged In" filters match "logged_in", "logged-in", "LOGIN", etc.
+const normalize = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .trim();
+
+const matchesFilter = (rawValue, filterValue, matchers) => {
+  if (!filterValue) return true; // "All" — ignore this filter entirely
+  const normalizedValue = normalize(rawValue);
+  const normalizedFilter = normalize(filterValue);
+  const substrings = matchers[filterValue] || [normalizedFilter];
+  return substrings.some((s) => normalizedValue.includes(normalize(s)));
 };
 
 function AdminActivityLog() {
@@ -35,15 +78,24 @@ function AdminActivityLog() {
     to: "",
   });
 
+  // Module/Action matching now happens client-side (below), since the
+  // backend only exact-matches its raw action/module strings and those
+  // don't line up 1:1 with the dropdown's canonical values. When either
+  // filter is active we fetch a much larger batch for that date range so
+  // there's a meaningful pool to filter against, instead of narrowing an
+  // already-tiny 25-row page down to nothing.
+  const hasModuleOrActionFilter = Boolean(filters.module || filters.action);
+  const FILTER_FETCH_LIMIT = 1000;
+
   const fetchLogs = useCallback(
     async (page = 1) => {
       setLoading(true);
       try {
         const params = new URLSearchParams({
-          page: String(page),
-          limit: String(pagination.limit),
-          ...(filters.module && { module: filters.module }),
-          ...(filters.action && { action: filters.action }),
+          page: String(hasModuleOrActionFilter ? 1 : page),
+          limit: String(
+            hasModuleOrActionFilter ? FILTER_FETCH_LIMIT : pagination.limit,
+          ),
           ...(filters.from && { from: filters.from }),
           ...(filters.to && { to: filters.to }),
         });
@@ -61,7 +113,7 @@ function AdminActivityLog() {
         setLoading(false);
       }
     },
-    [filters, pagination.limit],
+    [filters, pagination.limit, hasModuleOrActionFilter],
   );
 
   useEffect(() => {
@@ -83,6 +135,24 @@ function AdminActivityLog() {
 
   const hasActiveFilters =
     filters.module || filters.action || filters.from || filters.to;
+
+  // Case-insensitive, substring-based AND match on Module + Action; either
+  // side is skipped entirely when its filter is "All" (empty string).
+  const filteredLogs = useMemo(() => {
+    return logs.filter((log) => {
+      const matchesModule = matchesFilter(
+        log.module,
+        filters.module,
+        MODULE_FILTER_MATCHERS,
+      );
+      const matchesAction = matchesFilter(
+        log.action,
+        filters.action,
+        ACTION_FILTER_MATCHERS,
+      );
+      return matchesModule && matchesAction;
+    });
+  }, [logs, filters.module, filters.action]);
 
   return (
     <div className="activity-log-page">
@@ -118,6 +188,7 @@ function AdminActivityLog() {
                 <option value="products">Products</option>
                 <option value="users">Manage Accounts</option>
                 <option value="inquiries">Inquiries</option>
+                <option value="inventory">Inventory</option>
                 <option value="auth">Authentication</option>
               </select>
             </div>
@@ -196,14 +267,16 @@ function AdminActivityLog() {
                     Loading...
                   </td>
                 </tr>
-              ) : logs.length === 0 ? (
+              ) : filteredLogs.length === 0 ? (
                 <tr>
                   <td className="empty-row" colSpan={7}>
-                    No activity recorded yet
+                    {hasActiveFilters
+                      ? "No activity matches the selected filters"
+                      : "No activity recorded yet"}
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
+                filteredLogs.map((log) => (
                   <tr key={log.id}>
                     <td>{log.userName || "Unknown"}</td>
                     <td>{log.userEmail || "—"}</td>
@@ -221,7 +294,7 @@ function AdminActivityLog() {
           </table>
         </div>
 
-        {pagination.pages > 1 && (
+        {!hasModuleOrActionFilter && pagination.pages > 1 && (
           <div
             style={{
               display: "flex",
