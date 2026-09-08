@@ -1,3 +1,4 @@
+//PaperPreview3D.js
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -10,7 +11,7 @@ const FRONT_MESH = "FRONT";
 const ZONE_UV = { uMin: 0, uMax: 1, vMin: 0, vMax: 1 };
 const CANVAS_W = 2048;
 const CANVAS_H = 1170; // business-card proportions, 3.5 x 2
-
+const DEFAULT_MODEL_PATH = "/models/paper.glb";
 function drawTextLayer(ctx, t, zoneW, zoneH) {
   const boxX = (t.x / 100) * zoneW;
   const boxY = (t.y / 100) * zoneH;
