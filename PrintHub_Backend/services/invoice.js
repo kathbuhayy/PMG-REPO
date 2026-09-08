@@ -109,20 +109,58 @@ function generateInvoicePdf(order) {
       doc.font("Helvetica").fontSize(10);
 
       receipt.items.forEach((item, i) => {
-        const rowHeight = item.customizationLabel ? 32 : 22;
+        // Build a one-line pricing breakdown (setup fee / material cost /
+        // bulk discount) whenever this item has pricingBreakdown data —
+        // older orders placed before this feature simply won't have it,
+        // and the line is omitted entirely for them.
+        const breakdownParts = [];
+        if (item.setupFee != null) {
+          breakdownParts.push(`Setup ${money(item.setupFee)}`);
+        }
+        if (item.materialCost && item.materialCost.length > 0) {
+          const materialTotal = item.materialCost.reduce(
+            (sum, m) => sum + (m.lineCost || 0),
+            0
+          );
+          if (item.marginMultiplier != null) {
+            breakdownParts.push(
+              `Material ${money(materialTotal)} x${item.marginMultiplier}`
+            );
+          } else {
+            breakdownParts.push(`Material ${money(materialTotal)}`);
+          }
+        }
+        if (item.quantityDiscountFactor != null && item.quantityDiscountFactor < 1) {
+          const pct = Math.round((1 - item.quantityDiscountFactor) * 100);
+          breakdownParts.push(`Bulk discount -${pct}%`);
+        }
+        const breakdownLabel = breakdownParts.join("  ·  ");
+
+        const lineCount =
+          (item.customizationLabel ? 1 : 0) + (breakdownLabel ? 1 : 0);
+        const rowHeight = 22 + lineCount * 11;
 
         if (i % 2 === 0) {
           doc.fillColor("#f8fafc").rect(50, y, 495, rowHeight).fill();
         }
 
         doc.fillColor("#0f172a").text(item.productName, 60, y + 6, { width: 250 });
+
+        let detailY = y + 18;
         if (item.customizationLabel) {
           doc
             .fillColor("#94a3b8")
             .fontSize(8)
-            .text(item.customizationLabel, 60, y + 18, { width: 250 });
-          doc.fontSize(10);
+            .text(item.customizationLabel, 60, detailY, { width: 250 });
+          detailY += 11;
         }
+        if (breakdownLabel) {
+          doc
+            .fillColor("#94a3b8")
+            .fontSize(8)
+            .text(breakdownLabel, 60, detailY, { width: 320 });
+        }
+        doc.fontSize(10);
 
         doc
           .fillColor("#0f172a")

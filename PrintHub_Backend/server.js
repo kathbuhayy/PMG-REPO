@@ -11,7 +11,7 @@ const multer = require("multer");
 const supabase = require("./db/supabase");
 const mockupRoutes = require("./routes/mockup");
 const { generateImage } = require("./services/falai");
-
+const { computeItemPrice } = require("./services/pricingEngine");
 const { 
   logActivity, 
   identifyActor, 
@@ -1209,15 +1209,46 @@ app.post("/api/orders", async (req, res) => {
 
     let itemsTotal = 0;
 
-    // Validate submitted unitPrice against product DB price to prevent spoofing
+    // Validate submitted unitPrice against the same live-pricing formula
+    // used by /estimate-price, so a customer can't submit an arbitrarily
+    // low price by tampering with the frontend calculation.
+    const [substratesForCheck, inksForCheck, unitsForCheck] = await Promise.all([
+      prisma.inventorySubstrate.findMany({
+        select: { materialName: true, costPerMeter: true },
+      }),
+      prisma.inventoryInk.findMany({
+        select: { colorChannel: true, costPerMl: true },
+      }),
+      prisma.inventoryUnit.findMany({
+        select: { itemName: true, costPerUnit: true },
+      }),
+    ]);
+    const materialCostsForCheck = {};
+    substratesForCheck.forEach((s) => {
+      materialCostsForCheck[s.materialName] = s.costPerMeter;
+    });
+    inksForCheck.forEach((i) => {
+      materialCostsForCheck[i.colorChannel] = i.costPerMl;
+    });
+    unitsForCheck.forEach((u) => {
+      materialCostsForCheck[u.itemName] = u.costPerUnit;
+    });
+
     for (const it of items) {
       const product = productMap.get(it.productId);
       const submittedUnit = parseFloat(it.unitPrice || 0);
-      const dbPrice = parseFloat(product.price || 0);
 
-      // Allow unitPrice >= 50% of DB price (accommodates bulk batch
-      // discounts, material surcharges, and rounding)
-      if (dbPrice > 0 && submittedUnit < dbPrice * 0.5) {
+      const expected = computeItemPrice(
+        product,
+        it.customizations || {},
+        materialCostsForCheck,
+        it.quantity || 1,
+      );
+
+      // Allow unitPrice >= 80% of the expected formula price — a tighter
+      // tolerance than the old flat 50%, since this formula is now the
+      // actual source of truth rather than a rough approximation.
+      if (submittedUnit < expected.unitPrice * 0.8) {
         return res.status(400).json({
           message:
             `Price mismatch for "${product.name}". ` +
@@ -1246,6 +1277,12 @@ app.post("/api/orders", async (req, res) => {
           ...(it.customizations || {}),
           // Preserve any imageUrl provided by frontend
           ...(it.imageUrl ? { imageUrl: it.imageUrl } : {}),
+          pricingBreakdown: computeItemPrice(
+            productMap.get(it.productId),
+            it.customizations || {},
+            materialCostsForCheck,
+            it.quantity || 1,
+          ),
         },
       };
     });
@@ -1903,6 +1940,7 @@ app.patch("/api/user/:id/cart/:itemId", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const itemId = parseInt(req.params.itemId, 10);
   const qty = Math.floor(Number(req.body?.qty || 0));
+  const price = req.body?.price;
 
   if (!userId || !itemId) {
     return res.status(400).json({ message: "Invalid cart item" });
@@ -1924,7 +1962,14 @@ app.patch("/api/user/:id/cart/:itemId", async (req, res) => {
 
     const item = await prisma.cartItem.update({
       where: { id: existing.id },
-      data: { qty },
+      data: {
+        qty,
+        // Only updates price when the client sends a fresh formula
+        // estimate (e.g. after a quantity change triggers re-pricing in
+        // CartContext.js) — omitting it here leaves the stored price
+        // untouched, so a plain qty-only PATCH still behaves as before.
+        ...(price != null && !isNaN(Number(price)) && { price: Number(price) }),
+      },
       include: { product: { select: { id: true, name: true, images: true } } },
     });
 
@@ -2730,6 +2775,7 @@ app.get("/api/admin/inventory", async (req, res) => {
         stock: s.stockMeters,
         safetyThreshold: s.safetyThreshold,
         belowThreshold: s.stockMeters <= s.safetyThreshold,
+        cost: s.costPerMeter,
       })),
       ...inks.map((i) => ({
         id: `ink-${i.id}`,
@@ -2739,6 +2785,7 @@ app.get("/api/admin/inventory", async (req, res) => {
         stock: i.volumeMl,
         safetyThreshold: i.safetyThreshold,
         belowThreshold: i.volumeMl <= i.safetyThreshold,
+        cost: i.costPerMl,
       })),
       ...units.map((u) => ({
         id: `unit-${u.id}`,
@@ -2748,6 +2795,7 @@ app.get("/api/admin/inventory", async (req, res) => {
         stock: u.stockUnits,
         safetyThreshold: u.safetyThreshold,
         belowThreshold: u.stockUnits <= u.safetyThreshold,
+        cost: u.costPerUnit,
       })),
     ];
 
@@ -3330,6 +3378,60 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
+// POST /api/products/:id/estimate-price — live design-based price quote.
+// Called repeatedly by the frontend as the customer edits their design,
+// so this must stay fast and read-only (no writes, no inventory decrement).
+app.post("/api/products/:id/estimate-price", async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const { customizations, quantity } = req.body || {};
+
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!product || product.deleted_at) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Gather cost-per-unit for every material this product could touch,
+    // in one batch, so computeItemPrice never needs its own DB access.
+    const [substrates, inks, units] = await Promise.all([
+      prisma.inventorySubstrate.findMany({
+        select: { materialName: true, costPerMeter: true },
+      }),
+      prisma.inventoryInk.findMany({
+        select: { colorChannel: true, costPerMl: true },
+      }),
+      prisma.inventoryUnit.findMany({
+        select: { itemName: true, costPerUnit: true },
+      }),
+    ]);
+
+    const materialCosts = {};
+    substrates.forEach((s) => {
+      materialCosts[s.materialName] = s.costPerMeter;
+    });
+    inks.forEach((i) => {
+      materialCosts[i.colorChannel] = i.costPerMl;
+    });
+    units.forEach((u) => {
+      materialCosts[u.itemName] = u.costPerUnit;
+    });
+
+    const result = computeItemPrice(
+      product,
+      customizations || {},
+      materialCosts,
+      quantity,
+    );
+
+    res.json(result);
+  } catch (e) {
+    console.error("Price estimate error:", e.message);
+    res.status(500).json({ message: "Failed to estimate price" });
+  }
+});
+
 // GET low-stock products (admin dashboard)
 app.get("/api/admin/low-stock", async (req, res) => {
   try {
@@ -3509,6 +3611,7 @@ app.put("/api/products/:id", async (req, res) => {
       inkColorChannel,
       inkUsagePerUnit,
       mockupViews,
+      setupFee,
     } = req.body;
 
     const product = await prisma.product.update({
@@ -3563,6 +3666,9 @@ app.put("/api/products/:id", async (req, res) => {
         ...(inkColorChannel !== undefined && { inkColorChannel: inkColorChannel || null }),
         ...(inkUsagePerUnit !== undefined && {
           inkUsagePerUnit: inkUsagePerUnit ? parseFloat(inkUsagePerUnit) : null,
+        }),
+        ...(setupFee !== undefined && {
+          setupFee: setupFee === "" || setupFee == null ? null : parseFloat(setupFee),
         }),
         ...(mockupViews !== undefined && { mockupViews }),
       },

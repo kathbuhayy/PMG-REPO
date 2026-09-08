@@ -480,8 +480,7 @@ export const CATEGORY_DEFAULTS = {
     "side_options": [
       "Front",
       "Back",
-      "Front & Back",
-      "All Sides"
+      "Front & Back"
     ],
     "finishing_options": [
       "None",
@@ -709,8 +708,6 @@ export const CUSTOMIZER_ZONES = {
   "Jersey": [
     { id: "front", label: "Front", sideOption: "Front" },
     { id: "back", label: "Back", sideOption: "Back" },
-    { id: "left_sleeve", label: "Left Sleeve", sideOption: "Sleeve (Left)" },
-    { id: "right_sleeve", label: "Right Sleeve", sideOption: "Sleeve (Right)" },
   ],
   "Hoodie": [
   { id: "front", label: "Front Center", sideOption: "Front Center" },

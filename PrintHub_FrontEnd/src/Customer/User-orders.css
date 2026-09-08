@@ -1321,6 +1321,27 @@
     font-size: 13px;
   }
   
+  .uo-receipt-items .uo-receipt-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 6px 0;
+}
+
+.uo-receipt-items .uo-receipt-item-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+}
+
+.uo-receipt-items .uo-receipt-item-breakdown {
+  display: block;
+  padding: 2px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+  
   .uo-mock-email {
     margin-top: 16px;
     padding: 12px;

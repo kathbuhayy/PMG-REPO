@@ -186,6 +186,7 @@ async function decrementMaterialsForOrder(tx, orderId) {
     const product = item.product;
     if (!product) continue;
 
+    const areaScale = getAreaScale(product);
     const designScale = computeDesignAreaScale(item, product);
     const itemBreakdown = [];
 
@@ -368,4 +369,6 @@ module.exports = {
   decrementMaterialsForOrder,
   createRequisitionsFromAlerts,
   getRelevantProductionStatuses,
+  resolveMaterialUsage,
+  computeDesignAreaScale,
 };

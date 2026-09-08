@@ -1914,26 +1914,44 @@ function UserOrders() {
             </p>
 
             <div className="uo-receipt-items">
-              {(receipt.items ||
-                []).map((item) => (
-                <div key={item.id}>
-                  <span>
-                    {
-                      item.productName
-                    }{" "}
-                    x{" "}
-                    {
-                      item.quantity
-                    }
-                  </span>
+              {(receipt.items || []).map((item) => {
+                const breakdownParts = [];
+                if (item.setupFee != null) {
+                  breakdownParts.push(`Setup ${formatCurrency(item.setupFee)}`);
+                }
+                if (item.materialCost && item.materialCost.length > 0) {
+                  const materialTotal = item.materialCost.reduce(
+                    (sum, m) => sum + (m.lineCost || 0),
+                    0
+                  );
+                  breakdownParts.push(`Material ${formatCurrency(materialTotal)}`);
+                }
+                if (
+                  item.quantityDiscountFactor != null &&
+                  item.quantityDiscountFactor < 1
+                ) {
+                  const pct = Math.round((1 - item.quantityDiscountFactor) * 100);
+                  breakdownParts.push(`Bulk discount -${pct}%`);
+                }
 
-                  <strong>
-                    {formatCurrency(
-                      item.totalPrice
+                return (
+                  <div key={item.id} className="uo-receipt-item">
+                    <div className="uo-receipt-item-main">
+                      <span>
+                        {item.productName} x {item.quantity}
+                      </span>
+
+                      <strong>{formatCurrency(item.totalPrice)}</strong>
+                    </div>
+
+                    {breakdownParts.length > 0 && (
+                      <div className="uo-receipt-item-breakdown">
+                        {breakdownParts.join("  ·  ")}
+                      </div>
                     )}
-                  </strong>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="uo-receipt-total">

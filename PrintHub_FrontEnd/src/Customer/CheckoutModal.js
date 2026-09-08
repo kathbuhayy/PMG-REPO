@@ -52,6 +52,7 @@ function CheckoutModal({
   const [step, setStep] = useState("address");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [itemBreakdowns, setItemBreakdowns] = useState({});
 
   const [formData, setFormData] = useState({
     region: "",
@@ -67,6 +68,48 @@ function CheckoutModal({
     billing_street: "",
     sameAddress: true,
   });
+
+  // Fetch a live pricing breakdown (setup fee / material cost / bulk
+  // discount) per cart item once the Review step is reached, so the
+  // customer sees exactly what they're being charged for before paying.
+  useEffect(() => {
+    if (step !== "review" || !cartItems?.length) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const results = {};
+      await Promise.all(
+        cartItems.map(async (item) => {
+          if (!item.productId) return;
+          try {
+            const res = await fetch(
+              buildApiUrl(`/api/products/${item.productId}/estimate-price`),
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  customizations: item.customizations || {},
+                  quantity: item.qty,
+                }),
+              },
+            );
+            if (res.ok) {
+              const data = await res.json();
+              results[item.id] = data;
+            }
+          } catch (e) {
+            console.error("Failed to fetch breakdown for item", item.id, e);
+          }
+        }),
+      );
+      if (!cancelled) setItemBreakdowns(results);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step, cartItems]);
 
   const [orderData, setOrderData] = useState(null);
 
@@ -739,17 +782,44 @@ function CheckoutModal({
             <div className="checkout-review">
               <div className="review-section">
                 <h3>Order Items</h3>
-                {cartItems.map((item) => (
-                  <div key={item.id} className="review-item">
-                    <div className="review-item-name">
-                      {item.title}{" "}
-                      <span className="review-qty">x{item.qty}</span>
+                {cartItems.map((item) => {
+                  const breakdown = itemBreakdowns[item.id];
+                  const parts = [];
+                  if (breakdown?.setupFee != null) {
+                    parts.push(`Setup ${formatPeso(breakdown.setupFee)}`);
+                  }
+                  if (breakdown?.markedUpMaterialCost != null) {
+                    parts.push(
+                      `Material ${formatPeso(breakdown.markedUpMaterialCost)}`,
+                    );
+                  }
+                  if (
+                    breakdown?.quantityDiscountFactor != null &&
+                    breakdown.quantityDiscountFactor < 1
+                  ) {
+                    const pct = Math.round(
+                      (1 - breakdown.quantityDiscountFactor) * 100,
+                    );
+                    parts.push(`Bulk discount -${pct}%`);
+                  }
+
+                  return (
+                    <div key={item.id} className="review-item">
+                      <div className="review-item-name">
+                        {item.title}{" "}
+                        <span className="review-qty">x{item.qty}</span>
+                        {parts.length > 0 && (
+                          <div className="review-item-breakdown">
+                            {parts.join("  ·  ")}
+                          </div>
+                        )}
+                      </div>
+                      <div className="review-item-price">
+                        {formatPeso(item.price * item.qty)}
+                      </div>
                     </div>
-                    <div className="review-item-price">
-                      {formatPeso(item.price * item.qty)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="review-divider" />

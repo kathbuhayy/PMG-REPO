@@ -1,3 +1,4 @@
+//Product-detail.js
 import React, {
   useCallback,
   useEffect,
@@ -83,8 +84,8 @@ const DEFAULT_PRODUCT_ZONES = {
   hoodie: ["front", "back", "left_sleeve", "right_sleeve", "hood"],
   tshirt: ["front", "back", "left_sleeve", "right_sleeve"],
   sweatshirt: ["front", "back", "left_sleeve", "right_sleeve"],
-  jersey: ["front", "back", "left_sleeve", "right_sleeve"],
-  jersery: ["front", "back", "left_sleeve", "right_sleeve"],
+  jersey: ["front", "back"],
+  jersery: ["front", "back"],
   cap: ["front", "back", "left_side", "right_side"],
   mug: ["front", "back"],
   calling_card: ["front", "back"],
@@ -467,7 +468,7 @@ function ProductDetail() {
       getSessionValue(
         id,
         "customQty",
-        "",
+        "1",
       ),
     );
 
@@ -477,7 +478,6 @@ function ProductDetail() {
     title: product.title,
     price: grandTotal,
     size: selectedSize,
-    sizeSurcharge,
     color: selectedColor || "",
     material: {
       label:
@@ -1337,56 +1337,15 @@ function ProductDetail() {
     product,
   ]);
 
-  const materialSurcharge =
-    useMemo(
-      () =>
-        extractNumericPrice(
-          selectedMaterial?.price,
-        ),
-      [selectedMaterial],
-    );
+  const [priceEstimate, setPriceEstimate] = useState(null);
+  const [priceEstimateLoading, setPriceEstimateLoading] = useState(false);
 
-  const sizeSurcharge =
-    useMemo(
-      () =>
-        getSizeSurcharge(
-          selectedSize,
-        ),
-      [selectedSize],
-    );
+  const subtotal = useMemo(
+    () => priceEstimate?.grandTotal ?? 0,
+    [priceEstimate],
+  );
 
-  const quantityPrice =
-    useMemo(
-      () =>
-        extractNumericPrice(
-          selectedQty?.price,
-        ),
-      [selectedQty],
-    );
-
-  const subtotal =
-    useMemo(
-      () =>
-        selectedQty
-          ? quantityPrice +
-          materialSurcharge +
-          sizeSurcharge
-          : 0,
-      [
-        selectedQty,
-        quantityPrice,
-        materialSurcharge,
-        sizeSurcharge,
-      ],
-    );
-
-  // Rush order removed.
-  // Grand total is now simply the normal subtotal.
-  const grandTotal =
-    useMemo(
-      () => subtotal,
-      [subtotal],
-    );
+  const grandTotal = useMemo(() => subtotal, [subtotal]);
 
   const selectedQuantityNumber =
     useMemo(() => {
@@ -1421,6 +1380,55 @@ function ProductDetail() {
       customQty,
       selectedQty,
     ]);
+
+  // Live price: debounced call to /estimate-price whenever anything that
+  // affects the formula changes (design, material, size, quantity).
+  useEffect(() => {
+    if (!product?.id || !selectedQuantityNumber) {
+      setPriceEstimate(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPriceEstimateLoading(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          buildApiUrl(`/api/products/${product.id}/estimate-price`),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customizations: {
+                design: activeDesign,
+                size: selectedSize,
+                material: selectedMaterial,
+              },
+              quantity: selectedQuantityNumber,
+            }),
+          },
+        );
+        const data = await res.json();
+        if (!cancelled && res.ok) setPriceEstimate(data);
+      } catch {
+        // Non-fatal — price card falls back to showing product.price below.
+      } finally {
+        if (!cancelled) setPriceEstimateLoading(false);
+      }
+    }, 400); // debounce: wait for rapid edits (dragging/resizing) to settle
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    product?.id,
+    activeDesign,
+    selectedSize,
+    selectedMaterial,
+    selectedQuantityNumber,
+  ]);
 
   const exceedsBulkThreshold =
     useMemo(() => {
@@ -1713,7 +1721,6 @@ function ProductDetail() {
                     quoteForm.other,
                   design_data:
                     designData,
-                  sizeSurcharge,
                 },
               ),
             },
@@ -1833,7 +1840,6 @@ function ProductDetail() {
           grandTotal,
         size:
           selectedSize,
-        sizeSurcharge,
         color:
           selectedColor ||
           "",
@@ -1910,6 +1916,8 @@ function ProductDetail() {
       setActiveDesign(
         null,
       );
+
+      setPriceEstimate(null);
 
       clearWip();
     };
@@ -3350,7 +3358,7 @@ function ProductDetail() {
                         )
                       }
                     >
-                      Start Designing
+                      {activeDesign ? "Edit Your Design" : "Start Designing"}
                     </button>
 
                   </div>
@@ -3359,6 +3367,60 @@ function ProductDetail() {
               {/* TOTAL CARD */}
               <div className="pd-pmg-total-card">
 
+                {priceEstimate && !priceEstimateLoading && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                      padding: "12px 14px",
+                      marginBottom: 10,
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      color: "#475569",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>Setup fee</span>
+                      <span>{formatPrice(priceEstimate.setupFee)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>Material cost (design size)</span>
+                      <span>{formatPrice(priceEstimate.markedUpMaterialCost)}</span>
+                    </div>
+                    {priceEstimate.quantityDiscountFactor < 1 && (
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          color: "#059669",
+                        }}
+                      >
+                        <span>Bulk discount</span>
+                        <span>
+                          -{Math.round((1 - priceEstimate.quantityDiscountFactor) * 100)}%
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        borderTop: "1px solid #e2e8f0",
+                        paddingTop: 6,
+                        marginTop: 2,
+                        fontWeight: 600,
+                        color: "#1e293b",
+                      }}
+                    >
+                      <span>Per unit × {priceEstimate.quantity}</span>
+                      <span>{formatPrice(priceEstimate.unitPrice)}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pd-pmg-total-heading">
 
                   <span>
@@ -3366,16 +3428,13 @@ function ProductDetail() {
                   </span>
 
                   <strong>
-                    {grandTotal >
-                      0
-                      ? formatPrice(
-                        grandTotal,
-                      )
-                      : formatPrice(
-                        extractNumericPrice(
-                          product.price,
-                        ),
-                      )}
+                    {priceEstimateLoading && (
+                      <span style={{ opacity: 0.5 }}>Calculating…</span>
+                    )}
+                    {!priceEstimateLoading &&
+                      (grandTotal > 0
+                        ? formatPrice(grandTotal)
+                        : formatPrice(extractNumericPrice(product.price)))}
                   </strong>
 
                 </div>
