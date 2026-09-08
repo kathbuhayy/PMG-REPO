@@ -10,7 +10,8 @@ const bcrypt = require("bcrypt");
 const multer = require("multer");
 const supabase = require("./db/supabase");
 const mockupRoutes = require("./routes/mockup");
-const { generateImage } = require("./services/falai");
+const { generateImage: generateFalImage } = require("./services/falai");
+const { generateWithCloudflare } = require("./services/cloudflareAI");
 const { computeItemPrice } = require("./services/pricingEngine");
 const { 
   logActivity, 
@@ -4756,53 +4757,102 @@ app.use((err, req, res, next) => {
 });
 
 // POST /api/builder/generate-image — generate a 2D design image via fal.ai and store in Supabase
+// POST /api/builder/generate-image — generate a 2D design image
 app.post("/api/builder/generate-image", async (req, res) => {
   const userId = getUserId(req);
+
   const rawOwner = userId
     ? String(userId)
     : req.headers["x-forwarded-for"] || req.ip || "guest";
-  const ownerKey = String(rawOwner).replace(/[^a-zA-Z0-9_-]/g, "_");
+
+  const ownerKey = String(rawOwner).replace(
+    /[^a-zA-Z0-9_-]/g,
+    "_"
+  );
 
   const { prompt, imageSize } = req.body;
-  if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0)
-    return res.status(400).json({ message: "prompt is required" });
-  if (prompt.trim().length > 2000)
-    return res
-      .status(400)
-      .json({ message: "prompt must be 2000 characters or fewer" });
 
-  // Per-user cooldown (shared with 3D generation)
+  if (
+    !prompt ||
+    typeof prompt !== "string" ||
+    prompt.trim().length === 0
+  ) {
+    return res.status(400).json({
+      message: "prompt is required",
+    });
+  }
+
+  if (prompt.trim().length > 2000) {
+    return res.status(400).json({
+      message: "prompt must be 2000 characters or fewer",
+    });
+  }
+
+  // Per-user cooldown
   const now = Date.now();
   const last = generationCooldown[ownerKey] || 0;
-  const remaining = GENERATION_COOLDOWN_MS - (now - last);
+  const remaining =
+    GENERATION_COOLDOWN_MS - (now - last);
+
   if (remaining > 0) {
     return res.status(429).json({
-      message: `Please wait ${Math.ceil(remaining / 1000)} seconds before generating again`,
+      message:
+        `Please wait ${Math.ceil(remaining / 1000)} ` +
+        `seconds before generating again`,
       retryAfterMs: remaining,
     });
   }
+
   generationCooldown[ownerKey] = now;
 
   try {
     console.log(
-      `🎨 Builder generate-image (2D): owner=${ownerKey}${userId ? ` (userId=${userId})` : " (guest)"}, prompt="${prompt.slice(0, 80)}..."`,
+      `🎨 Builder generate-image (2D): owner=${ownerKey}` +
+        `${userId ? ` (userId=${userId})` : " (guest)"}, ` +
+        `prompt="${prompt.slice(0, 80)}..."`
     );
 
-    // Append system-level prompt guidelines to avoid copyrighted content
-    // and guide the generation to a transparent/white background graphic.
+    // PMG print-design guidelines
     const guidelines =
-      "flat vector graphic design, isolated subject on transparent " +
-      "or white background, no copyrighted characters, no trademarked logos, " +
-      "print-ready artwork, high contrast, clean edges";
+      "flat vector graphic design, isolated main subject, " +
+      "clean centered artwork, print-ready artwork, " +
+      "high contrast, clean edges, no copyrighted characters, " +
+      "no trademarked logos";
 
-    const finalPrompt = `${prompt.trim()}, ${guidelines}`;
+    const finalPrompt =
+      `${prompt.trim()}, ${guidelines}`;
 
-    const result = await generateImage({
-      prompt: finalPrompt,
-      imageSize: imageSize || "square_hd",
-    });
+    /*
+     * CLOUDFARE AI
+     *
+     * Set AI_IMAGE_PROVIDER=cloudflare in .env
+     * to use Cloudflare Workers AI.
+     *
+     * Otherwise the existing fal.ai pipeline remains active.
+     */
+    const provider =
+      String(
+        process.env.AI_IMAGE_PROVIDER || "fal"
+      ).toLowerCase();
 
-    console.log(`✅ Generated 2D image (CDN direct)`);
+    let result;
+
+    if (provider === "cloudflare") {
+      result = await generateWithCloudflare({
+        prompt: finalPrompt,
+        imageSize: imageSize || "square_hd",
+      });
+    } else {
+      result = await generateFalImage({
+        prompt: finalPrompt,
+        imageSize: imageSize || "square_hd",
+      });
+    }
+
+    console.log(
+      `✅ Generated 2D image using ${provider}`
+    );
+
     return res.json({
       imageUrl: result.url,
       width: result.width,
@@ -4810,13 +4860,22 @@ app.post("/api/builder/generate-image", async (req, res) => {
       prompt: prompt.trim(),
       stored: false,
       path: null,
+      provider,
+      backgroundRemoved:
+        result.backgroundRemoved || false,
     });
   } catch (e) {
     delete generationCooldown[ownerKey];
-    console.error("Builder generate-image error:", e.message);
-    return res
-      .status(500)
-      .json({ message: e.message || "Image generation failed" });
+
+    console.error(
+      "Builder generate-image error:",
+      e.message
+    );
+
+    return res.status(500).json({
+      message:
+        e.message || "Image generation failed",
+    });
   }
 });
 
