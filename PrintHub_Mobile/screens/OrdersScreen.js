@@ -23,6 +23,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import {
   useFocusEffect,
 } from "@react-navigation/native";
@@ -2084,238 +2086,163 @@ export default function OrdersScreen({
     );
   }
 
-  // ==========================================================
-  // MAIN
-  // ==========================================================
+// ==========================================================
+// MAIN
+// ==========================================================
 
-  return (
-    <View
-      style={
-        styles.container
-      }
-    >
+return (
+  <SafeAreaView
+    style={styles.safeArea}
+    edges={["top", "bottom"]}
+  >
+    <View style={styles.container}>
+
+      {/* ========================================================
+          TOP HEADER
+      ======================================================== */}
+
+      <View
+        style={[
+          styles.screenHeader,
+          {
+            minHeight: scale(64, 68, 72, 78),
+            paddingHorizontal: scale(14, 18, 22, 30),
+          },
+        ]}
+      >
+        <TouchableOpacity
+          style={[
+            styles.backButton,
+            {
+              width: scale(40, 44, 48, 52),
+              height: scale(40, 44, 48, 52),
+            },
+          ]}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons
+            name="arrow-back"
+            size={scale(24, 26, 28, 30)}
+            color={COLORS.textPrimary}
+          />
+        </TouchableOpacity>
+
+        <Text
+          style={[
+            styles.screenHeaderTitle,
+            {
+              fontSize: scale(18, 21, 24, 28),
+              lineHeight: scale(23, 27, 30, 35),
+            },
+          ]}
+          numberOfLines={1}
+        >
+          Order History & Status
+        </Text>
+
+        {/* Invisible spacer keeps title perfectly centered */}
+        <View
+          style={{
+            width: scale(40, 44, 48, 52),
+            height: 1,
+          }}
+        />
+      </View>
+
+      {/* ========================================================
+          ORDERS LIST
+      ======================================================== */}
+
       <FlatList
-        data={
-          filteredOrders
-        }
-        keyExtractor={(item) =>
-          String(item.id)
-        }
-        renderItem={
-          renderOrderItem
-        }
-        showsVerticalScrollIndicator={
-          false
-        }
+        data={filteredOrders}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={renderOrderItem}
+        showsVerticalScrollIndicator={false}
+
         contentContainerStyle={[
           styles.listContent,
           {
-            paddingHorizontal:
-              Math.max(
-                scale(
-                  10,
-                  14,
-                  20,
-                  32
-                ),
-                (width -
-                  contentWidth) /
-                  2
-              ),
-            paddingBottom:
-              scale(
-                95,
-                105,
-                112,
-                120
-              ),
+            paddingHorizontal: Math.max(
+              scale(10, 14, 20, 32),
+              (width - contentWidth) / 2
+            ),
+            paddingBottom: scale(
+              24,
+              28,
+              32,
+              40
+            ),
           },
         ]}
+
         refreshControl={
           <RefreshControl
-            refreshing={
-              refreshing
-            }
-            onRefresh={
-              onRefresh
-            }
-            tintColor={
-              COLORS.primary
-            }
-            colors={[
-              COLORS.primary,
-            ]}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
             progressBackgroundColor={
               COLORS.surfaceDark
             }
           />
         }
+
+
         ListHeaderComponent={
           <View
             style={[
               styles.headerWrapper,
               {
-                width:
-                  contentWidth,
+                width: contentWidth,
+                paddingTop: scale(
+                  14,
+                  18,
+                  22,
+                  26
+                ),
               },
             ]}
           >
-            {/* ==================================================
-                PAGE HEADER
-            ================================================== */}
-
-            <View
-              style={[
-                styles.pageHeader,
-                {
-                  paddingTop:
-                    scale(
-                      8,
-                      12,
-                      18,
-                      24
-                    ),
-                  marginBottom:
-                    scale(
-                      13,
-                      16,
-                      18,
-                      22
-                    ),
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.titleAccent,
-                  {
-                    width:
-                      scale(
-                        34,
-                        38,
-                        42,
-                        48
-                      ),
-                    height:
-                      scale(
-                        3,
-                        4,
-                        4,
-                        5
-                      ),
-                    marginBottom:
-                      scale(
-                        7,
-                        8,
-                        10,
-                        11
-                      ),
-                  },
-                ]}
-              />
-
-              <Text
-                style={[
-                  styles.pageTitle,
-                  {
-                    fontSize:
-                      scale(
-                        22,
-                        26,
-                        31,
-                        36
-                      ),
-                    lineHeight:
-                      scale(
-                        28,
-                        33,
-                        38,
-                        44
-                      ),
-                  },
-                ]}
-              >
-                Order History & Status
-              </Text>
-
-              <Text
-                style={[
-                  styles.pageSubtitle,
-                  {
-                    fontSize:
-                      scale(
-                        10,
-                        12,
-                        13,
-                        15
-                      ),
-                    lineHeight:
-                      scale(
-                        16,
-                        18,
-                        20,
-                        22
-                      ),
-                  },
-                ]}
-              >
-                Track and manage your
-                custom printing orders.
-              </Text>
-            </View>
-
-            {/* ==================================================
-                FILTERS
-            ================================================== */}
-
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={
-                false
-              }
+              showsHorizontalScrollIndicator={false}
               contentContainerStyle={[
                 styles.filtersContainer,
                 {
-                  paddingBottom:
-                    scale(
-                      12,
-                      15,
-                      18,
-                      21
-                    ),
+                  paddingBottom: scale(
+                    12,
+                    15,
+                    18,
+                    21
+                  ),
                 },
               ]}
             >
               <FilterButton
                 label="All"
                 value="all"
-                count={
-                  orders.length
-                }
+                count={orders.length}
               />
 
               <FilterButton
                 label="To Pay"
                 value="toPay"
-                count={
-                  toPayCount
-                }
+                count={toPayCount}
               />
 
               <FilterButton
                 label="To Receive"
                 value="toReceive"
-                count={
-                  toReceiveCount
-                }
+                count={toReceiveCount}
               />
 
               <FilterButton
                 label="Cancelled"
                 value="cancelled"
-                count={
-                  cancelledCount
-                }
+                count={cancelledCount}
               />
             </ScrollView>
           </View>
@@ -2326,22 +2253,19 @@ export default function OrdersScreen({
               style={[
                 styles.emptyContainer,
                 {
-                  width:
-                    contentWidth,
-                  paddingTop:
-                    scale(
-                      50,
-                      60,
-                      70,
-                      85
-                    ),
-                  paddingHorizontal:
-                    scale(
-                      18,
-                      22,
-                      25,
-                      35
-                    ),
+                  width: contentWidth,
+                  paddingTop: scale(
+                    50,
+                    60,
+                    70,
+                    85
+                  ),
+                  paddingHorizontal: scale(
+                    18,
+                    22,
+                    25,
+                    35
+                  ),
                 },
               ]}
             >
@@ -2349,34 +2273,30 @@ export default function OrdersScreen({
                 style={[
                   styles.emptyIconCircle,
                   {
-                    width:
-                      scale(
-                        68,
-                        75,
-                        82,
-                        90
-                      ),
-                    height:
-                      scale(
-                        68,
-                        75,
-                        82,
-                        90
-                      ),
-                    borderRadius:
-                      scale(
-                        34,
-                        37.5,
-                        41,
-                        45
-                      ),
-                    marginBottom:
-                      scale(
-                        13,
-                        15,
-                        16,
-                        18
-                      ),
+                    width: scale(
+                      68,
+                      75,
+                      82,
+                      90
+                    ),
+                    height: scale(
+                      68,
+                      75,
+                      82,
+                      90
+                    ),
+                    borderRadius: scale(
+                      34,
+                      37.5,
+                      41,
+                      45
+                    ),
+                    marginBottom: scale(
+                      13,
+                      15,
+                      16,
+                      18
+                    ),
                   },
                 ]}
               >
@@ -2388,9 +2308,7 @@ export default function OrdersScreen({
                     42,
                     46
                   )}
-                  color={
-                    COLORS.primary
-                  }
+                  color={COLORS.primary}
                 />
               </View>
 
@@ -2398,24 +2316,20 @@ export default function OrdersScreen({
                 style={[
                   styles.emptyTitle,
                   {
-                    fontSize:
-                      scale(
-                        15,
-                        16,
-                        17,
-                        19
-                      ),
+                    fontSize: scale(
+                      15,
+                      16,
+                      17,
+                      19
+                    ),
                   },
                 ]}
               >
-                {activeFilter ===
-                "toPay"
+                {activeFilter === "toPay"
                   ? "No orders to pay"
-                  : activeFilter ===
-                    "toReceive"
+                  : activeFilter === "toReceive"
                   ? "No orders to receive"
-                  : activeFilter ===
-                    "cancelled"
+                  : activeFilter === "cancelled"
                   ? "No cancelled orders"
                   : "No orders yet"}
               </Text>
@@ -2424,35 +2338,30 @@ export default function OrdersScreen({
                 style={[
                   styles.emptyText,
                   {
-                    fontSize:
-                      scale(
-                        10,
-                        11,
-                        12,
-                        13
-                      ),
-                    lineHeight:
-                      scale(
-                        16,
-                        18,
-                        19,
-                        21
-                      ),
-                    maxWidth:
-                      scale(
-                        270,
-                        300,
-                        340,
-                        440
-                      ),
+                    fontSize: scale(
+                      10,
+                      11,
+                      12,
+                      13
+                    ),
+                    lineHeight: scale(
+                      16,
+                      18,
+                      19,
+                      21
+                    ),
+                    maxWidth: scale(
+                      270,
+                      300,
+                      340,
+                      440
+                    ),
                   },
                 ]}
               >
-                {activeFilter ===
-                "all"
+                {activeFilter === "all"
                   ? "Your order history will appear here."
-                  : activeFilter ===
-                    "cancelled"
+                  : activeFilter === "cancelled"
                   ? "Cancelled orders will appear here."
                   : "There are no orders in this category."}
               </Text>
@@ -2465,15 +2374,13 @@ export default function OrdersScreen({
               style={[
                 styles.loadingContainer,
                 {
-                  paddingVertical:
-                    scale(
-                      25,
-                      28,
-                      32,
-                      38
-                    ),
-                  width:
-                    contentWidth,
+                  paddingVertical: scale(
+                    25,
+                    28,
+                    32,
+                    38
+                  ),
+                  width: contentWidth,
                 },
               ]}
             >
@@ -2483,22 +2390,19 @@ export default function OrdersScreen({
                     ? "small"
                     : "large"
                 }
-                color={
-                  COLORS.primary
-                }
+                color={COLORS.primary}
               />
 
               <Text
                 style={[
                   styles.loadingListText,
                   {
-                    fontSize:
-                      scale(
-                        9,
-                        10,
-                        11,
-                        12
-                      ),
+                    fontSize: scale(
+                      9,
+                      10,
+                      11,
+                      12
+                    ),
                   },
                 ]}
               >
@@ -2508,300 +2412,25 @@ export default function OrdersScreen({
           ) : (
             <View
               style={{
-                height:
-                  scale(
-                    15,
-                    20,
-                    25,
-                    30
-                  ),
+                height: scale(
+                  15,
+                  20,
+                  25,
+                  30
+                ),
               }}
             />
           )
         }
       />
-
-      {/* ========================================================
-          CUSTOM BOTTOM NAVIGATION
-      ======================================================== */}
-
-      <View
-        style={[
-          styles.bottomNavigation,
-          {
-            height:
-              scale(
-                64,
-                70,
-                76,
-                82
-              ),
-          },
-        ]}
-      >
-        {/* HOME */}
-
-        <TouchableOpacity
-          style={
-            styles.bottomNavItem
-          }
-          onPress={() =>
-            navigation.navigate(
-              "CatalogTab"
-            )
-          }
-          activeOpacity={
-            0.8
-          }
-        >
-          <Ionicons
-            name="home-outline"
-            size={scale(
-              18,
-              20,
-              22,
-              24
-            )}
-            color={
-              COLORS.textMuted
-            }
-          />
-
-          <Text
-            style={[
-              styles.bottomNavText,
-              {
-                fontSize:
-                  scale(
-                    7,
-                    8,
-                    9,
-                    10
-                  ),
-              },
-            ]}
-          >
-            Home
-          </Text>
-        </TouchableOpacity>
-
-        {/* PRODUCTS */}
-
-        <TouchableOpacity
-          style={
-            styles.bottomNavItem
-          }
-          onPress={() =>
-            navigation.navigate(
-              "ProductOverview"
-            )
-          }
-          activeOpacity={
-            0.8
-          }
-        >
-          <Ionicons
-            name="grid-outline"
-            size={scale(
-              18,
-              20,
-              22,
-              24
-            )}
-            color={
-              COLORS.textMuted
-            }
-          />
-
-          <Text
-            style={[
-              styles.bottomNavText,
-              {
-                fontSize:
-                  scale(
-                    7,
-                    8,
-                    9,
-                    10
-                  ),
-              },
-            ]}
-          >
-            Products
-          </Text>
-        </TouchableOpacity>
-
-        {/* ORDERS */}
-
-        <TouchableOpacity
-          style={[
-            styles.bottomNavItem,
-            styles.bottomNavItemActive,
-          ]}
-          onPress={() =>
-            navigation.navigate(
-              "OrdersTab"
-            )
-          }
-          activeOpacity={
-            0.8
-          }
-        >
-          <View
-            style={[
-              styles.activeNavIcon,
-              {
-                width:
-                  scale(
-                    29,
-                    32,
-                    34,
-                    38
-                  ),
-                height:
-                  scale(
-                    27,
-                    29,
-                    30,
-                    34
-                  ),
-                borderRadius:
-                  scale(
-                    8,
-                    9,
-                    10,
-                    11
-                  ),
-              },
-            ]}
-          >
-            <Ionicons
-              name="receipt"
-              size={scale(
-                18,
-                20,
-                22,
-                24
-              )}
-              color={
-                COLORS.textDark
-              }
-            />
-          </View>
-
-          <Text
-            style={[
-              styles.bottomNavTextActive,
-              {
-                fontSize:
-                  scale(
-                    7,
-                    8,
-                    9,
-                    10
-                  ),
-              },
-            ]}
-          >
-            Orders
-          </Text>
-        </TouchableOpacity>
-
-        {/* AI CHAT */}
-
-        <TouchableOpacity
-          style={
-            styles.bottomNavItem
-          }
-          onPress={() =>
-            navigation.navigate(
-              "ChatbotTab"
-            )
-          }
-          activeOpacity={
-            0.8
-          }
-        >
-          <Ionicons
-            name="chatbubble-ellipses-outline"
-            size={scale(
-              18,
-              20,
-              22,
-              24
-            )}
-            color={
-              COLORS.textMuted
-            }
-          />
-
-          <Text
-            style={[
-              styles.bottomNavText,
-              {
-                fontSize:
-                  scale(
-                    7,
-                    8,
-                    9,
-                    10
-                  ),
-              },
-            ]}
-          >
-            AI Chat
-          </Text>
-        </TouchableOpacity>
-
-        {/* PROFILE */}
-
-        <TouchableOpacity
-          style={
-            styles.bottomNavItem
-          }
-          onPress={() =>
-            navigation.navigate(
-              "ProfileTab"
-            )
-          }
-          activeOpacity={
-            0.8
-          }
-        >
-          <Ionicons
-            name="person-outline"
-            size={scale(
-              18,
-              20,
-              22,
-              24
-            )}
-            color={
-              COLORS.textMuted
-            }
-          />
-
-          <Text
-            style={[
-              styles.bottomNavText,
-              {
-                fontSize:
-                  scale(
-                    7,
-                    8,
-                    9,
-                    10
-                  ),
-              },
-            ]}
-          >
-            Profile
-          </Text>
-        </TouchableOpacity>
-      </View>
     </View>
-  );
+  </SafeAreaView>
+);
 }
+
+// ============================================================
+// STYLES
+// ============================================================
 
 // ============================================================
 // STYLES
@@ -2812,7 +2441,36 @@ const styles =
     // ========================================================
     // SCREEN
     // ========================================================
-
+    safeArea: {
+      flex: 1,
+      backgroundColor: COLORS.background,
+    },
+    
+    screenHeader: {
+      width: "100%",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: COLORS.background,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.border,
+    },
+    
+    backButton: {
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 999,
+    },
+    
+    screenHeaderTitle: {
+      flex: 1,
+      fontFamily: "Poppins_700Bold",
+      color: COLORS.textPrimary,
+      textAlign: "center",
+      letterSpacing: -0.4,
+      includeFontPadding: false,
+      marginHorizontal: 8,
+    },
     container: {
       flex: 1,
       backgroundColor:
@@ -2827,45 +2485,6 @@ const styles =
       paddingTop: 0,
     },
 
-    // ========================================================
-    // PAGE HEADER
-    // ========================================================
-
-    pageHeader: {
-      width: "100%",
-    },
-
-    titleAccent: {
-      borderRadius: 999,
-      backgroundColor:
-        COLORS.primary,
-    },
-
-    pageTitle: {
-      fontFamily:
-        "Poppins_700Bold",
-
-      color:
-        COLORS.textPrimary,
-
-      letterSpacing: -0.5,
-
-      includeFontPadding:
-        false,
-    },
-
-    pageSubtitle: {
-      fontFamily:
-        "Poppins_400Regular",
-
-      color:
-        COLORS.textSecondary,
-
-      marginTop: 5,
-
-      includeFontPadding:
-        false,
-    },
 
     // ========================================================
     // FILTERS

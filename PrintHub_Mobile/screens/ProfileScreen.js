@@ -15,6 +15,7 @@ import {
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
   useIsFocused,
@@ -505,153 +506,173 @@ export default function ProfileScreen({
   */
 
   return (
-    <View
-      style={styles.container}
+    <View style={styles.container}>
+  
+      {/* ==================================================
+          HEADER
+      ================================================== */}
+  
+  <SafeAreaView
+  style={styles.safeArea}
+  edges={["top"]}
+>
+  <View
+    style={[
+      styles.header,
+      {
+        height: scale(64, 68, 72, 78),
+        paddingHorizontal: scale(
+          14,
+          18,
+          22,
+          30
+        ),
+      },
+    ]}
+  >
+
+    {/* BACK BUTTON */}
+
+    <TouchableOpacity
+      style={[
+        styles.backButton,
+        {
+          width: scale(
+            40,
+            44,
+            48,
+            52
+          ),
+          height: scale(
+            40,
+            44,
+            48,
+            52
+          ),
+        },
+      ]}
+      onPress={() =>
+        navigation.goBack()
+      }
+      activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
     >
+      <Ionicons
+        name="arrow-back"
+        size={scale(
+          24,
+          26,
+          28,
+          30
+        )}
+        color="#FFFFFF"
+      />
+    </TouchableOpacity>
+
+
+    {/* CENTERED TITLE */}
+
+    <View
+      style={styles.headerTitleContainer}
+      pointerEvents="none"
+    >
+      <Text
+        style={[
+          styles.headerTitle,
+          {
+            fontSize: scale(
+              20,
+              22,
+              24,
+              28
+            ),
+            lineHeight: scale(
+              25,
+              28,
+              30,
+              35
+            ),
+          },
+        ]}
+        numberOfLines={1}
+      >
+        My Profile
+      </Text>
+    </View>
+
+
+    {/* RIGHT SPACER */}
+
+    <View
+      style={[
+        styles.headerRightSpacer,
+        {
+          width: scale(
+            40,
+            44,
+            48,
+            52
+          ),
+          height: scale(
+            40,
+            44,
+            48,
+            52
+          ),
+        },
+      ]}
+    />
+
+  </View>
+</SafeAreaView>
+  
+  
+      {/* ==================================================
+          SCROLLABLE CONTENT
+      ================================================== */}
+  
       <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingHorizontal:
-              scale(
-                12,
-                16,
-                24,
-                32
-              ),
+            paddingHorizontal: scale(
+              12,
+              16,
+              24,
+              32
+            ),
           },
         ]}
       >
-
-        {/* ==================================================
-            PAGE HEADER
-        ================================================== */}
-
-        <View
-          style={[
-            styles.pageHeader,
-            {
-              paddingTop: scale(
-                10,
-                16,
-                20,
-                28
-              ),
-            },
-          ]}
-        >
-          <View
-            style={styles.titleAccent}
-          />
-
-          <View
-            style={styles.headerRow}
-          >
-            <View
-              style={styles.headerTextContainer}
-            >
-              <Text
-                style={[
-                  styles.pageTitle,
-                  {
-                    fontSize:
-                      scale(
-                        25,
-                        28,
-                        32,
-                        38
-                      ),
-                    lineHeight:
-                      scale(
-                        31,
-                        35,
-                        39,
-                        46
-                      ),
-                  },
-                ]}
-              >
-                My Profile
-              </Text>
-
-              <Text
-                style={[
-                  styles.pageSubtitle,
-                  {
-                    fontSize:
-                      scale(
-                        11,
-                        12,
-                        13,
-                        15
-                      ),
-                  },
-                ]}
-              >
-                Manage your account
-                and preferences.
-              </Text>
-            </View>
-
-            <View
-              style={[
-                styles.headerLogoBox,
-                {
-                  width: scale(
-                    72,
-                    82,
-                    92,
-                    105
-                  ),
-                  height: scale(
-                    42,
-                    46,
-                    50,
-                    56
-                  ),
-                },
-              ]}
-            >
-              <Image
-                source={pmgLogo}
-                style={styles.headerLogo}
-                resizeMode="contain"
-              />
-            </View>
-          </View>
-        </View>
-
-
+  
         {/* ==================================================
             PROFILE CARD
         ================================================== */}
-
+  
         <View
           style={[
             styles.profileCard,
             {
-              borderRadius:
-                scale(
-                  15,
-                  17,
-                  19,
-                  21
-                ),
-              padding:
-                scale(
-                  14,
-                  16,
-                  18,
-                  22
-                ),
+              borderRadius: scale(
+                15,
+                17,
+                19,
+                21
+              ),
+              padding: scale(
+                14,
+                16,
+                18,
+                22
+              ),
             },
           ]}
         >
+  
           {/* Green glow/decorative area */}
-
+  
           <View
             style={[
               styles.profileGlow,
@@ -668,17 +689,16 @@ export default function ProfileScreen({
                   200,
                   230
                 ),
-                borderRadius:
-                  scale(
-                    75,
-                    88,
-                    100,
-                    115
-                  ),
+                borderRadius: scale(
+                  75,
+                  88,
+                  100,
+                  115
+                ),
               },
             ]}
           />
-
+  
           <View
             style={[
               styles.profileGlowSmall,
@@ -695,19 +715,18 @@ export default function ProfileScreen({
                   90,
                   100
                 ),
-                borderRadius:
-                  scale(
-                    35,
-                    40,
-                    45,
-                    50
-                  ),
+                borderRadius: scale(
+                  35,
+                  40,
+                  45,
+                  50
+                ),
               },
             ]}
           />
-
+  
           {/* Top branding strip */}
-
+  
           <View
             style={styles.profileTopStrip}
           >
@@ -720,7 +739,7 @@ export default function ProfileScreen({
                 },
               ]}
             />
-
+  
             <View
               style={[
                 styles.stripBlock,
@@ -730,7 +749,7 @@ export default function ProfileScreen({
                 },
               ]}
             />
-
+  
             <View
               style={[
                 styles.stripBlock,
@@ -741,27 +760,25 @@ export default function ProfileScreen({
               ]}
             />
           </View>
-
-
+  
           {/* Profile content */}
-
+  
           <View
             style={[
               styles.profileContent,
               {
-                minHeight:
-                  scale(
-                    135,
-                    150,
-                    165,
-                    180
-                  ),
+                minHeight: scale(
+                  135,
+                  150,
+                  165,
+                  180
+                ),
               },
             ]}
           >
-
+  
             {/* Avatar */}
-
+  
             <View
               style={[
                 styles.avatarWrapper,
@@ -789,13 +806,12 @@ export default function ProfileScreen({
                   style={[
                     styles.avatarImage,
                     {
-                      borderRadius:
-                        scale(
-                          38,
-                          43,
-                          48,
-                          54
-                        ),
+                      borderRadius: scale(
+                        38,
+                        43,
+                        48,
+                        54
+                      ),
                     },
                   ]}
                 />
@@ -804,13 +820,12 @@ export default function ProfileScreen({
                   style={[
                     styles.avatarCircle,
                     {
-                      borderRadius:
-                        scale(
-                          38,
-                          43,
-                          48,
-                          54
-                        ),
+                      borderRadius: scale(
+                        38,
+                        43,
+                        48,
+                        54
+                      ),
                     },
                   ]}
                 >
@@ -818,13 +833,12 @@ export default function ProfileScreen({
                     style={[
                       styles.avatarInitial,
                       {
-                        fontSize:
-                          scale(
-                            27,
-                            31,
-                            35,
-                            40
-                          ),
+                        fontSize: scale(
+                          27,
+                          31,
+                          35,
+                          40
+                        ),
                       },
                     ]}
                   >
@@ -834,7 +848,7 @@ export default function ProfileScreen({
                   </Text>
                 </View>
               )}
-
+  
               <TouchableOpacity
                 style={[
                   styles.avatarEdit,
@@ -851,13 +865,12 @@ export default function ProfileScreen({
                       30,
                       34
                     ),
-                    borderRadius:
-                      scale(
-                        13,
-                        14,
-                        15,
-                        17
-                      ),
+                    borderRadius: scale(
+                      13,
+                      14,
+                      15,
+                      17
+                    ),
                   },
                 ]}
                 onPress={() =>
@@ -881,10 +894,9 @@ export default function ProfileScreen({
                 />
               </TouchableOpacity>
             </View>
-
-
+  
             {/* User info */}
-
+  
             <View
               style={styles.profileInfo}
             >
@@ -892,38 +904,36 @@ export default function ProfileScreen({
                 style={[
                   styles.userName,
                   {
-                    fontSize:
-                      scale(
-                        19,
-                        21,
-                        23,
-                        26
-                      ),
+                    fontSize: scale(
+                      19,
+                      21,
+                      23,
+                      26
+                    ),
                   },
                 ]}
                 numberOfLines={1}
               >
                 {firstName}
               </Text>
-
+  
               <Text
                 style={[
                   styles.userEmail,
                   {
-                    fontSize:
-                      scale(
-                        9.5,
-                        10.5,
-                        11.5,
-                        13
-                      ),
+                    fontSize: scale(
+                      9.5,
+                      10.5,
+                      11.5,
+                      13
+                    ),
                   },
                 ]}
                 numberOfLines={1}
               >
                 {email}
               </Text>
-
+  
               <View
                 style={styles.roleTag}
               >
@@ -934,20 +944,17 @@ export default function ProfileScreen({
                     COLORS.textDark
                   }
                 />
-
+  
                 <Text
-                  style={
-                    styles.roleText
-                  }
+                  style={styles.roleText}
                 >
                   {role}
                 </Text>
               </View>
             </View>
-
-
+  
             {/* Edit arrow */}
-
+  
             <TouchableOpacity
               style={[
                 styles.profileArrow,
@@ -964,13 +971,12 @@ export default function ProfileScreen({
                     42,
                     46
                   ),
-                  borderRadius:
-                    scale(
-                      17,
-                      19,
-                      21,
-                      23
-                    ),
+                  borderRadius: scale(
+                    17,
+                    19,
+                    21,
+                    23
+                  ),
                 },
               ]}
               onPress={() =>
@@ -993,67 +999,12 @@ export default function ProfileScreen({
                 }
               />
             </TouchableOpacity>
+  
           </View>
-
-
-          {/* Bottom profile information */}
-
-          <View
-            style={styles.profileFooter}
-          >
-            <View
-              style={styles.profileFooterIcon}
-            >
-              <Ionicons
-                name="print-outline"
-                size={16}
-                color={
-                  COLORS.primary
-                }
-              />
-            </View>
-
-            <Text
-              style={[
-                styles.profileFooterText,
-                {
-                  fontSize:
-                    scale(
-                      9,
-                      10,
-                      11,
-                      12
-                    ),
-                },
-              ]}
-            >
-              Your personalized
-              PrintHub account
-            </Text>
-
-            <Image
-              source={pmgLogo}
-              style={[
-                styles.profileFooterLogo,
-                {
-                  width: scale(
-                    58,
-                    68,
-                    78,
-                    88
-                  ),
-                  height: scale(
-                    27,
-                    31,
-                    35,
-                    40
-                  ),
-                },
-              ]}
-              resizeMode="contain"
-            />
-          </View>
+  
         </View>
+  
+
 
 
         {/* ==================================================
@@ -1904,77 +1855,76 @@ const styles =
       paddingBottom: 30,
     },
 
-
     /*
-    ========================================================
-    PAGE HEADER
-    ========================================================
-    */
+========================================================
+HEADER
+========================================================
+*/
 
-    pageHeader: {
-      marginBottom: 18,
-    },
+safeArea: {
+  backgroundColor: COLORS.background,
+},
 
-    titleAccent: {
-      width: 42,
-      height: 4,
+header: {
+  width: "100%",
 
-      borderRadius: 999,
+  flexDirection: "row",
 
-      backgroundColor:
-        COLORS.primary,
+  alignItems: "center",
 
-      marginBottom: 10,
-    },
+  justifyContent: "space-between",
 
-    headerRow: {
-      flexDirection: "row",
+  backgroundColor: COLORS.background,
 
-      alignItems: "center",
+  borderBottomWidth: 1,
 
-      justifyContent:
-        "space-between",
-    },
+  borderBottomColor: COLORS.border,
+},
 
-    headerTextContainer: {
-      flex: 1,
+backButton: {
+  alignItems: "center",
 
-      paddingRight: 8,
-    },
+  justifyContent: "center",
 
-    pageTitle: {
-      fontFamily:
-        "Poppins_700Bold",
+  borderRadius: 999,
+},
 
-      color:
-        COLORS.textPrimary,
+headerTitleContainer: {
+  position: "absolute",
 
-      letterSpacing: -0.5,
-    },
+  left: 0,
 
-    pageSubtitle: {
-      fontFamily:
-        "Poppins_400Regular",
+  right: 0,
 
-      color:
-        COLORS.textSecondary,
+  top: 0,
 
-      marginTop: 5,
+  bottom: 0,
 
-      lineHeight: 19,
-    },
+  alignItems: "center",
 
-    headerLogoBox: {
-      alignItems: "flex-end",
+  justifyContent: "center",
 
-      justifyContent:
-        "center",
-    },
+  paddingHorizontal: 60,
 
-    headerLogo: {
-      width: "100%",
-      height: "100%",
-    },
+  zIndex: 10,
+},
+
+headerTitle: {
+  fontFamily:
+    "Poppins_700Bold",
+
+  color: "#FFFFFF",
+
+  letterSpacing: -0.5,
+
+  textAlign: "center",
+
+  includeFontPadding: false,
+},
+
+headerRightSpacer: {
+  opacity: 0,
+},
 
 
     /*

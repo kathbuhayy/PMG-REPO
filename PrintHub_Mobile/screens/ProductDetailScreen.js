@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useFonts } from "expo-font";
@@ -31,7 +32,6 @@ import { COLORS } from "../theme";
 // ============================================================
 // CONSTANTS
 // ============================================================
-
 const GUEST_CUSTOMIZER_LIMIT = 3;
 const GUEST_CUSTOMIZER_USES_KEY =
   "guest_3d_customizer_uses";
@@ -247,8 +247,8 @@ export default function ProductDetailScreen({
   route,
   navigation,
 }) {
-  const { width } =
-    useWindowDimensions();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   const product =
     route?.params?.product || {};
@@ -374,169 +374,139 @@ export default function ProductDetailScreen({
   // REFRESH PRODUCT FROM BACKEND
   // ==========================================================
 
-  useEffect(() => {
-    let mounted = true;
+// ==========================================================
+// REFRESH PRODUCT FROM BACKEND
+// ==========================================================
 
-    const refreshProduct = async () => {
-      if (!product?.id) {
+useEffect(() => {
+  let mounted = true;
+
+  const refreshProduct = async () => {
+    if (!product?.id) {
+      console.warn(
+        "[ProductDetail] No product ID received:",
+        product
+      );
+      return;
+    }
+
+    const url =
+      `${API_BASE_URL}/api/products/${product.id}`;
+
+    console.log(
+      "[ProductDetail] Fetching product:",
+      url
+    );
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const responseText = await response.text();
+
+      console.log(
+        "[ProductDetail] HTTP status:",
+        response.status
+      );
+
+      let data = null;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch {
         console.warn(
-          "[ProductDetail] No product ID received:",
-          product
+          "[ProductDetail] Response is not JSON."
         );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            `Failed to fetch product. HTTP ${response.status}`
+        );
+      }
+
+      if (!data) {
+        throw new Error(
+          "Backend returned an empty product response."
+        );
+      }
+
+      /*
+       * The screen may have been closed while the
+       * request was still running.
+       */
+      if (!mounted) {
         return;
       }
 
-      const url =
-        `${API_BASE_URL}/api/products/${product.id}`;
+      setLiveProduct(data);
 
-      console.log(
-        "[ProductDetail] Fetching product:",
-        url
+      const parsedQuantities = (
+        data.quantity_options || []
+      ).map(parseOptionItem);
+
+      setQuantities(parsedQuantities);
+
+      setSelectedQty(
+        data.quantity_mode === "text"
+          ? null
+          : parsedQuantities[0] || null
       );
 
-      try {
-        const controller =
-          new AbortController();
-
-        const timeout = setTimeout(
-          () => {
-            controller.abort();
-          },
-          10000
-        );
-
-        let response;
-
-        try {
-          response = await fetch(
-            url,
-            {
-              method: "GET",
-              headers: {
-                Accept:
-                  "application/json",
-              },
-              signal:
-                controller.signal,
-            }
-          );
-        } finally {
-          clearTimeout(timeout);
-        }
-
-        const responseText =
-          await response.text();
-
-        console.log(
-          "[ProductDetail] HTTP status:",
-          response.status
-        );
-
-        console.log(
-          "[ProductDetail] Response:",
-          responseText
-        );
-
-        let data = null;
-
-        try {
-          data = JSON.parse(
-            responseText
-          );
-        } catch {
-          console.warn(
-            "[ProductDetail] Response is not JSON."
-          );
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            data?.message ||
-              `Failed to fetch product. HTTP ${response.status}`
-          );
-        }
-
-        if (!data) {
-          throw new Error(
-            "Backend returned an empty product response."
-          );
-        }
-
-        if (!mounted) {
-          return;
-        }
-
-        setLiveProduct(data);
-
-        const parsedQuantities = (
-          data.quantity_options || []
-        ).map(parseOptionItem);
-
-        setQuantities(
-          parsedQuantities
-        );
-
-        setSelectedQty(
-          data.quantity_mode ===
-            "text"
-            ? null
-            : parsedQuantities[0] ||
-                null
-        );
-
-        if (
-          data.quantity_mode ===
-          "text"
-        ) {
-          setCustomQty("0");
-        }
-      } catch (error) {
-        if (
-          error?.name ===
-          "AbortError"
-        ) {
-          console.warn(
-            "[ProductDetail] Product request timed out:",
-            url
-          );
-        } else {
-          console.error(
-            "[ProductDetail] Failed to refresh product:",
-            error
-          );
-        }
-
-        // Keep the product received from
-        // ProductOverview if Render is sleeping
-        // or temporarily unavailable.
-        if (mounted) {
-          setLiveProduct(
-            (current) =>
-              current || product
-          );
-        }
+      if (data.quantity_mode === "text") {
+        setCustomQty("0");
       }
-    };
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
 
-    refreshProduct();
-
-    const unsubscribe =
-      navigation.addListener(
-        "focus",
-        refreshProduct
+      console.error(
+        "[ProductDetail] Failed to refresh product:",
+        error?.message || error
       );
 
-    return () => {
-      mounted = false;
+      /*
+       * Keep the product already passed from
+       * ProductOverview instead of blanking the screen.
+       */
+      setLiveProduct((current) =>
+        current || product
+      );
+    }
+  };
 
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [
-    navigation,
-    product?.id,
-  ]);
+  /*
+   * Load immediately when ProductDetail opens.
+   */
+  refreshProduct();
+
+  /*
+   * Refresh again whenever the screen becomes focused.
+   * This keeps Admin stock/options synchronized.
+   */
+  const unsubscribe =
+    navigation.addListener(
+      "focus",
+      refreshProduct
+    );
+
+  return () => {
+    mounted = false;
+
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
+}, [
+  navigation,
+  product?.id,
+]);
 
   // ==========================================================
   // SYNC ADMIN PRODUCT OPTIONS
@@ -1210,9 +1180,14 @@ export default function ProductDetailScreen({
           HEADER
       ====================================================== */}
 
-      <View
-        style={styles.header}
-      >
+<View
+  style={[
+    styles.header,
+    {
+      paddingTop: insets.top,
+    },
+  ]}
+>
         <TouchableOpacity
           style={
             styles.headerBackButton
@@ -2090,16 +2065,15 @@ const styles = StyleSheet.create({
   // ==========================================================
 
   header: {
-    height: 76,
-    backgroundColor:
-      COLORS.backgroundDeep,
+    minHeight: 64,
+    backgroundColor: COLORS.backgroundDeep,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 14,
+    paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor:
-      COLORS.border,
+    borderBottomColor: COLORS.border,
   },
 
   headerBackButton: {
