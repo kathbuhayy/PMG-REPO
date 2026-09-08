@@ -32,8 +32,9 @@ model User {
   inquiries          Inquiry[]
   notifications      Notification[]
   orders             Order[]
-  staffRoles         UserStaffRole[]
   ratings            Rating[]
+  productReviews     ProductReview[]
+  staffRoles         UserStaffRole[]
 }
 
 model Notification {
@@ -115,54 +116,55 @@ model ArchivedUser {
 }
 
 model Product {
-  id                    Int         @id @default(autoincrement())
+  id                    Int             @id @default(autoincrement())
   name                  String
-  sku                   String?     @unique
+  sku                   String?         @unique
   description           String?
-  price                 Decimal     @db.Decimal(12, 2)
-  currency              String      @default("PHP")
-  stock                 Int         @default(0)
+  price                 Decimal         @db.Decimal(12, 2)
+  currency              String          @default("PHP")
+  stock                 Int             @default(0)
   width_mm              Int?
   height_mm             Int?
   depth_mm              Int?
   material              String?
-  colorOptions          String[]    @default([])
+  colorOptions          String[]        @default([])
   print_type            String?
   turnaround_hours      Int?
-  images                String[]    @default([])
-  active                Boolean     @default(true)
-  createdAt             DateTime    @default(now()) @map("created_at")
-  updatedAt             DateTime    @updatedAt @map("updated_at")
-  deleted_at            DateTime?   @map("deleted_at")
-  color_options         String[]    @default([])
-  delivery_options      String[]    @default([])
-  finishing_options     String[]    @default([])
-  material_options      String[]    @default([])
-  processing_options    String[]    @default([])
-  side_options          String[]    @default([])
-  size_options          String[]    @default([])
-  quantity_options      String[]    @default([])
-  shipping_options      String[]    @default([])
+  images                String[]        @default([])
+  active                Boolean         @default(true)
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  deleted_at            DateTime?       @map("deleted_at")
+  color_options         String[]        @default([])
+  delivery_options      String[]        @default([])
+  finishing_options     String[]        @default([])
+  material_options      String[]        @default([])
+  processing_options    String[]        @default([])
+  side_options          String[]        @default([])
+  size_options          String[]        @default([])
+  quantity_options      String[]        @default([])
+  shipping_options      String[]        @default([])
   ai_prompt_rules       String?
   quantity_count        Int?
   quantity_mode         String?
-  category              String?     @default("other")
-  print_zones           String[]    @default([])
-  inkColorChannel       String?     @map("ink_color_channel")
-  inkUsagePerUnit       Float?      @map("ink_usage_per_unit")
-  substrateMaterialName String?     @map("substrate_material_name")
-  substrateUsagePerUnit Float?      @map("substrate_usage_per_unit")
-  referenceHeightInches Float?      @map("reference_height_inches")
-  referenceWidthInches  Float?      @map("reference_width_inches")
-  mockupViews           Json?       @map("mockup_views")
-  unitMaterialName      String?     @map("unit_material_name")
-  unitUsagePerUnit      Int?        @map("unit_usage_per_unit")
-  bleedInches           Float?      @map("bleed_inches")
-  safeMarginInches      Float?      @map("safe_margin_inches")
-  materialUsageMap      Json?       @map("material_usage_map")
-  setupFee              Float?      @map("setup_fee")
+  category              String?         @default("other")
+  print_zones           String[]        @default([])
+  inkColorChannel       String?         @map("ink_color_channel")
+  inkUsagePerUnit       Float?          @map("ink_usage_per_unit")
+  substrateMaterialName String?         @map("substrate_material_name")
+  substrateUsagePerUnit Float?          @map("substrate_usage_per_unit")
+  referenceHeightInches Float?          @map("reference_height_inches")
+  referenceWidthInches  Float?          @map("reference_width_inches")
+  mockupViews           Json?           @map("mockup_views")
+  unitMaterialName      String?         @map("unit_material_name")
+  unitUsagePerUnit      Int?            @map("unit_usage_per_unit")
+  bleedInches           Float?          @map("bleed_inches")
+  safeMarginInches      Float?          @map("safe_margin_inches")
+  materialUsageMap      Json?           @map("material_usage_map")
+  setupFee              Float?          @map("setup_fee")
   cartItems             CartItem[]
   orderItems            OrderItem[]
+  reviews               ProductReview[]
 }
 
 model InventorySubstrate {
@@ -251,14 +253,14 @@ model Order {
   designReviewStatus   String?          @default("submitted") @map("design_review_status")
   designReviewedAt     DateTime?        @map("design_reviewed_at")
   designReviewedBy     Int?             @map("design_reviewed_by")
-  refundStatus         String?          @map("refund_status")
-  refundReason         String?          @map("refund_reason")
-  refundRequestedAt    DateTime?        @map("refund_requested_at")
+  paymongoRefundId     String?          @map("paymongo_refund_id")
   refundAmount         Decimal?         @map("refund_amount") @db.Decimal(14, 2)
   refundNotes          String?          @map("refund_notes")
+  refundReason         String?          @map("refund_reason")
+  refundRequestedAt    DateTime?        @map("refund_requested_at")
+  refundStatus         String?          @map("refund_status")
   refundedAt           DateTime?        @map("refunded_at")
   refundedBy           Int?             @map("refunded_by")
-  paymongoRefundId     String?          @map("paymongo_refund_id")
   branch               Branch?          @relation(fields: [branchId], references: [id])
   user                 User?            @relation(fields: [userId], references: [id])
   items                OrderItem[]
@@ -281,6 +283,22 @@ model Rating {
   @@index([userId])
 }
 
+model ProductReview {
+  id          Int       @id @default(autoincrement())
+  orderItemId Int       @unique @map("order_item_id")
+  productId   Int       @map("product_id")
+  userId      Int?      @map("user_id")
+  stars       Int
+  comment     String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
+  product     Product   @relation(fields: [productId], references: [id])
+  user        User?     @relation(fields: [userId], references: [id])
+
+  @@index([productId])
+}
+
 model Branch {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -291,16 +309,17 @@ model Branch {
 }
 
 model OrderItem {
-  id             Int      @id @default(autoincrement())
+  id             Int            @id @default(autoincrement())
   orderId        Int
   productId      Int
-  quantity       Int      @default(1)
-  unit_price     Decimal  @db.Decimal(14, 2)
-  total_price    Decimal  @db.Decimal(14, 2)
+  quantity       Int            @default(1)
+  unit_price     Decimal        @db.Decimal(14, 2)
+  total_price    Decimal        @db.Decimal(14, 2)
   customizations Json?
-  createdAt      DateTime @default(now())
-  order          Order    @relation(fields: [orderId], references: [id])
-  product        Product  @relation(fields: [productId], references: [id])
+  createdAt      DateTime       @default(now())
+  order          Order          @relation(fields: [orderId], references: [id])
+  product        Product        @relation(fields: [productId], references: [id])
+  productReview  ProductReview?
 }
 
 model CartItem {

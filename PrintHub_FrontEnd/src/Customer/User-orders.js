@@ -97,6 +97,11 @@ function UserOrders() {
   const [ratingComment, setRatingComment] = useState("");
   const [submittingRating, setSubmittingRating] = useState(false);
 
+  const [reviewItem, setReviewItem] = useState(null); // { id, productName }
+  const [reviewStars, setReviewStars] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   const [noticeModal, setNoticeModal] = useState(null);
   const [cancelTargetId, setCancelTargetId] = useState(null);
 
@@ -909,6 +914,63 @@ function UserOrders() {
     }
   };
 
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!reviewItem || !reviewStars) return;
+
+    setSubmittingReview(true);
+
+    try {
+      const res = await fetch(
+        buildApiUrl(`/api/order-items/${reviewItem.id}/review`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            stars: reviewStars,
+            comment: reviewComment,
+          }),
+        }
+      );
+
+      const data = await readApiResponse(res, "Review saved");
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit review.");
+      }
+
+      setOrders((prev) =>
+        prev.map((order) => ({
+          ...order,
+          items: (order.items || []).map((item) =>
+            item.id === reviewItem.id
+              ? { ...item, productReview: data.review }
+              : item
+          ),
+        }))
+      );
+
+      setReviewItem(null);
+      setReviewStars(0);
+      setReviewComment("");
+
+      setNoticeModal({
+        title: "Review submitted",
+        message: "Thanks for reviewing this product!",
+        tone: "success",
+      });
+    } catch (err) {
+      setNoticeModal({
+        title: "Could not submit review",
+        message: err.message || "Please try again.",
+        tone: "danger",
+      });
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   /* =========================================================
      HELPERS
      ========================================================= */
@@ -1111,7 +1173,7 @@ function UserOrders() {
      ITEM
      ========================================================= */
 
-  const renderItem = (item) => {
+  const renderItem = (item, order) => {
     const design =
       item.customizations?.design;
 
@@ -1208,6 +1270,32 @@ function UserOrders() {
               item.total_price
             )}
           </strong>
+
+          {order.payment_status === "paid" &&
+            ["delivered", "completed"].includes(order.status) &&
+            (item.productReview ? (
+              <span className="uo-rating-stars" style={{ fontSize: 13 }}>
+                {"★".repeat(item.productReview.stars)}
+                {"☆".repeat(5 - item.productReview.stars)}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="uo-view-btn secondary"
+                style={{ marginTop: 6 }}
+                onClick={() => {
+                  setReviewItem({
+                    id: item.id,
+                    productName:
+                      item.product?.name || `Product #${item.productId}`,
+                  });
+                  setReviewStars(0);
+                  setReviewComment("");
+                }}
+              >
+                Review product
+              </button>
+            ))}
         </div>
       </div>
     );
@@ -1593,8 +1681,8 @@ function UserOrders() {
 
             {order.items?.length ? (
               <div className="uo-items-list">
-                {order.items.map(
-                  renderItem
+                {order.items.map((item) =>
+                  renderItem(item, order)
                 )}
               </div>
             ) : (
@@ -2246,6 +2334,63 @@ function UserOrders() {
               disabled={submittingRating || !ratingStars}
             >
               {submittingRating ? "Submitting..." : "Submit rating"}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {reviewItem && (
+        <div
+          className="uo-modal"
+          role="dialog"
+          aria-modal="true"
+        >
+          <form
+            className="uo-modal-card"
+            onSubmit={handleSubmitReview}
+          >
+            <button
+              type="button"
+              className="uo-modal-close"
+              onClick={() => setReviewItem(null)}
+              aria-label="Close review"
+            >
+              x
+            </button>
+
+            <h2>Review this product</h2>
+            <p>{reviewItem.productName}</p>
+
+            <div className="uo-star-picker">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`uo-star-btn ${n <= reviewStars ? "filled" : ""}`}
+                  onClick={() => setReviewStars(n)}
+                  aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <label>
+              Comments (optional)
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                rows="4"
+                placeholder="What did you think of this product?"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="uo-submit-return"
+              disabled={submittingReview || !reviewStars}
+            >
+              {submittingReview ? "Submitting..." : "Submit review"}
             </button>
           </form>
         </div>

@@ -1392,6 +1392,7 @@ app.get("/api/user/:id/orders", async (req, res) => {
         items: {
           include: {
             product: { select: { id: true, name: true, images: true } },
+            productReview: true,
           },
         },
         rating: true,
@@ -5464,6 +5465,104 @@ app.post("/api/orders/:id/rating", async (req, res) => {
   } catch (err) {
     console.error("POST /api/orders/:id/rating failed:", err);
     res.status(500).json({ message: "Failed to save rating." });
+  }
+});
+
+
+// POST /api/order-items/:id/review — customer reviews one specific product
+// from a delivered/completed order. Upserts so re-submitting edits it.
+app.post("/api/order-items/:id/review", async (req, res) => {
+  try {
+    const orderItemId = parseInt(req.params.id, 10);
+    const { userId, stars, comment } = req.body;
+
+    const starsInt = parseInt(stars, 10);
+    if (!Number.isInteger(starsInt) || starsInt < 1 || starsInt > 5) {
+      return res.status(400).json({ message: "stars must be an integer from 1 to 5." });
+    }
+
+    const orderItem = await prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: { order: true },
+    });
+    if (!orderItem) {
+      return res.status(404).json({ message: "Order item not found" });
+    }
+    if (userId && orderItem.order.userId !== parseInt(userId, 10)) {
+      return res.status(403).json({ message: "This item does not belong to user" });
+    }
+    if (
+      orderItem.order.payment_status !== "paid" ||
+      !["delivered", "completed"].includes(orderItem.order.status)
+    ) {
+      return res.status(400).json({
+        message: "You can only review a product after its order has been delivered.",
+      });
+    }
+
+    const review = await prisma.productReview.upsert({
+      where: { orderItemId },
+      update: { stars: starsInt, comment: comment || null },
+      create: {
+        orderItemId,
+        productId: orderItem.productId,
+        userId: orderItem.order.userId,
+        stars: starsInt,
+        comment: comment || null,
+      },
+    });
+
+    res.status(201).json({ message: "Review saved", review });
+  } catch (err) {
+    console.error("POST /api/order-items/:id/review failed:", err);
+    res.status(500).json({ message: "Failed to save review." });
+  }
+});
+
+// GET /api/products/:id/reviews — public, paginated reviews + average
+// rating for a product's page.
+app.get("/api/products/:id/reviews", async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const [reviews, total, agg] = await Promise.all([
+      prisma.productReview.findMany({
+        where: { productId },
+        include: { user: { select: { first_name: true, last_name: true } } },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.productReview.count({ where: { productId } }),
+      prisma.productReview.aggregate({
+        where: { productId },
+        _avg: { stars: true },
+        _count: { stars: true },
+      }),
+    ]);
+
+    res.json({
+      averageRating: agg._avg.stars || 0,
+      totalReviews: agg._count.stars || 0,
+      reviews: reviews.map((r) => ({
+        id: r.id,
+        stars: r.stars,
+        comment: r.comment,
+        createdAt: r.createdAt,
+        customerName: r.user
+          ? `${r.user.first_name || "Customer"}${
+              r.user.last_name ? ` ${r.user.last_name.charAt(0)}.` : ""
+            }`.trim()
+          : "Customer",
+      })),
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    console.error("GET /api/products/:id/reviews failed:", err);
+    res.status(500).json({ message: "Failed to fetch reviews." });
   }
 });
 

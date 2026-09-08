@@ -37,6 +37,7 @@ import AppModal from "../components/AppModal";
 import LoginRequiredModal from "../components/LoginRequiredModal.js";
 import { saveGuestDesignDraft } from "../utils/guestCustomization";
 import tshirtPrintAreas from "../assets/tshirt-print-areas.png";
+import ProductReviews from "./ProductReviews";
 
 const RECENTLY_VIEWED_KEY = "printhub_recently_viewed_products";
 const RECENTLY_VIEWED_LIMIT = 8;
@@ -370,6 +371,8 @@ function ProductDetail() {
 
   const [product, setProduct] =
     useState(null);
+
+  const [reviewSummary, setReviewSummary] = useState({ averageRating: 0, totalReviews: 0 });
 
   const [productLoading, setProductLoading] =
     useState(true);
@@ -895,6 +898,19 @@ function ProductDetail() {
     wipHasContent,
   ]);
 
+  useEffect(() => {
+    if (!product?.id) return;
+    fetch(buildApiUrl(`/api/products/${product.id}/reviews`))
+      .then((r) => r.json())
+      .then((data) => {
+        setReviewSummary({
+          averageRating: data.averageRating || 0,
+          totalReviews: data.totalReviews || 0,
+        });
+      })
+      .catch(() => {});
+  }, [product?.id]);
+
   const handleWipChange =
     useCallback(
       (wip) => {
@@ -1396,7 +1412,9 @@ function ProductDetail() {
   // Live price: debounced call to /estimate-price whenever anything that
   // affects the formula changes (design, material, size, quantity).
   useEffect(() => {
-    if (!product?.id || !selectedQuantityNumber) {
+    const needsDesign = product?.print_zones?.length > 0;
+
+    if (!product?.id || !selectedQuantityNumber || (needsDesign && !activeDesign)) {
       setPriceEstimate(null);
       setPriceEstimateLoading(false);
       return undefined;
@@ -1437,6 +1455,7 @@ function ProductDetail() {
     };
   }, [
     product?.id,
+    product?.print_zones,
     activeDesign,
     selectedSize,
     selectedMaterial,
@@ -2778,6 +2797,17 @@ function ProductDetail() {
 
           </div>
 
+          {/* Reviews */}
+          <div className="pd-pmg-details-card">
+            <div className="pd-pmg-details-header" style={{ cursor: "default" }}>
+              <span>
+                <span className="pd-pmg-details-icon">★</span>
+                REVIEWS
+              </span>
+            </div>
+            <ProductReviews productId={product.id} />
+          </div>
+
         </div>
 
         {/* =========================
@@ -2795,8 +2825,16 @@ function ProductDetail() {
               </span>
 
               <strong>
-                4.5
+                {reviewSummary.totalReviews > 0
+                  ? reviewSummary.averageRating.toFixed(1)
+                  : "No ratings yet"}
               </strong>
+
+              {reviewSummary.totalReviews > 0 && (
+                <span className="pd-pmg-rating-count">
+                  ({reviewSummary.totalReviews})
+                </span>
+              )}
             </div>
 
             <h1>

@@ -1,23 +1,44 @@
+// reset-orders.js
+// Wipes all Order and OrderItem rows and resets their id sequences back to 1.
+// Run with: node reset-orders.js
+
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 async function main() {
-  const product = await prisma.product.findUnique({ where: { id: 103 } });
-  console.log("print_type:", product.print_type);
-  console.log("setupFee:", product.setupFee);
-  console.log("materialUsageMap:", JSON.stringify(product.materialUsageMap, null, 2));
+  // Rating and ProductReview both hold RESTRICT foreign keys into
+  // Order/OrderItem, so they must be cleared first or the deletes below
+  // will fail with a foreign key constraint error.
+  const deletedRatings = await prisma.rating.deleteMany({});
+  console.log(`Deleted ${deletedRatings.count} Rating rows.`);
 
-  const unit = await prisma.inventoryUnit.findUnique({
-    where: { itemName: "plain_cotton_sweatshirt" },
-  });
-  console.log("plain_cotton_sweatshirt costPerUnit:", unit?.costPerUnit);
+  const deletedReviews = await prisma.productReview.deleteMany({});
+  console.log(`Deleted ${deletedReviews.count} ProductReview rows.`);
 
-  const ink = await prisma.inventoryInk.findUnique({
-    where: { colorChannel: "cmyk_full_color" },
-  });
-  console.log("cmyk_full_color costPerMl:", ink?.costPerMl);
+  // OrderItem must go before Order — it holds the foreign key (orderId) into Order.
+  const deletedItems = await prisma.orderItem.deleteMany({});
+  console.log(`Deleted ${deletedItems.count} OrderItem rows.`);
+
+  const deletedOrders = await prisma.order.deleteMany({});
+  console.log(`Deleted ${deletedOrders.count} Order rows.`);
+
+  // Reset auto-increment counters so the next created row starts back at id 1.
+  await prisma.$executeRawUnsafe(
+    `ALTER SEQUENCE "Order_id_seq" RESTART WITH 1;`
+  );
+  await prisma.$executeRawUnsafe(
+    `ALTER SEQUENCE "OrderItem_id_seq" RESTART WITH 1;`
+  );
+  console.log("Reset Order_id_seq and OrderItem_id_seq to 1.");
+
+  console.log("Done — Order and OrderItem are both empty.");
 }
 
 main()
-  .catch((e) => console.error(e))
-  .finally(() => prisma.$disconnect());
+  .catch((err) => {
+    console.error("Reset failed:", err);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
