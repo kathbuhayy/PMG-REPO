@@ -596,7 +596,7 @@
 /* ── Production overview / urgent actions / today's schedule ──────────── */
 .dash-triple-grid {
   display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr;
+  grid-template-columns: 1.3fr 1fr;
   gap: 20px;
   margin-bottom: 28px;
 }
@@ -1931,6 +1931,10 @@
   background: #f5f3ff;
   color: #6d28d9;
   border: 1px solid #ddd6fe;
+}
+.dashpage-pill.status-refunded {
+  background: rgba(100, 116, 139, 0.08);
+  color: #475569;
 }
 
 /* Action Buttons */

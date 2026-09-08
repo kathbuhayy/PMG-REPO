@@ -11,6 +11,8 @@ const ORDER_TABS = [
   { key: "all", label: "All" },
   { key: "to_pay", label: "To pay" },
   { key: "to_receive", label: "To receive" },
+  { key: "to_review", label: "To review" },
+  { key: "return", label: "Refunds" },
 ];
 
 async function readApiResponse(response, fallbackMessage) {
@@ -89,6 +91,11 @@ function UserOrders() {
   const [complaintDetails, setComplaintDetails] = useState("");
   const [submittingComplaint, setSubmittingComplaint] =
     useState(false);
+
+  const [ratingOrder, setRatingOrder] = useState(null);
+  const [ratingStars, setRatingStars] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   const [noticeModal, setNoticeModal] = useState(null);
   const [cancelTargetId, setCancelTargetId] = useState(null);
@@ -847,6 +854,61 @@ function UserOrders() {
     }
   };
 
+  
+  const handleSubmitRating = async (e) => {
+    e.preventDefault();
+    if (!ratingOrder || !ratingStars) return;
+
+    setSubmittingRating(true);
+
+    try {
+      const res = await fetch(
+        buildApiUrl(`/api/orders/${ratingOrder.id}/rating`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            stars: ratingStars,
+            comment: ratingComment,
+          }),
+        }
+      );
+
+      const data = await readApiResponse(res, "Rating saved");
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit rating.");
+      }
+
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === ratingOrder.id
+            ? { ...order, rating: data.rating }
+            : order
+        )
+      );
+
+      setRatingOrder(null);
+      setRatingStars(0);
+      setRatingComment("");
+
+      setNoticeModal({
+        title: "Rating submitted",
+        message: "Thanks for rating your order!",
+        tone: "success",
+      });
+    } catch (err) {
+      setNoticeModal({
+        title: "Could not submit rating",
+        message: err.message || "Please try again.",
+        tone: "danger",
+      });
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
+
   /* =========================================================
      HELPERS
      ========================================================= */
@@ -1287,8 +1349,25 @@ function UserOrders() {
             File complaint
           </button>
         )}
+
+      {order.payment_status === "paid" &&
+        ["delivered", "completed"].includes(order.status) &&
+        !order.rating && (
+          <button
+            type="button"
+            className="uo-return-btn"
+            onClick={() => {
+              setRatingOrder(order);
+              setRatingStars(0);
+              setRatingComment("");
+            }}
+          >
+            Rate this order
+          </button>
+        )}
     </div>
   );
+  
 
   /* =========================================================
      ORDER CARD
@@ -1609,6 +1688,43 @@ function UserOrders() {
                   it's approved or if any
                   changes are needed.
                 </p>
+              </div>
+            )}
+
+            {order.refundStatus === "requested" && (
+              <div className="uo-review-notice">
+                <strong>Your refund request is under review.</strong>
+                <p>Our team will get back to you shortly.</p>
+              </div>
+            )}
+
+            {order.refundStatus === "rejected" && (
+              <div className="uo-review-notice revision">
+                <strong>Your refund request was declined.</strong>
+                {order.refundNotes && <p>{order.refundNotes}</p>}
+              </div>
+            )}
+
+            {order.refundStatus === "refunded" && (
+              <div className="uo-review-notice refunded">
+                <strong>
+                  Refunded {formatCurrency(order.refundAmount)}.
+                </strong>
+                <p>It should reflect on your original payment method soon.</p>
+              </div>
+            )}
+
+            {order.rating && (
+              <div className="uo-rating-display">
+                <span className="uo-rating-stars">
+                  {"★".repeat(order.rating.stars)}
+                  {"☆".repeat(5 - order.rating.stars)}
+                </span>
+                {order.rating.comment && (
+                  <p className="uo-rating-comment">
+                    "{order.rating.comment}"
+                  </p>
+                )}
               </div>
             )}
 
@@ -2078,6 +2194,62 @@ function UserOrders() {
       {/* =====================================================
           COMPLAINT MODAL
           ===================================================== */}
+      {ratingOrder && (
+        <div
+          className="uo-modal"
+          role="dialog"
+          aria-modal="true"
+        >
+          <form
+            className="uo-modal-card"
+            onSubmit={handleSubmitRating}
+          >
+            <button
+              type="button"
+              className="uo-modal-close"
+              onClick={() => setRatingOrder(null)}
+              aria-label="Close rating"
+            >
+              x
+            </button>
+
+            <h2>Rate your order</h2>
+            <p>Order #{ratingOrder.id}</p>
+
+            <div className="uo-star-picker">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`uo-star-btn ${n <= ratingStars ? "filled" : ""}`}
+                  onClick={() => setRatingStars(n)}
+                  aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <label>
+              Comments (optional)
+              <textarea
+                value={ratingComment}
+                onChange={(e) => setRatingComment(e.target.value)}
+                rows="4"
+                placeholder="Tell us what you liked or what we could improve."
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="uo-submit-return"
+              disabled={submittingRating || !ratingStars}
+            >
+              {submittingRating ? "Submitting..." : "Submit rating"}
+            </button>
+          </form>
+        </div>
+      )}
 
       {complaintOrder && (
         <div

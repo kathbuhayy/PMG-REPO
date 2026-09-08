@@ -33,6 +33,7 @@ model User {
   notifications      Notification[]
   orders             Order[]
   staffRoles         UserStaffRole[]
+  ratings            Rating[]
 }
 
 model Notification {
@@ -250,11 +251,34 @@ model Order {
   designReviewStatus   String?          @default("submitted") @map("design_review_status")
   designReviewedAt     DateTime?        @map("design_reviewed_at")
   designReviewedBy     Int?             @map("design_reviewed_by")
+  refundStatus         String?          @map("refund_status")
+  refundReason         String?          @map("refund_reason")
+  refundRequestedAt    DateTime?        @map("refund_requested_at")
+  refundAmount         Decimal?         @map("refund_amount") @db.Decimal(14, 2)
+  refundNotes          String?          @map("refund_notes")
+  refundedAt           DateTime?        @map("refunded_at")
+  refundedBy           Int?             @map("refunded_by")
+  paymongoRefundId     String?          @map("paymongo_refund_id")
   branch               Branch?          @relation(fields: [branchId], references: [id])
   user                 User?            @relation(fields: [userId], references: [id])
   items                OrderItem[]
+  rating               Rating?
 
   @@index([productionStatus])
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  orderId   Int      @unique
+  userId    Int?
+  stars     Int
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  order     Order    @relation(fields: [orderId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 model Branch {

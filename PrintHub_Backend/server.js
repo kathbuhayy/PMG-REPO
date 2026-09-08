@@ -40,6 +40,7 @@ const {
   retrieveCheckoutSession,
   verifyWebhookSignature,
   createInquiryAndUpdateOrder,
+  createRefund,
 } = require("./services/paymongo");
 
 const { generateInvoicePdf } = require("./services/invoice");
@@ -77,6 +78,7 @@ const {
   notifyPaymentConfirmation,
   notifyPaymentFailed,
   notifyReturnComplaintReceived,
+  notifyRefundDecision,
   notifyLowStockProducts,
   notifyOutOfStockProducts,
   notifyAdminsNewOrderForReview,
@@ -1365,7 +1367,11 @@ app.get("/api/orders/:id", async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id },
-      include: { items: { include: { product: true } }, user: true },
+      include: {
+        items: { include: { product: true } },
+        user: true,
+        rating: true,
+      },
     });
     if (!order || order.deleted_at)
       return res.status(404).json({ message: "Order not found" });
@@ -1387,6 +1393,7 @@ app.get("/api/user/:id/orders", async (req, res) => {
             product: { select: { id: true, name: true, images: true } },
           },
         },
+        rating: true,
       },
     });
     res.json(orders);
@@ -2051,9 +2058,10 @@ app.get("/api/admin/orders", async (req, res) => {
         },
         user: true,
         branch: true,
+        rating: true,
       },
     });
-    res.json(orders);
+    res.json(orders.map((o) => ({ ...o, customer: getCustomerName(o) })));
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "DB error" });
@@ -2644,6 +2652,7 @@ app.get("/api/admin/reports/sales", async (req, res) => {
       include: {
         user: true,
         items: { include: { product: true } },
+        rating: true,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -2662,6 +2671,12 @@ app.get("/api/admin/reports/sales", async (req, res) => {
       return acc;
     }, {});
 
+     // A rating is on the whole order, not a single line item — when an
+    // order is rated, that rating counts toward every product it
+    // contained. This is an approximation (multi-product orders spread
+    // one rating across several products) but it's the only signal the
+    // schema currently supports, and it's a reasonable one in a catalog
+    // where most orders are single-product.
     const productMap = new Map();
     orders.forEach((order) => {
       order.items.forEach((item) => {
@@ -2671,9 +2686,15 @@ app.get("/api/admin/reports/sales", async (req, res) => {
           name: item.product?.name || `Product #${key}`,
           quantity: 0,
           revenue: 0,
+          ratingSum: 0,
+          ratingCount: 0,
         };
         current.quantity += Number(item.quantity || 0);
         current.revenue += Number(item.total_price || 0);
+        if (order.rating) {
+          current.ratingSum += order.rating.stars;
+          current.ratingCount += 1;
+        }
         productMap.set(key, current);
       });
     });
@@ -2692,7 +2713,15 @@ app.get("/api/admin/reports/sales", async (req, res) => {
       },
       byStatus,
       topProducts: Array.from(productMap.values())
-        .sort((a, b) => b.revenue - a.revenue)
+        .map((p) => ({
+          productId: p.productId,
+          name: p.name,
+          quantity: p.quantity,
+          revenue: p.revenue,
+          averageRating: p.ratingCount > 0 ? p.ratingSum / p.ratingCount : null,
+          ratingCount: p.ratingCount,
+        }))
+        .sort((a, b) => b.quantity - a.quantity)
         .slice(0, 10),
       recentOrders: orders.slice(0, 25).map((order) => ({
         id: order.id,
@@ -2709,6 +2738,58 @@ app.get("/api/admin/reports/sales", async (req, res) => {
   }
 });
 
+// GET /api/admin/dashboard/sales-overview — real daily revenue trend + monthly
+// summary for the dashboard's Sales Overview card
+app.get("/api/admin/dashboard/sales-overview", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  try {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        deleted_at: null,
+        payment_status: "paid",
+        createdAt: { gte: monthStart, lte: monthEnd },
+      },
+      select: { total: true, createdAt: true, userId: true },
+    });
+
+    const daysInMonthSoFar = now.getDate();
+    const dailyMap = new Map();
+    for (let d = 1; d <= daysInMonthSoFar; d++) {
+      const key = new Date(now.getFullYear(), now.getMonth(), d).toISOString().slice(0, 10);
+      dailyMap.set(key, 0);
+    }
+
+    let totalSales = 0;
+    const customerSet = new Set();
+    orders.forEach((o) => {
+      const key = o.createdAt.toISOString().slice(0, 10);
+      const amount = Number(o.total || 0);
+      totalSales += amount;
+      if (dailyMap.has(key)) dailyMap.set(key, dailyMap.get(key) + amount);
+      if (o.userId) customerSet.add(o.userId);
+    });
+
+    const dailyRevenue = Array.from(dailyMap.entries()).map(([date, revenue]) => ({
+      date,
+      revenue: parseFloat(revenue.toFixed(2)),
+    }));
+
+    res.json({
+      month: monthStart.toISOString().slice(0, 7),
+      dailyRevenue,
+      totalSales: parseFloat(totalSales.toFixed(2)),
+      orders: orders.length,
+      customers: customerSet.size,
+      avgOrder: orders.length ? parseFloat((totalSales / orders.length).toFixed(2)) : 0,
+    });
+  } catch (e) {
+    console.error("Dashboard sales-overview error:", e.message);
+    res.status(500).json({ message: "Failed to fetch sales overview" });
+  }
+});
 
 // GET /api/admin/payments — list all orders with payment detail, for the admin Payments page
 app.get("/api/admin/payments", async (req, res) => {
@@ -3851,6 +3932,7 @@ app.get("/api/orders/:id", async (req, res) => {
           include: { product: true },
         },
         user: true,
+        rating: true,
       },
     });
 
@@ -5130,13 +5212,23 @@ app.post("/api/orders/:id/return-complaint", async (req, res) => {
       customerName,
     } = await createInquiryAndUpdateOrder(order, reason, details);
 
+    const orderWithRefund = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        refundStatus: "requested",
+        refundReason: reason,
+        refundRequestedAt: new Date(),
+      },
+      include: { items: { include: { product: true } }, user: true },
+    });
+
     const emailRes = await notifyReturnComplaintReceived(order, inquiry);
     const emailSent = emailRes?.status === "sent";
 
     res.status(201).json({
       message: "Return complaint submitted",
       inquiry,
-      order: updatedOrder,
+      order: orderWithRefund,
       emailSent,
       mockEmail: {
         to: customerEmail,
@@ -5150,6 +5242,169 @@ app.post("/api/orders/:id/return-complaint", async (req, res) => {
   } catch (e) {
     console.error("Return complaint failed:", e);
     res.status(500).json({ message: "Failed to submit return complaint" });
+  }
+});
+
+// PUT /api/admin/orders/:id/refund — staff/admin approves or rejects a
+// pending refund request. "approve" actually calls PayMongo and moves
+// money; "reject" just closes out the request with a note.
+app.put("/api/admin/orders/:id/refund", async (req, res) => {
+  try {
+    if (!(await isStaffOrAdmin(req))) {
+      return res
+        .status(403)
+        .json({ message: "Only staff or admin can decide refunds." });
+    }
+
+    const orderId = parseInt(req.params.id, 10);
+    const { action, amount, notes } = req.body;
+
+    if (!["approve", "reject"].includes(action)) {
+      return res
+        .status(400)
+        .json({ message: 'action must be "approve" or "reject"' });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { include: { product: true } }, user: true },
+    });
+
+    if (!order || order.deleted_at) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    if (order.refundStatus !== "requested") {
+      return res
+        .status(400)
+        .json({ message: "This order has no pending refund request." });
+    }
+
+    const reviewerId = getUserId(req);
+
+    if (action === "reject") {
+      const rejectedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          refundStatus: "rejected",
+          refundNotes: notes || null,
+          refundedBy: reviewerId,
+          status: "delivered",
+        },
+        include: { items: { include: { product: true } }, user: true },
+      });
+
+      await notifyRefundDecision(order, "rejected", null, notes).catch((e) =>
+        console.warn("notifyRefundDecision failed (non-fatal):", e.message)
+      );
+
+      await logActivity({
+        actor: req.actor,
+        action: "status_changed",
+        module: "orders",
+        description: `Refund request for Order #${orderId} rejected`,
+        metadata: { orderId, notes: notes || null },
+      });
+
+      return res.json({ message: "Refund request rejected", order: rejectedOrder });
+    }
+
+    // action === "approve"
+    const refundAmount = amount != null ? parseFloat(amount) : parseFloat(order.amountPaid || order.total);
+
+    if (!order.payment_reference) {
+      return res.status(400).json({
+        message: "This order has no recorded PayMongo payment to refund.",
+      });
+    }
+    if (!(refundAmount > 0) || refundAmount > parseFloat(order.amountPaid || order.total)) {
+      return res.status(400).json({ message: "Invalid refund amount." });
+    }
+
+    let pmRefund;
+    try {
+      pmRefund = await createRefund(order.payment_reference, refundAmount, "others");
+    } catch (pmErr) {
+      console.error("PayMongo refund failed:", pmErr.details || pmErr.message);
+      return res.status(502).json({
+        message: "PayMongo refund failed. No changes were made.",
+        details: pmErr.details || pmErr.message,
+      });
+    }
+
+    const refundedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        refundStatus: "refunded",
+        refundAmount,
+        refundNotes: notes || null,
+        refundedAt: new Date(),
+        refundedBy: reviewerId,
+        paymongoRefundId: pmRefund?.data?.id || null,
+        status: "refunded",
+        payment_status: "refunded",
+      },
+      include: { items: { include: { product: true } }, user: true },
+    });
+
+    await notifyRefundDecision(order, "refunded", refundAmount, notes).catch((e) =>
+      console.warn("notifyRefundDecision failed (non-fatal):", e.message)
+    );
+
+    await logActivity({
+      actor: req.actor,
+      action: "status_changed",
+      module: "orders",
+      description: `Refund of ₱${refundAmount} processed for Order #${orderId}`,
+      metadata: { orderId, refundAmount, paymongoRefundId: pmRefund?.data?.id },
+    });
+
+    res.json({ message: "Refund processed", order: refundedOrder });
+  } catch (err) {
+    console.error("PUT /api/admin/orders/:id/refund failed:", err);
+    res.status(500).json({ message: "Failed to process refund." });
+  }
+});
+
+// POST /api/orders/:id/rating — customer rates a delivered/completed
+// order. Upserts so re-submitting edits the existing rating.
+app.post("/api/orders/:id/rating", async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id, 10);
+    const { userId, stars, comment } = req.body;
+
+    const starsInt = parseInt(stars, 10);
+    if (!Number.isInteger(starsInt) || starsInt < 1 || starsInt > 5) {
+      return res.status(400).json({ message: "stars must be an integer from 1 to 5." });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order || order.deleted_at) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    if (userId && order.userId !== parseInt(userId, 10)) {
+      return res.status(403).json({ message: "Order does not belong to user" });
+    }
+    if (order.payment_status !== "paid" || !["delivered", "completed"].includes(order.status)) {
+      return res.status(400).json({
+        message: "You can only rate an order after it has been delivered.",
+      });
+    }
+
+    const rating = await prisma.rating.upsert({
+      where: { orderId },
+      update: { stars: starsInt, comment: comment || null },
+      create: {
+        orderId,
+        userId: order.userId,
+        stars: starsInt,
+        comment: comment || null,
+      },
+    });
+
+    res.status(201).json({ message: "Rating saved", rating });
+  } catch (err) {
+    console.error("POST /api/orders/:id/rating failed:", err);
+    res.status(500).json({ message: "Failed to save rating." });
   }
 });
 

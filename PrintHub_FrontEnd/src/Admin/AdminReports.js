@@ -170,7 +170,7 @@ function AdminReports() {
 
         <div className="data-table-card" style={{ marginTop: 0 }}>
           <div className="data-table-head">
-            <h3>Top Products</h3>
+            <h3>Most Ordered Products</h3>
           </div>
           <div style={{ padding: "16px 20px" }}>
             {topProducts.length === 0 ? (
@@ -182,12 +182,21 @@ function AdminReports() {
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
+                    alignItems: "center",
                     padding: "8px 0",
                     borderBottom: "1px solid #f1f5f9",
                     fontSize: "13px",
                   }}
                 >
-                  <span>{p.name} <span style={{ color: "#94a3b8" }}>× {p.quantity}</span></span>
+                  <span>
+                    {p.name} <span style={{ color: "#94a3b8" }}>× {p.quantity}</span>
+                    {p.averageRating != null && (
+                      <span style={{ color: "#f59e0b", marginLeft: 8 }}>
+                        ★ {p.averageRating.toFixed(1)}
+                        <span style={{ color: "#94a3b8" }}> ({p.ratingCount})</span>
+                      </span>
+                    )}
+                  </span>
                   <strong>{money(p.revenue)}</strong>
                 </div>
               ))

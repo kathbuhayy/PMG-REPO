@@ -784,33 +784,36 @@ function CheckoutModal({
                 <h3>Order Items</h3>
                 {cartItems.map((item) => {
                   const breakdown = itemBreakdowns[item.id];
-                  const parts = [];
-                  if (breakdown?.setupFee != null) {
-                    parts.push(`Setup ${formatPeso(breakdown.setupFee)}`);
-                  }
-                  if (breakdown?.markedUpMaterialCost != null) {
-                    parts.push(
-                      `Material ${formatPeso(breakdown.markedUpMaterialCost)}`,
-                    );
-                  }
-                  if (
-                    breakdown?.quantityDiscountFactor != null &&
-                    breakdown.quantityDiscountFactor < 1
-                  ) {
-                    const pct = Math.round(
-                      (1 - breakdown.quantityDiscountFactor) * 100,
-                    );
-                    parts.push(`Bulk discount -${pct}%`);
-                  }
+                  const materialUnitLabels = { substrate: "m", ink: "ml", unit: "pcs" };
 
                   return (
                     <div key={item.id} className="review-item">
                       <div className="review-item-name">
                         {item.title}{" "}
                         <span className="review-qty">x{item.qty}</span>
-                        {parts.length > 0 && (
+
+                        {breakdown && (
                           <div className="review-item-breakdown">
-                            {parts.join("  ·  ")}
+                            {breakdown.setupFee != null && (
+                              <div>Setup: {formatPeso(breakdown.setupFee)}</div>
+                            )}
+                            {breakdown.materialBreakdown?.length > 0 && (
+                              <div style={{ paddingLeft: 8 }}>
+                                {breakdown.materialBreakdown.map((m, i) => (
+                                  <div key={i}>
+                                    {m.name}: {m.amount} {materialUnitLabels[m.type] || ""}
+                                    {m.lineCost != null ? ` — ${formatPeso(m.lineCost)}` : ""}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {breakdown.quantityDiscountFactor != null &&
+                              breakdown.quantityDiscountFactor < 1 && (
+                                <div>
+                                  Bulk discount: -
+                                  {Math.round((1 - breakdown.quantityDiscountFactor) * 100)}%
+                                </div>
+                              )}
                           </div>
                         )}
                       </div>

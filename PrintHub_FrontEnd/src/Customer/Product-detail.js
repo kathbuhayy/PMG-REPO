@@ -40,6 +40,7 @@ import tshirtPrintAreas from "../assets/tshirt-print-areas.png";
 
 const RECENTLY_VIEWED_KEY = "printhub_recently_viewed_products";
 const RECENTLY_VIEWED_LIMIT = 8;
+const MATERIAL_UNIT_LABELS = { substrate: "m", ink: "ml", unit: "pcs" };
 
 function formatRecentPrice(price) {
   if (price === null || price === undefined || price === "") return "";
@@ -1172,11 +1173,22 @@ function ProductDetail() {
     const restoredCustomQty =
       savedCustomQty !== null
         ? savedCustomQty
-        : "";
+        : (product.quantity_mode === "text" ? "1" : "");
 
     setCustomQty(
       restoredCustomQty,
     );
+
+    if (product.quantity_mode === "text" && !savedCustomQty) {
+      const n = parseInt(restoredCustomQty, 10) || 1;
+      const qtyObj = {
+        label: `${n} pcs`,
+        price: formatPrice(extractNumericPrice(product.price) * n),
+        quantityNumber: n,
+      };
+      setSelectedQty(qtyObj);
+      setSessionValue(id, "selectedQty", qtyObj);
+    }
 
     const savedDesign =
       getSessionValue(
@@ -1386,6 +1398,7 @@ function ProductDetail() {
   useEffect(() => {
     if (!product?.id || !selectedQuantityNumber) {
       setPriceEstimate(null);
+      setPriceEstimateLoading(false);
       return undefined;
     }
 
@@ -3386,10 +3399,36 @@ function ProductDetail() {
                       <span>Setup fee</span>
                       <span>{formatPrice(priceEstimate.setupFee)}</span>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>Material cost (design size)</span>
-                      <span>{formatPrice(priceEstimate.markedUpMaterialCost)}</span>
-                    </div>
+
+                    {priceEstimate.materialBreakdown?.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                          Materials used (design size)
+                        </span>
+                        {priceEstimate.materialBreakdown.map((m, i) => {
+                          const unit = MATERIAL_UNIT_LABELS[m.type] || "";
+                          return (
+                            <div
+                              key={i}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                paddingLeft: 10,
+                                color: "#64748b",
+                              }}
+                            >
+                              <span>
+                                {m.name} — {m.amount} {unit}
+                              </span>
+                              <span>
+                                {m.lineCost != null ? formatPrice(m.lineCost) : "—"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {priceEstimate.quantityDiscountFactor < 1 && (
                       <div
                         style={{
@@ -3428,10 +3467,13 @@ function ProductDetail() {
                   </span>
 
                   <strong>
-                    {priceEstimateLoading && (
+                    {!selectedQuantityNumber && (
+                      <span style={{ opacity: 0.5, fontSize: 13 }}>Enter a quantity</span>
+                    )}
+                    {selectedQuantityNumber > 0 && priceEstimateLoading && (
                       <span style={{ opacity: 0.5 }}>Calculating…</span>
                     )}
-                    {!priceEstimateLoading &&
+                    {selectedQuantityNumber > 0 && !priceEstimateLoading &&
                       (grandTotal > 0
                         ? formatPrice(grandTotal)
                         : formatPrice(extractNumericPrice(product.price)))}

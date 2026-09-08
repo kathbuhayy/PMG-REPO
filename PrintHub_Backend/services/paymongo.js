@@ -82,7 +82,7 @@ const buildReceiptPayload = (order, statusOverride, emailSent) => {
       totalPrice: item.total_price,
       customizationLabel: formatCustomizations(item.customizations),
       pcsCount: extractPcsFromCustomizations(item.customizations),
-      materialCost: item.customizations?.materialCost || null,
+      materialCost: item.customizations?.pricingBreakdown?.materialBreakdown || null,
       setupFee: item.customizations?.pricingBreakdown?.setupFee ?? null,
       marginMultiplier: item.customizations?.pricingBreakdown?.marginMultiplier ?? null,
       quantityDiscountFactor:
@@ -384,6 +384,29 @@ const retrieveCheckoutSession = async (checkoutSessionId) => {
   });
 };
 
+// Issues a refund for a previously captured payment. amountPesos is the
+// peso amount to refund (PayMongo wants centavos as an integer). paymentId
+// is the PayMongo payment id stored on Order.payment_reference — NOT the
+// checkout session or payment intent id.
+// PayMongo only accepts reason values: "duplicate", "fraudulent",
+// "requested_by_customer", "others". Free-text goes in refund_notes on
+// the Order instead; this stays on PayMongo's fixed enum.
+const createRefund = async (paymentId, amountPesos, reason = "others") => {
+  const centavos = Math.round(Number(amountPesos) * 100);
+  return paymongoRequest("/refunds", {
+    method: "POST",
+    body: JSON.stringify({
+      data: {
+        attributes: {
+          amount: centavos,
+          payment_id: paymentId,
+          reason,
+        },
+      },
+    }),
+  });
+};
+
 // Validates HMAC-SHA256 signature of incoming PayMongo webhook payloads
 const verifyWebhookSignature = (
   rawBodyString,
@@ -502,5 +525,6 @@ module.exports = {
   retrieveCheckoutSession,
   verifyWebhookSignature,
   createInquiryAndUpdateOrder,
+  createRefund,
 };
 

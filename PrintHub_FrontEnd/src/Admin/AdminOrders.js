@@ -328,6 +328,10 @@ function AdminOrders() {
             ? `${order.user.first_name} ${order.user.last_name}`
             : "Unknown",
           total: parseFloat(order.total),
+          amountPaid:
+            order.amountPaid != null
+              ? parseFloat(order.amountPaid)
+              : parseFloat(order.total),
           status: order.status || "pending",
           proofApproved: Boolean(order.proofApproved),
           designReviewStatus: order.designReviewStatus || "submitted",
@@ -340,6 +344,12 @@ function AdminOrders() {
           date: new Date(order.createdAt).toISOString().slice(0, 10),
           dbId: order.id,
           items: order.items || [],
+          refundStatus: order.refundStatus || null,
+          refundReason: order.refundReason || null,
+          refundAmount:
+            order.refundAmount != null ? parseFloat(order.refundAmount) : null,
+          refundNotes: order.refundNotes || null,
+          rating: order.rating || null,
         }));
 
         setOrders(transformedOrders);
@@ -401,6 +411,7 @@ function AdminOrders() {
     "delivered",
     "completed",
     "return_requested",
+    "refunded",
     "cancelled",
   ];
 
@@ -411,6 +422,7 @@ function AdminOrders() {
     delivered: "Delivered",
     completed: "Completed",
     return_requested: "Return Requested",
+    refunded: "Refunded",
     cancelled: "Cancelled",
   };
 
@@ -541,6 +553,70 @@ function AdminOrders() {
       });
     } finally {
       setReviewSubmittingStatus(null);
+    }
+  };
+
+  const [refundAmountDraft, setRefundAmountDraft] = useState("");
+  const [refundNotesDraft, setRefundNotesDraft] = useState("");
+  const [refundSubmittingAction, setRefundSubmittingAction] = useState(null);
+
+  const submitRefundDecision = async (order, action) => {
+    setRefundSubmittingAction(action);
+    try {
+      const res = await adminFetch(
+        buildApiUrl(`/api/admin/orders/${order.dbId}/refund`),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            amount:
+              action === "approve"
+                ? refundAmountDraft || order.amountPaid
+                : undefined,
+            notes: refundNotesDraft.trim() || null,
+          }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Failed to update refund");
+
+      const patch = {
+        refundStatus: action === "approve" ? "refunded" : "rejected",
+        refundAmount:
+          action === "approve"
+            ? parseFloat(refundAmountDraft || order.amountPaid)
+            : order.refundAmount,
+        refundNotes: refundNotesDraft.trim() || null,
+        status: action === "approve" ? "refunded" : "delivered",
+      };
+
+      setOrders((prev) =>
+        prev.map((o) => (o.dbId === order.dbId ? { ...o, ...patch } : o))
+      );
+      setDetailOrder((current) =>
+        current?.dbId === order.dbId ? { ...current, ...patch } : current
+      );
+      setRefundAmountDraft("");
+      setRefundNotesDraft("");
+
+      setNoticeModal({
+        title: action === "approve" ? "Refund processed" : "Refund rejected",
+        message:
+          action === "approve"
+            ? `${order.id} has been refunded.`
+            : `${order.id}'s refund request was declined.`,
+        tone: action === "approve" ? "success" : "warning",
+      });
+    } catch (err) {
+      console.error("Error updating refund:", err);
+      setNoticeModal({
+        title: "Could not update refund",
+        message: err.message || "Error updating refund",
+        tone: "danger",
+      });
+    } finally {
+      setRefundSubmittingAction(null);
     }
   };
 
@@ -1490,6 +1566,98 @@ function AdminOrders() {
                   </div>
                 </div>
               )}
+
+            {detailOrder.refundStatus === "requested" && (
+              <div
+                style={{
+                  paddingBottom: "16px",
+                  borderBottom: "1px solid #e2e8f0",
+                  marginBottom: "16px",
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#7e22ce", marginBottom: 8 }}>
+                  REFUND REQUESTED
+                </div>
+                {detailOrder.refundReason && (
+                  <div style={{ fontSize: 13, color: "#475569", marginBottom: 10 }}>
+                    Reason: <strong>{detailOrder.refundReason}</strong>
+                  </div>
+                )}
+                <input
+                  type="number"
+                  placeholder={`Amount (default ₱${detailOrder.amountPaid?.toLocaleString()})`}
+                  value={refundAmountDraft}
+                  onChange={(e) => setRefundAmountDraft(e.target.value)}
+                  style={{
+                    width: "100%",
+                    fontSize: 13,
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #cbd5e1",
+                    marginBottom: 8,
+                  }}
+                />
+                <textarea
+                  placeholder="Notes for the customer (optional)"
+                  value={refundNotesDraft}
+                  onChange={(e) => setRefundNotesDraft(e.target.value)}
+                  rows={2}
+                  style={{
+                    width: "100%",
+                    fontSize: 13,
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #cbd5e1",
+                    marginBottom: 10,
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                  }}
+                />
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="dashaction-btn"
+                    style={{ color: "#b45309", borderColor: "#fde68a" }}
+                    disabled={refundSubmittingAction !== null}
+                    onClick={() => submitRefundDecision(detailOrder, "reject")}
+                  >
+                    {refundSubmittingAction === "reject" ? "Saving…" : "Reject"}
+                  </button>
+                  <button
+                    type="button"
+                    className="dashaction-btn green"
+                    disabled={refundSubmittingAction !== null}
+                    onClick={() => submitRefundDecision(detailOrder, "approve")}
+                  >
+                    <FaCheck size={12} />
+                    {refundSubmittingAction === "approve" ? "Processing…" : "Approve & Refund"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {detailOrder.rating && (
+              <div
+                style={{
+                  paddingBottom: "16px",
+                  borderBottom: "1px solid #e2e8f0",
+                  marginBottom: "16px",
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#475569", marginBottom: 6 }}>
+                  CUSTOMER RATING
+                </div>
+                <span style={{ color: "#f5a623", fontSize: 16, letterSpacing: 2 }}>
+                  {"★".repeat(detailOrder.rating.stars)}
+                  {"☆".repeat(5 - detailOrder.rating.stars)}
+                </span>
+                {detailOrder.rating.comment && (
+                  <p style={{ fontSize: 13, color: "#64748b", fontStyle: "italic", margin: "6px 0 0" }}>
+                    "{detailOrder.rating.comment}"
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Items */}
             <div>
