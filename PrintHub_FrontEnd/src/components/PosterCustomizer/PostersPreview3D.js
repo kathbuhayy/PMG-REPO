@@ -114,6 +114,7 @@ export default function PostersPreview3D({
       const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.needsUpdate = true;
+      texture.flipY = false;
       if (target.material.map) target.material.map.dispose();
       const mat = new THREE.MeshStandardMaterial({
         color: new THREE.Color("#ffffff"),

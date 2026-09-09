@@ -186,8 +186,8 @@ function FabricZoneBox({
       obj.setCoords();
       clearGuides();
 
-      const zoneCenterX = dims.width / 2;
-      const zoneCenterY = dims.height / 2;
+      const zoneCenterX = canvas.getWidth() / 2;
+      const zoneCenterY = canvas.getHeight() / 2;
       let objCenter = obj.getCenterPoint();
       let snappedX = false;
       let snappedY = false;
@@ -224,10 +224,10 @@ function FabricZoneBox({
     };
 
     const percentFromObject = (obj) => ({
-      x: (obj.left / dims.width) * 100,
-      y: (obj.top / dims.height) * 100,
-      w: (obj.getScaledWidth() / dims.width) * 100,
-      h: (obj.getScaledHeight() / dims.height) * 100,
+      x: (obj.left / canvas.getWidth()) * 100,
+      y: (obj.top / canvas.getHeight()) * 100,
+      w: (obj.getScaledWidth() / canvas.getWidth()) * 100,
+      h: (obj.getScaledHeight() / canvas.getHeight()) * 100,
       rotation: obj.angle || 0,
     });
 
@@ -248,10 +248,10 @@ function FabricZoneBox({
           const w = child.getScaledWidth();
           const h = child.getScaledHeight();
           onLayerChangeRef.current?.(child.zoneLayerId, {
-            x: ((center.x - w / 2) / dims.width) * 100,
-            y: ((center.y - h / 2) / dims.height) * 100,
-            w: (w / dims.width) * 100,
-            h: (h / dims.height) * 100,
+            x: ((center.x - w / 2) / canvas.getWidth()) * 100,
+            y: ((center.y - h / 2) / canvas.getHeight()) * 100,
+            w: (w / canvas.getWidth()) * 100,
+            h: (h / canvas.getHeight()) * 100,
             rotation: child.angle || 0,
           });
         });
@@ -317,6 +317,25 @@ function FabricZoneBox({
   useEffect(() => {
     const canvas = fabricCanvasRef.current;
     if (!canvas) return;
+
+    // Keep the canvas's real backing resolution in sync with the zone's
+    // current pixel size. Previously this was only set once at mount, so
+    // whenever `dims` changed afterward (e.g. the customer picked a
+    // different print size) objects got rebuilt for the new size while
+    // sitting on a canvas still using the old one - drag/resize math then
+    // read back the wrong scale, making the layer appear to jump/resize
+    // the instant you touched it. This is a no-op for zones whose dims
+    // never change after mount (garments), so it doesn't affect them.
+    if (canvas.getWidth() !== dims.width || canvas.getHeight() !== dims.height) {
+      canvas.setDimensions({ width: dims.width, height: dims.height });
+      const wrapEl = wrapRef.current;
+      if (wrapEl) {
+        const { clientWidth, clientHeight } = wrapEl;
+        if (clientWidth > 0 && clientHeight > 0) {
+          canvas.setDimensions({ width: clientWidth, height: clientHeight }, { cssOnly: true });
+        }
+      }
+    }
 
     let cancelled = false;
 
