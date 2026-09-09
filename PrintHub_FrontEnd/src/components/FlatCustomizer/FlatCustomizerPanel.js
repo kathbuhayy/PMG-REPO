@@ -812,10 +812,7 @@ export default function FlatCustomizerPanel({
             activeZone={activeZone}
             onZoneSelect={handleZoneSelect}
             onZoneDesignChange={handleZoneDesignChange}
-            activeZone={activeZone}
             activeTextId={activeTextId}
-            onZoneSelect={handleZoneSelect}
-            onZoneDesignChange={handleZoneDesignChange}
             onTextChange={handleTextChange}
             onTextSelect={handleTextSelect}
             onTextRemove={handleTextRemove}

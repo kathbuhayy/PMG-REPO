@@ -1321,6 +1321,27 @@
     font-size: 13px;
   }
   
+  .uo-receipt-items .uo-receipt-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 6px 0;
+}
+
+.uo-receipt-items .uo-receipt-item-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+}
+
+.uo-receipt-items .uo-receipt-item-breakdown {
+  display: block;
+  padding: 2px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+  
   .uo-mock-email {
     margin-top: 16px;
     padding: 12px;
@@ -2216,3 +2237,55 @@
       margin-top: 30px !important;
     }
   }
+  /* --- RATINGS --- */
+.uo-rating-display {
+  margin-top: 11px;
+  padding: 9px 10px;
+  border: 1px dashed #dce9d8;
+  border-radius: 9px;
+}
+
+.uo-rating-stars {
+  color: #f5a623;
+  font-size: 15px;
+  letter-spacing: 2px;
+}
+
+.uo-rating-comment {
+  margin: 4px 0 0;
+  color: #7a8b83;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.uo-star-picker {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.uo-star-btn {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: #d9e5d5;
+  cursor: pointer;
+  padding: 2px;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.uo-star-btn:hover {
+  transform: scale(1.1);
+}
+
+.uo-star-btn.filled {
+  color: #f5a623;
+}
+
+/* --- REFUND STATUS (extends .uo-review-notice) --- */
+.uo-review-notice.refunded {
+  border-color: #b8dcae;
+  background: #f1f8ed;
+  color: #2f5c1a;
+}

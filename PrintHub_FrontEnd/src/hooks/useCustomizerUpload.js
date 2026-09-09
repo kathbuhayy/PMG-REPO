@@ -99,11 +99,36 @@ export function useCustomizerUpload(
     setGallery((prev) => [...prev, item]);
     setSelectedGalleryId(id);
 
-    convertFileToBase64(file, (base64Url) => {
-      setGallery((prev) =>
-        prev.map((g) => (g.id === id ? { ...g, url: base64Url } : g)),
-      );
-    });
+    // Swap the throwaway blob: URL for something that survives a reload.
+    // Small files get a base64 data: URL locally; anything too big for
+    // that (previously just silently stuck as blob: forever) gets
+    // uploaded to storage right away so it still has a durable URL.
+    if (file.size <= 1.5 * 1024 * 1024) {
+      convertFileToBase64(file, (base64Url) => {
+        setGallery((prev) =>
+          prev.map((g) => (g.id === id ? { ...g, url: base64Url } : g)),
+        );
+      });
+    } else {
+      const userId = getUserId();
+      const formData = new FormData();
+      formData.append("file", file);
+      fetch(buildApiUrl("/api/builder/upload"), {
+        method: "POST",
+        headers: userId ? { "X-User-Id": String(userId) } : {},
+        body: formData,
+      })
+        .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+        .then(({ ok, data }) => {
+          if (!ok || !data.url) return;
+          setGallery((prev) =>
+            prev.map((g) => (g.id === id ? { ...g, url: data.url } : g)),
+          );
+        })
+        .catch((err) => {
+          console.error("Background upload for large file failed:", err);
+        });
+    }
 
     // Sub-Module 5.1/5.2 — check resolution in the background, non-blocking.
     // Result is looked up by gallery item id via resolutionResults.

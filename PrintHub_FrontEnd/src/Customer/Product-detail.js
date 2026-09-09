@@ -1,3 +1,4 @@
+//Product-detail.js
 import React, {
   useCallback,
   useEffect,
@@ -30,13 +31,17 @@ import ThankYouCardCustomizerPanel from "../components/ThankYouCardCustomizer/Th
 import StickerCustomizerPanel from "../components/StickerCustomizer/StickerCustomizerPanel";
 import HangTagCustomizerPanel from "../components/HangTagCustomizer/HangTagCustomizerPanel";
 import TarpaulinCustomizerPanel from "../components/TarpaulinCustomizer/TarpaulinCustomizerPanel";
+import HoodieCustomizerPanel from "../components/HoodieCustomizer/HoodieCustomizerPanel";
+import SweatshirtCustomizerPanel from "../components/SweatshirtCustomizer/SweatshirtCustomizerPanel";
 import AppModal from "../components/AppModal";
 import LoginRequiredModal from "../components/LoginRequiredModal.js";
 import { saveGuestDesignDraft } from "../utils/guestCustomization";
 import tshirtPrintAreas from "../assets/tshirt-print-areas.png";
+import ProductReviews from "./ProductReviews";
 
 const RECENTLY_VIEWED_KEY = "printhub_recently_viewed_products";
 const RECENTLY_VIEWED_LIMIT = 8;
+const MATERIAL_UNIT_LABELS = { substrate: "m", ink: "ml", unit: "pcs" };
 
 function formatRecentPrice(price) {
   if (price === null || price === undefined || price === "") return "";
@@ -78,9 +83,11 @@ function AnimatedPrice({ value }) {
 
 const DEFAULT_PRODUCT_ZONES = {
   notebook: ["front_cover", "back_cover"],
+  hoodie: ["front", "back", "left_sleeve", "right_sleeve", "hood"],
   tshirt: ["front", "back", "left_sleeve", "right_sleeve"],
-  jersey: ["front", "back", "left_sleeve", "right_sleeve"],
-  jersery: ["front", "back", "left_sleeve", "right_sleeve"],
+  sweatshirt: ["front", "back", "left_sleeve", "right_sleeve"],
+  jersey: ["front", "back"],
+  jersery: ["front", "back"],
   cap: ["front", "back", "left_side", "right_side"],
   mug: ["front", "back"],
   calling_card: ["front", "back"],
@@ -145,6 +152,10 @@ const SIDE_TO_ZONES = {
   "front only": ["front"],
   "two sides": ["front", "back"],
 
+  // ── Hoodie ────────────────────────────────────────────────────
+  hood: ["hood"],
+  "all sides": ["front", "back", "left_sleeve", "right_sleeve", "hood"],
+
   // ── Flat / Paper ──────────────────────────────────────────────
   "single side": ["front", "front_cover"],
   "double side": ["front", "back", "front_cover", "back_cover"],
@@ -161,6 +172,7 @@ function inferCustomizerCategory({ category, name, title }) {
 
   if (label.includes("flyer")) return "flyers";
   if (label.includes("poster")) return "posters";
+  if (label.includes("hoodie")) return "hoodie";
   if (label.includes("sticker") || label.includes("label"))
     return "stickers";
   if (label.includes("hang tag") || label.includes("hangtag"))
@@ -187,6 +199,7 @@ function inferCustomizerCategory({ category, name, title }) {
   if (label.includes("jersey")) return "jersey";
   if (label.includes("cap") || label.includes("hat")) return "cap";
   if (label.includes("mug") || label.includes("cup")) return "mug";
+  if (label.includes("sweatshirt")) return "sweatshirt";
 
   if (
     label.includes("shirt") ||
@@ -212,6 +225,7 @@ function getCustomizerPanel(category) {
   }
 
   if (normalized === "brochures") return BrochureCustomizerPanel;
+  if (normalized === "hoodie") return HoodieCustomizerPanel;
 
   if (normalized === "flyer" || normalized === "flyers")
     return FlyerCustomizerPanel;
@@ -247,6 +261,9 @@ function getCustomizerPanel(category) {
 
   if (normalized === "mug")
     return MugCustomizerPanel;
+  if (normalized === "sweatshirt") 
+
+    return SweatshirtCustomizerPanel;
 
   return TshirtCustomizerPanel;
 }
@@ -355,6 +372,8 @@ function ProductDetail() {
   const [product, setProduct] =
     useState(null);
 
+  const [reviewSummary, setReviewSummary] = useState({ averageRating: 0, totalReviews: 0 });
+
   const [productLoading, setProductLoading] =
     useState(true);
 
@@ -453,7 +472,7 @@ function ProductDetail() {
       getSessionValue(
         id,
         "customQty",
-        "",
+        "1",
       ),
     );
 
@@ -463,7 +482,6 @@ function ProductDetail() {
     title: product.title,
     price: grandTotal,
     size: selectedSize,
-    sizeSurcharge,
     color: selectedColor || "",
     material: {
       label:
@@ -737,6 +755,9 @@ function ProductDetail() {
   const bulkAlertShownRef =
     useRef(false);
 
+  const wipFinalizedRef = 
+    useRef(false);
+
   // AI Builder
   const [activeDesign,
     setActiveDesign] =
@@ -854,6 +875,8 @@ function ProductDetail() {
   useEffect(() => {
     if (!id) return;
 
+    wipFinalizedRef.current = false;
+
     const draft =
       readWipDraft(id);
 
@@ -875,10 +898,23 @@ function ProductDetail() {
     wipHasContent,
   ]);
 
+  useEffect(() => {
+    if (!product?.id) return;
+    fetch(buildApiUrl(`/api/products/${product.id}/reviews`))
+      .then((r) => r.json())
+      .then((data) => {
+        setReviewSummary({
+          averageRating: data.averageRating || 0,
+          totalReviews: data.totalReviews || 0,
+        });
+      })
+      .catch(() => {});
+  }, [product?.id]);
+
   const handleWipChange =
     useCallback(
       (wip) => {
-        if (!product?.id) return;
+        if (!product?.id || wipFinalizedRef.current) return;
 
         setCustomizerWip(wip);
 
@@ -1153,11 +1189,22 @@ function ProductDetail() {
     const restoredCustomQty =
       savedCustomQty !== null
         ? savedCustomQty
-        : "";
+        : (product.quantity_mode === "text" ? "1" : "");
 
     setCustomQty(
       restoredCustomQty,
     );
+
+    if (product.quantity_mode === "text" && !savedCustomQty) {
+      const n = parseInt(restoredCustomQty, 10) || 1;
+      const qtyObj = {
+        label: `${n} pcs`,
+        price: formatPrice(extractNumericPrice(product.price) * n),
+        quantityNumber: n,
+      };
+      setSelectedQty(qtyObj);
+      setSessionValue(id, "selectedQty", qtyObj);
+    }
 
     const savedDesign =
       getSessionValue(
@@ -1318,56 +1365,15 @@ function ProductDetail() {
     product,
   ]);
 
-  const materialSurcharge =
-    useMemo(
-      () =>
-        extractNumericPrice(
-          selectedMaterial?.price,
-        ),
-      [selectedMaterial],
-    );
+  const [priceEstimate, setPriceEstimate] = useState(null);
+  const [priceEstimateLoading, setPriceEstimateLoading] = useState(false);
 
-  const sizeSurcharge =
-    useMemo(
-      () =>
-        getSizeSurcharge(
-          selectedSize,
-        ),
-      [selectedSize],
-    );
+  const subtotal = useMemo(
+    () => priceEstimate?.grandTotal ?? 0,
+    [priceEstimate],
+  );
 
-  const quantityPrice =
-    useMemo(
-      () =>
-        extractNumericPrice(
-          selectedQty?.price,
-        ),
-      [selectedQty],
-    );
-
-  const subtotal =
-    useMemo(
-      () =>
-        selectedQty
-          ? quantityPrice +
-          materialSurcharge +
-          sizeSurcharge
-          : 0,
-      [
-        selectedQty,
-        quantityPrice,
-        materialSurcharge,
-        sizeSurcharge,
-      ],
-    );
-
-  // Rush order removed.
-  // Grand total is now simply the normal subtotal.
-  const grandTotal =
-    useMemo(
-      () => subtotal,
-      [subtotal],
-    );
+  const grandTotal = useMemo(() => subtotal, [subtotal]);
 
   const selectedQuantityNumber =
     useMemo(() => {
@@ -1402,6 +1408,59 @@ function ProductDetail() {
       customQty,
       selectedQty,
     ]);
+
+  // Live price: debounced call to /estimate-price whenever anything that
+  // affects the formula changes (design, material, size, quantity).
+  useEffect(() => {
+    const needsDesign = product?.print_zones?.length > 0;
+
+    if (!product?.id || !selectedQuantityNumber || (needsDesign && !activeDesign)) {
+      setPriceEstimate(null);
+      setPriceEstimateLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPriceEstimateLoading(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          buildApiUrl(`/api/products/${product.id}/estimate-price`),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customizations: {
+                design: activeDesign,
+                size: selectedSize,
+                material: selectedMaterial,
+              },
+              quantity: selectedQuantityNumber,
+            }),
+          },
+        );
+        const data = await res.json();
+        if (!cancelled && res.ok) setPriceEstimate(data);
+      } catch {
+        // Non-fatal — price card falls back to showing product.price below.
+      } finally {
+        if (!cancelled) setPriceEstimateLoading(false);
+      }
+    }, 400); // debounce: wait for rapid edits (dragging/resizing) to settle
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    product?.id,
+    product?.print_zones,
+    activeDesign,
+    selectedSize,
+    selectedMaterial,
+    selectedQuantityNumber,
+  ]);
 
   const exceedsBulkThreshold =
     useMemo(() => {
@@ -1694,7 +1753,6 @@ function ProductDetail() {
                     quoteForm.other,
                   design_data:
                     designData,
-                  sizeSurcharge,
                 },
               ),
             },
@@ -1814,7 +1872,6 @@ function ProductDetail() {
           grandTotal,
         size:
           selectedSize,
-        sizeSurcharge,
         color:
           selectedColor ||
           "",
@@ -1891,6 +1948,8 @@ function ProductDetail() {
       setActiveDesign(
         null,
       );
+
+      setPriceEstimate(null);
 
       clearWip();
     };
@@ -2038,6 +2097,11 @@ function ProductDetail() {
         </div>
 
         <div className="pd-customizer-page-body">
+          {showDraftPrompt ? (
+            <div style={{ padding: 60, textAlign: "center", color: "#64748b" }}>
+              Checking for a saved draft…
+            </div>
+          ) : (
           <CustomizerPanel
             product={
               filteredProductForCustomizer ||
@@ -2119,6 +2183,8 @@ function ProductDetail() {
             onDesignReady={(
               meta,
             ) => {
+              wipFinalizedRef.current = true;
+
               setActiveDesign(
                 meta,
               );
@@ -2309,7 +2375,33 @@ function ProductDetail() {
               clearWip();
             }}
           />
+          )}
         </div>
+
+        <AppModal
+          open={showDraftPrompt}
+          title="Continue your previous customization?"
+          message="You have an unfinished design for this product from an earlier visit. Would you like to pick up where you left off?"
+          confirmText="Continue Editing"
+          cancelText="Start New Design"
+          tone="info"
+          onConfirm={() => {
+            setCustomizerWip(pendingDraft);
+            setShowDraftPrompt(false);
+          }}
+          onCancel={() => {
+            if (product?.id) {
+              try {
+                localStorage.removeItem(wipDraftKey(product.id));
+              } catch (e) {
+                console.warn("Could not clear WIP draft", e);
+              }
+            }
+            setPendingDraft(null);
+            setCustomizerWip(null);
+            setShowDraftPrompt(false);
+          }}
+        />
       </div>
     );
   }
@@ -2705,6 +2797,17 @@ function ProductDetail() {
 
           </div>
 
+          {/* Reviews */}
+          <div className="pd-pmg-details-card">
+            <div className="pd-pmg-details-header" style={{ cursor: "default" }}>
+              <span>
+                <span className="pd-pmg-details-icon">★</span>
+                REVIEWS
+              </span>
+            </div>
+            <ProductReviews productId={product.id} />
+          </div>
+
         </div>
 
         {/* =========================
@@ -2722,8 +2825,16 @@ function ProductDetail() {
               </span>
 
               <strong>
-                4.5
+                {reviewSummary.totalReviews > 0
+                  ? reviewSummary.averageRating.toFixed(1)
+                  : "No ratings yet"}
               </strong>
+
+              {reviewSummary.totalReviews > 0 && (
+                <span className="pd-pmg-rating-count">
+                  ({reviewSummary.totalReviews})
+                </span>
+              )}
             </div>
 
             <h1>
@@ -3298,7 +3409,7 @@ function ProductDetail() {
                         )
                       }
                     >
-                      Start Designing
+                      {activeDesign ? "Edit Your Design" : "Start Designing"}
                     </button>
 
                   </div>
@@ -3307,6 +3418,86 @@ function ProductDetail() {
               {/* TOTAL CARD */}
               <div className="pd-pmg-total-card">
 
+                {priceEstimate && !priceEstimateLoading && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                      padding: "12px 14px",
+                      marginBottom: 10,
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      color: "#475569",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>Setup fee</span>
+                      <span>{formatPrice(priceEstimate.setupFee)}</span>
+                    </div>
+
+                    {priceEstimate.materialBreakdown?.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                          Materials used (design size)
+                        </span>
+                        {priceEstimate.materialBreakdown.map((m, i) => {
+                          const unit = MATERIAL_UNIT_LABELS[m.type] || "";
+                          return (
+                            <div
+                              key={i}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                paddingLeft: 10,
+                                color: "#64748b",
+                              }}
+                            >
+                              <span>
+                                {m.name} — {m.amount} {unit}
+                              </span>
+                              <span>
+                                {m.lineCost != null ? formatPrice(m.lineCost) : "—"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {priceEstimate.quantityDiscountFactor < 1 && (
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          color: "#059669",
+                        }}
+                      >
+                        <span>Bulk discount</span>
+                        <span>
+                          -{Math.round((1 - priceEstimate.quantityDiscountFactor) * 100)}%
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        borderTop: "1px solid #e2e8f0",
+                        paddingTop: 6,
+                        marginTop: 2,
+                        fontWeight: 600,
+                        color: "#1e293b",
+                      }}
+                    >
+                      <span>Per unit × {priceEstimate.quantity}</span>
+                      <span>{formatPrice(priceEstimate.unitPrice)}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pd-pmg-total-heading">
 
                   <span>
@@ -3314,16 +3505,16 @@ function ProductDetail() {
                   </span>
 
                   <strong>
-                    {grandTotal >
-                      0
-                      ? formatPrice(
-                        grandTotal,
-                      )
-                      : formatPrice(
-                        extractNumericPrice(
-                          product.price,
-                        ),
-                      )}
+                    {!selectedQuantityNumber && (
+                      <span style={{ opacity: 0.5, fontSize: 13 }}>Enter a quantity</span>
+                    )}
+                    {selectedQuantityNumber > 0 && priceEstimateLoading && (
+                      <span style={{ opacity: 0.5 }}>Calculating…</span>
+                    )}
+                    {selectedQuantityNumber > 0 && !priceEstimateLoading &&
+                      (grandTotal > 0
+                        ? formatPrice(grandTotal)
+                        : formatPrice(extractNumericPrice(product.price)))}
                   </strong>
 
                 </div>

@@ -14,6 +14,7 @@
  */
 import React, { useEffect, useState, useCallback } from "react";
 import { buildApiUrl } from "../../config/api";
+import { renderZoneLayersToDataURL } from "../../utils/fabricZoneRenderer";
 import "./TshirtCustomizer.css";
 
 function getUserId() {
@@ -24,6 +25,39 @@ function getUserId() {
     /* ignore */
   }
   return null;
+}
+
+/**
+ * Renders the first zone that actually has content into a small PNG and
+ * uploads it via the existing asset-upload endpoint, returning a URL to
+ * store as the template's thumbnailUrl. Non-fatal on any failure - a
+ * template with no thumbnail just falls back to the "Aa" placeholder,
+ * it's never a reason to block saving the template itself.
+ */
+async function buildAndUploadThumbnail(zoneLayers, userId) {
+  const zoneWithContent = Object.entries(zoneLayers || {}).find(
+    ([, layers]) => layers && layers.length > 0,
+  );
+  if (!zoneWithContent) return null;
+
+  const [, layers] = zoneWithContent;
+  try {
+    const dataUrl = await renderZoneLayersToDataURL(layers, 300);
+    const blob = await (await fetch(dataUrl)).blob();
+    const formData = new FormData();
+    formData.append("file", blob, "thumbnail.png");
+
+    const res = await fetch(buildApiUrl("/api/builder/upload"), {
+      method: "POST",
+      headers: userId ? { "X-User-Id": String(userId) } : {},
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) return null;
+    return data.url || null;
+  } catch {
+    return null;
+  }
 }
 
 export default function TemplatesPanel({
@@ -75,6 +109,8 @@ export default function TemplatesPanel({
     setSaveError("");
     try {
       const userId = getUserId();
+      const thumbnailUrl = await buildAndUploadThumbnail(current.zoneLayers, userId);
+
       const res = await fetch(buildApiUrl("/api/templates"), {
         method: "POST",
         headers: {
@@ -86,6 +122,7 @@ export default function TemplatesPanel({
           category,
           zoneLayers: current.zoneLayers,
           baseColor: current.baseColor,
+          thumbnailUrl,
         }),
       });
       const data = await res.json();

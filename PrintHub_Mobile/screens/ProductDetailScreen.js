@@ -9,16 +9,33 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  useWindowDimensions,
 } from "react-native";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+
+import { useFonts } from "expo-font";
+import {
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from "@expo-google-fonts/poppins";
+
+import { BebasNeue_400Regular } from "@expo-google-fonts/bebas-neue";
+
 import { API_BASE_URL } from "../config";
 import { COLORS } from "../theme";
 
+// ============================================================
+// CONSTANTS
+// ============================================================
 const GUEST_CUSTOMIZER_LIMIT = 3;
-const GUEST_CUSTOMIZER_USES_KEY = "guest_3d_customizer_uses";
+const GUEST_CUSTOMIZER_USES_KEY =
+  "guest_3d_customizer_uses";
 
-// 50 PCS AND ABOVE = BULK ORDER
 const BULK_ORDER_THRESHOLD = 50;
 
 const SIZE_PRICE_ADJUSTMENTS = {
@@ -30,6 +47,10 @@ const SIZE_PRICE_ADJUSTMENTS = {
   "2XL": 30,
   "3XL": 40,
 };
+
+// ============================================================
+// HELPERS
+// ============================================================
 
 const parseOptionItem = (opt) => {
   const value = String(opt || "");
@@ -43,6 +64,7 @@ const parseOptionItem = (opt) => {
   }
 
   const label = value.slice(0, idx);
+
   const rawPrice = value
     .slice(idx + 1)
     .replace(/[^0-9.]/g, "");
@@ -53,6 +75,88 @@ const parseOptionItem = (opt) => {
   };
 };
 
+// ============================================================
+// PRODUCT IMAGE HELPERS
+// ============================================================
+
+const getProductImages = (product) => {
+  const rawImages = product?.images;
+
+  if (Array.isArray(rawImages)) {
+    return rawImages.filter(
+      (image) =>
+        typeof image === "string" &&
+        image.trim().length > 0
+    );
+  }
+
+  if (typeof rawImages === "string") {
+    const trimmed = rawImages.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (image) =>
+            typeof image === "string" &&
+            image.trim().length > 0
+        );
+      }
+
+      if (
+        typeof parsed === "string" &&
+        parsed.trim()
+      ) {
+        return [parsed.trim()];
+      }
+    } catch (error) {
+      return [trimmed];
+    }
+  }
+
+  return [];
+};
+
+const getFirstProductImage = (product) => {
+  const images = getProductImages(product);
+
+  return images.length > 0
+    ? images[0]
+    : null;
+};
+
+const resolveImageUrl = (image) => {
+  if (!image) {
+    return null;
+  }
+
+  const value = String(image).trim();
+
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://")
+  ) {
+    return value;
+  }
+
+  return `${API_BASE_URL}${
+    value.startsWith("/") ? "" : "/"
+  }${value}`;
+};
+
+// ============================================================
+// CUSTOM DROPDOWN
+// ============================================================
+
 const CustomDropdown = ({
   label,
   options,
@@ -60,73 +164,132 @@ const CustomDropdown = ({
   onSelect,
   isOpen,
   onToggle,
-}) => (
-  <View style={styles.dropdownContainer}>
-    <Text style={styles.dropdownLabel}>
-      {label}
-    </Text>
-
-    <TouchableOpacity
-      style={[
-        styles.dropdownHeader,
-        isOpen && styles.dropdownHeaderActive,
-      ]}
-      onPress={onToggle}
-    >
-      <Text style={styles.dropdownHeaderText}>
-        {selected || "Select an option..."}
+}) => {
+  return (
+    <View style={styles.dropdownContainer}>
+      <Text style={styles.dropdownLabel}>
+        {label}
       </Text>
 
-      <Ionicons
-        name={
-          isOpen
-            ? "chevron-up"
-            : "chevron-down"
-        }
-        size={20}
-        color={COLORS.textMuted}
-      />
-    </TouchableOpacity>
+      <TouchableOpacity
+        style={[
+          styles.dropdownHeader,
+          isOpen &&
+            styles.dropdownHeaderActive,
+        ]}
+        onPress={onToggle}
+        activeOpacity={0.8}
+      >
+        <Text
+          style={styles.dropdownHeaderText}
+          numberOfLines={1}
+        >
+          {selected ||
+            "Select an option..."}
+        </Text>
 
-    {isOpen && (
-      <View style={styles.dropdownList}>
-        {options.map((opt, idx) => (
-          <TouchableOpacity
-            key={idx}
-            style={[
-              styles.dropdownItem,
-              idx === options.length - 1 &&
-                styles.dropdownItemLast,
-            ]}
-            onPress={() => {
-              onSelect(opt);
-              onToggle();
-            }}
-          >
-            <Text
+        <Ionicons
+          name={
+            isOpen
+              ? "chevron-up"
+              : "chevron-down"
+          }
+          size={20}
+          color={COLORS.primary}
+        />
+      </TouchableOpacity>
+
+      {isOpen && (
+        <View
+          style={styles.dropdownList}
+        >
+          {options.map((opt, index) => (
+            <TouchableOpacity
+              key={`${opt.label}-${index}`}
               style={[
-                styles.dropdownItemText,
-                selected === opt.label &&
-                  styles.dropdownItemTextActive,
+                styles.dropdownItem,
+                index ===
+                  options.length - 1 &&
+                  styles.dropdownItemLast,
               ]}
+              onPress={() => {
+                onSelect(opt);
+                onToggle();
+              }}
+              activeOpacity={0.8}
             >
-              {opt.label}{" "}
-              {opt.price
-                ? `(+₱${opt.price})`
-                : ""}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    )}
-  </View>
-);
+              <Text
+                style={[
+                  styles.dropdownItemText,
+                  selected === opt.label &&
+                    styles.dropdownItemTextActive,
+                ]}
+              >
+                {opt.label}
+
+                {opt.price
+                  ? ` (+₱${opt.price.toLocaleString()})`
+                  : ""}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+};
+
+// ============================================================
+// PRODUCT DETAIL SCREEN
+// ============================================================
 
 export default function ProductDetailScreen({
   route,
   navigation,
 }) {
-  const { product } = route.params;
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  const product =
+    route?.params?.product || {};
+
+  // ==========================================================
+  // FONTS
+  // ==========================================================
+
+  const [fontsLoaded] = useFonts({
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+    BebasNeue_400Regular,
+  });
+
+  // ==========================================================
+  // RESPONSIVE
+  // ==========================================================
+
+  const isSmall = width <= 360;
+
+  const isMedium =
+    width > 360 && width <= 430;
+
+  const scale = (
+    small,
+    medium,
+    large
+  ) => {
+    if (isSmall) return small;
+    if (isMedium) return medium;
+    return large;
+  };
+
+  // ==========================================================
+  // PRODUCT STATE
+  // ==========================================================
+
+  const [liveProduct, setLiveProduct] =
+    useState(product);
 
   const [adding, setAdding] =
     useState(false);
@@ -134,76 +297,13 @@ export default function ProductDetailScreen({
   const [activeDesign, setActiveDesign] =
     useState(null);
 
-  const [liveProduct, setLiveProduct] =
-    useState(product);
-
   const [customQty, setCustomQty] =
     useState("0");
 
-  useEffect(() => {
-    if (route.params?.completedDesign) {
-      setActiveDesign(
-        route.params.completedDesign
-      );
-    }
-  }, [route.params?.completedDesign]);
+  // ==========================================================
+  // OPTIONS
+  // ==========================================================
 
-  // Refresh the product so Admin quantity changes sync to Mobile.
-  useEffect(() => {
-    const refreshProduct = async () => {
-      if (!product?.id) return;
-
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/products/${product.id}`
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(
-            data?.message ||
-              "Failed to refresh product"
-          );
-        }
-
-        setLiveProduct(data);
-
-        const parsedQuantities = (
-          data.quantity_options || []
-        ).map(parseOptionItem);
-
-        setQuantities(parsedQuantities);
-
-        setSelectedQty(
-          data.quantity_mode === "text"
-            ? null
-            : parsedQuantities[0] || null
-        );
-
-        if (data.quantity_mode === "text") {
-          setCustomQty("0");
-        }
-      } catch (error) {
-        console.error(
-          "[ProductDetail] Failed to refresh product:",
-          error
-        );
-      }
-    };
-
-    refreshProduct();
-
-    const unsubscribe =
-      navigation.addListener(
-        "focus",
-        refreshProduct
-      );
-
-    return unsubscribe;
-  }, [navigation, product?.id]);
-
-  // Configuration options state
   const [sizes, setSizes] =
     useState([]);
 
@@ -222,7 +322,10 @@ export default function ProductDetailScreen({
   const [quantities, setQuantities] =
     useState([]);
 
-  // Selected state
+  // ==========================================================
+  // SELECTED OPTIONS
+  // ==========================================================
+
   const [selectedSize, setSelectedSize] =
     useState("");
 
@@ -239,8 +342,10 @@ export default function ProductDetailScreen({
     setSelectedFinish,
   ] = useState("");
 
-  const [selectedColor, setSelectedColor] =
-    useState("");
+  const [
+    selectedColor,
+    setSelectedColor,
+  ] = useState("");
 
   const [selectedQty, setSelectedQty] =
     useState(null);
@@ -251,15 +356,166 @@ export default function ProductDetailScreen({
   const [openDropdown, setOpenDropdown] =
     useState(null);
 
-  // =========================================================
-  // SYNC ADMIN PRODUCT OPTIONS TO MOBILE
-  // =========================================================
-  // Uses liveProduct so changes made by Admin are reflected
-  // on Mobile whenever the product is refreshed.
-  // =========================================================
+  // ==========================================================
+  // COMPLETED 3D DESIGN
+  // ==========================================================
 
   useEffect(() => {
-    if (!liveProduct) return;
+    if (route?.params?.completedDesign) {
+      setActiveDesign(
+        route.params.completedDesign
+      );
+    }
+  }, [
+    route?.params?.completedDesign,
+  ]);
+
+  // ==========================================================
+  // REFRESH PRODUCT FROM BACKEND
+  // ==========================================================
+
+// ==========================================================
+// REFRESH PRODUCT FROM BACKEND
+// ==========================================================
+
+useEffect(() => {
+  let mounted = true;
+
+  const refreshProduct = async () => {
+    if (!product?.id) {
+      console.warn(
+        "[ProductDetail] No product ID received:",
+        product
+      );
+      return;
+    }
+
+    const url =
+      `${API_BASE_URL}/api/products/${product.id}`;
+
+    console.log(
+      "[ProductDetail] Fetching product:",
+      url
+    );
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const responseText = await response.text();
+
+      console.log(
+        "[ProductDetail] HTTP status:",
+        response.status
+      );
+
+      let data = null;
+
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        console.warn(
+          "[ProductDetail] Response is not JSON."
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            `Failed to fetch product. HTTP ${response.status}`
+        );
+      }
+
+      if (!data) {
+        throw new Error(
+          "Backend returned an empty product response."
+        );
+      }
+
+      /*
+       * The screen may have been closed while the
+       * request was still running.
+       */
+      if (!mounted) {
+        return;
+      }
+
+      setLiveProduct(data);
+
+      const parsedQuantities = (
+        data.quantity_options || []
+      ).map(parseOptionItem);
+
+      setQuantities(parsedQuantities);
+
+      setSelectedQty(
+        data.quantity_mode === "text"
+          ? null
+          : parsedQuantities[0] || null
+      );
+
+      if (data.quantity_mode === "text") {
+        setCustomQty("0");
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      console.error(
+        "[ProductDetail] Failed to refresh product:",
+        error?.message || error
+      );
+
+      /*
+       * Keep the product already passed from
+       * ProductOverview instead of blanking the screen.
+       */
+      setLiveProduct((current) =>
+        current || product
+      );
+    }
+  };
+
+  /*
+   * Load immediately when ProductDetail opens.
+   */
+  refreshProduct();
+
+  /*
+   * Refresh again whenever the screen becomes focused.
+   * This keeps Admin stock/options synchronized.
+   */
+  const unsubscribe =
+    navigation.addListener(
+      "focus",
+      refreshProduct
+    );
+
+  return () => {
+    mounted = false;
+
+    if (unsubscribe) {
+      unsubscribe();
+    }
+  };
+}, [
+  navigation,
+  product?.id,
+]);
+
+  // ==========================================================
+  // SYNC ADMIN PRODUCT OPTIONS
+  // ==========================================================
+
+  useEffect(() => {
+    if (!liveProduct) {
+      return;
+    }
 
     const parsedSizes =
       liveProduct.size_options || [
@@ -267,7 +523,8 @@ export default function ProductDetailScreen({
       ];
 
     const parsedMaterials = (
-      liveProduct.material_options || []
+      liveProduct.material_options ||
+      []
     ).map(parseOptionItem);
 
     const parsedSides =
@@ -286,7 +543,8 @@ export default function ProductDetailScreen({
       ];
 
     const parsedQuantities = (
-      liveProduct.quantity_options || []
+      liveProduct.quantity_options ||
+      []
     ).map(parseOptionItem);
 
     setSizes(parsedSizes);
@@ -317,26 +575,52 @@ export default function ProductDetailScreen({
     );
 
     setSelectedQty(
-      liveProduct.quantity_mode === "text"
+      liveProduct.quantity_mode ===
+        "text"
         ? null
-        : parsedQuantities[0] || null
+        : parsedQuantities[0] ||
+            null
     );
   }, [liveProduct]);
 
-  // Price Calculation
+  // ==========================================================
+  // DISPLAY PRODUCT
+  // ==========================================================
+
+  const displayProduct =
+    liveProduct || product;
+
+  // ==========================================================
+  // BASE PRICE
+  // ==========================================================
+
   const basePrice =
-    Number(product.price) || 0;
+    Number(
+      displayProduct?.price
+    ) || 0;
+
+  // ==========================================================
+  // QUANTITY PRICE
+  // ==========================================================
 
   const qtyPrice =
-    liveProduct?.quantity_mode === "text"
-      ? (parseInt(customQty, 10) || 0) *
-        basePrice
+    displayProduct?.quantity_mode ===
+    "text"
+      ? (parseInt(customQty, 10) ||
+          0) * basePrice
       : selectedQty?.price || 0;
+
+  // ==========================================================
+  // MATERIAL PRICE
+  // ==========================================================
 
   const matPrice =
     selectedMaterial?.price || 0;
 
-  // Size-based price adjustment
+  // ==========================================================
+  // SIZE PRICE
+  // ==========================================================
+
   const normalizedSize =
     String(selectedSize || "")
       .trim()
@@ -347,28 +631,46 @@ export default function ProductDetailScreen({
       normalizedSize
     ] || 0;
 
-  // Get quantity for size adjustment
-  const pricingQuantity =
-    liveProduct?.quantity_mode === "text"
-      ? Math.max(
+  // ==========================================================
+  // QUANTITY NUMBER
+  // ==========================================================
+
+  const getSelectedQuantityNumber =
+    () => {
+      if (
+        displayProduct?.quantity_mode ===
+        "text"
+      ) {
+        return Math.max(
           0,
           parseInt(customQty, 10) || 0
-        )
-      : (() => {
-          const match =
-            String(
-              selectedQty?.label || ""
-            ).match(/\d+/);
+        );
+      }
 
-          return match
-            ? Number(match[0])
-            : 1;
-        })();
+      if (selectedQty?.label) {
+        const match =
+          String(
+            selectedQty.label
+          ).match(/\d+/);
 
-  // Size adjustment is charged per piece
+        if (match) {
+          return Number(match[0]);
+        }
+      }
+
+      return 1;
+    };
+
+  const selectedQuantityNumber =
+    getSelectedQuantityNumber();
+
+  // ==========================================================
+  // TOTALS
+  // ==========================================================
+
   const sizeTotalAdjustment =
     sizePriceAdjustment *
-    pricingQuantity;
+    selectedQuantityNumber;
 
   const grandTotal =
     qtyPrice +
@@ -381,6 +683,27 @@ export default function ProductDetailScreen({
 
   const finalTotal =
     grandTotal + rushFee;
+
+  // ==========================================================
+  // STOCK
+  // ==========================================================
+
+  const displayStock =
+    Number(
+      displayProduct?.stock
+    ) || 0;
+
+  // ==========================================================
+  // BULK
+  // ==========================================================
+
+  const isBulkOrder =
+    selectedQuantityNumber >=
+    BULK_ORDER_THRESHOLD;
+
+  // ==========================================================
+  // ADD TO CART
+  // ==========================================================
 
   const executePostCartItem =
     async () => {
@@ -397,6 +720,7 @@ export default function ProductDetailScreen({
             [
               {
                 text: "Cancel",
+                style: "cancel",
               },
               {
                 text: "Log In",
@@ -416,59 +740,96 @@ export default function ProductDetailScreen({
 
         setAdding(true);
 
+        const currentProduct =
+          liveProduct || product;
+
+        const currentImage =
+          getFirstProductImage(
+            currentProduct
+          );
+
         const customizations = {
           size: selectedSize,
-          material: selectedMaterial?.label,
-          side: selectedSide,
-          finishing: selectedFinish,
-          color: selectedColor,
-          quantity: selectedQty?.label || `${selectedQuantityNumber} pcs`,
 
-          rushOrder: isRushOrder,
-          rushFee: rushFee,
+          material:
+            selectedMaterial?.label,
+
+          side: selectedSide,
+
+          finishing: selectedFinish,
+
+          color: selectedColor,
+
+          quantity:
+            selectedQty?.label ||
+            `${selectedQuantityNumber} pcs`,
+
+          rushOrder:
+            isRushOrder,
+
+          rushFee,
 
           ...(activeDesign
             ? {
-                design: activeDesign,
+                design:
+                  activeDesign,
               }
             : {}),
         };
 
-        const response = await fetch(
-          `${API_BASE_URL}/api/user/${user.id}/cart`,
-          {
-            method: "POST",
+        const response =
+          await fetch(
+            `${API_BASE_URL}/api/user/${user.id}/cart`,
+            {
+              method: "POST",
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
 
-            body: JSON.stringify({
-              productId: product.id,
+              body: JSON.stringify({
+                productId:
+                  currentProduct.id,
 
-              title: product.name,
+                title:
+                  currentProduct.name,
 
-              price: finalTotal,
+                price:
+                  finalTotal,
 
-              qty: 1,
+                qty: 1,
 
-              productImage:
-                product.images?.[0] ||
-                null,
+                productImage:
+                  currentImage
+                    ? resolveImageUrl(
+                        currentImage
+                      )
+                    : null,
 
-              customizations,
-            }),
-          }
-        );
+                customizations,
+              }),
+            }
+          );
 
-        const data =
-          await response.json();
+        const responseText =
+          await response.text();
+
+        let data = null;
+
+        try {
+          data =
+            JSON.parse(
+              responseText
+            );
+        } catch {
+          data = null;
+        }
 
         if (!response.ok) {
           throw new Error(
-            data.message ||
-              "Failed to add to cart"
+            data?.message ||
+              `Failed to add to cart. HTTP ${response.status}`
           );
         }
 
@@ -478,172 +839,134 @@ export default function ProductDetailScreen({
         );
       } catch (err) {
         console.error(
-          "[PostCartItem] {FetchPostCart}: " +
-            err.message
+          "[ProductDetail] Add to cart error:",
+          err
         );
 
         Alert.alert(
           "Error",
-          err.message
+          err?.message ||
+            "Failed to add product to cart."
         );
       } finally {
         setAdding(false);
       }
     };
 
-  // ---------------------------------------------------------
-  // GET NUMERIC QUANTITY
-  // ---------------------------------------------------------
-
- const getSelectedQuantityNumber =
-  () => {
-    // Text quantity products
-    if (liveProduct?.quantity_mode === "text") {
-      return Math.max(
-        0,
-        parseInt(customQty, 10) || 0
-      );
-    }
-
-    // Products with a quantity option/bundle
-    if (selectedQty?.label) {
-      const match = String(
-        selectedQty.label
-      ).match(/\d+/);
-
-      if (match) {
-        return Number(match[0]);
-      }
-    }
-
-    // Products that don't have quantity options:
-    // allow 1 piece by default.
-    return 1;
-  };
-
-  const selectedQuantityNumber =
-    getSelectedQuantityNumber();
-
-  // 50 PCS OR MORE = BULK
-  const isBulkOrder =
-    selectedQuantityNumber >=
-    BULK_ORDER_THRESHOLD;
-
-  // ---------------------------------------------------------
+  // ==========================================================
   // REQUEST QUOTE
-  // ---------------------------------------------------------
+  // ==========================================================
 
-  const handleRequestQuote = () => {
-    navigation.navigate("Main", {
-      screen: "InquiriesTab",
-      params: {
-        bulkInquiry: {
-          product:
-            liveProduct || product,
+  const handleRequestQuote =
+    () => {
+      navigation.navigate(
+        "Main",
+        {
+          screen:
+            "InquiriesTab",
 
-          quantity:
-            selectedQuantityNumber,
+          params: {
+            bulkInquiry: {
+              product:
+                liveProduct ||
+                product,
 
-          customizations: {
-            size: selectedSize,
+              quantity:
+                selectedQuantityNumber,
 
-            material:
-              selectedMaterial?.label ||
-              "",
+              customizations: {
+                size:
+                  selectedSize,
 
-            side:
-              selectedSide || "",
+                material:
+                  selectedMaterial?.label ||
+                  "",
 
-            finishing:
-              selectedFinish || "",
+                side:
+                  selectedSide || "",
 
-            color:
-              selectedColor || "",
+                finishing:
+                  selectedFinish || "",
 
-            quantity:
-              selectedQty?.label ||
-              `${selectedQuantityNumber} pcs`,
+                color:
+                  selectedColor || "",
 
-            ...(activeDesign
-              ? {
-                  design: activeDesign,
-                }
-              : {}),
+                quantity:
+                  selectedQty?.label ||
+                  `${selectedQuantityNumber} pcs`,
+
+                ...(activeDesign
+                  ? {
+                      design:
+                        activeDesign,
+                    }
+                  : {}),
+              },
+            },
           },
-        },
-      },
-    });
-  };
-
-  // ---------------------------------------------------------
-  // ADD TO CART
-  // ---------------------------------------------------------
-
-  const PostCartItem = async () => {
-    // NEVER allow 50+ pcs into the cart.
-    if (isBulkOrder) {
-      handleRequestQuote();
-      return;
-    }
-
-    // -------------------------------------------------------
-    // OUT OF STOCK CHECK
-    // -------------------------------------------------------
-
-    // ---------------------------------------------------------
-    // STOCK CHECK
-    // ---------------------------------------------------------
-
-    const availableStock = Number(
-      liveProduct?.stock ??
-        product?.stock ??
-        0
-    );
-
-    const requestedQuantity =
-      Number(selectedQuantityNumber) || 0;
-
-    // No stock
-    if (availableStock <= 0) {
-      Alert.alert(
-        "Can't Add to Cart",
-        `Can't add to cart: low stock (${availableStock}).`
+        }
       );
-      return;
-    }
+    };
 
-    // Requested quantity is greater than available stock
-    if (
-      requestedQuantity >
-      availableStock
-    ) {
-      Alert.alert(
-        "Can't Add to Cart",
-        `Can't add to cart: low stock (${availableStock}). You requested ${requestedQuantity}.`
-      );
-      return;
-    }
+  // ==========================================================
+  // POST CART ITEM
+  // ==========================================================
 
-    await executePostCartItem();
-  };
+  const PostCartItem =
+    async () => {
+      if (isBulkOrder) {
+        handleRequestQuote();
+        return;
+      }
 
-  /*
-   * ============================================================
-   * GUEST 3D CUSTOMIZER ACCESS
-   * ============================================================
-   *
-   * Guests are allowed to open the 3D Customizer 3 times.
-   *
-   * After the third use:
-   *   - They cannot open the customizer anymore.
-   *   - They are asked to log in/sign up.
-   *
-   * Logged-in users:
-   *   - Have unlimited access.
-   *
-   * The guest usage count is stored in AsyncStorage so it
-   * remains even if the app is closed and reopened.
-   */
+      const availableStock =
+        Number(
+          displayProduct?.stock
+        ) || 0;
+
+      const requestedQuantity =
+        Number(
+          selectedQuantityNumber
+        ) || 0;
+
+      if (availableStock <= 0) {
+        Alert.alert(
+          "Can't Add to Cart",
+          `Can't add to cart: low stock (${availableStock}).`
+        );
+
+        return;
+      }
+
+      if (
+        requestedQuantity >
+        availableStock
+      ) {
+        Alert.alert(
+          "Can't Add to Cart",
+          `Can't add to cart: low stock (${availableStock}). You requested ${requestedQuantity}.`
+        );
+
+        return;
+      }
+
+      if (
+        requestedQuantity <= 0
+      ) {
+        Alert.alert(
+          "Choose Quantity",
+          "Please select a quantity before adding the product to your cart."
+        );
+
+        return;
+      }
+
+      await executePostCartItem();
+    };
+
+  // ==========================================================
+  // 3D CUSTOMIZER
+  // ==========================================================
 
   const handleCustomizerPress =
     async () => {
@@ -653,15 +976,14 @@ export default function ProductDetailScreen({
             "user"
           );
 
-        // --------------------------------------------------------
-        // LOGGED-IN USER
-        // --------------------------------------------------------
-
+        // LOGGED IN
         if (userStr) {
           navigation.navigate(
             "CustomizerWebView",
             {
-              product,
+              product:
+                liveProduct ||
+                product,
 
               selectedOptions: {
                 size:
@@ -688,10 +1010,7 @@ export default function ProductDetailScreen({
           return;
         }
 
-        // --------------------------------------------------------
-        // GUEST USER
-        // --------------------------------------------------------
-
+        // GUEST
         const storedUses =
           await AsyncStorage.getItem(
             GUEST_CUSTOMIZER_USES_KEY
@@ -717,6 +1036,7 @@ export default function ProductDetailScreen({
               {
                 text:
                   "Log In / Sign Up",
+
                 onPress: () =>
                   navigation.navigate(
                     "Login"
@@ -727,10 +1047,6 @@ export default function ProductDetailScreen({
 
           return;
         }
-
-        // --------------------------------------------------------
-        // USE ONE GUEST ATTEMPT
-        // --------------------------------------------------------
 
         const newUses =
           currentUses + 1;
@@ -747,7 +1063,9 @@ export default function ProductDetailScreen({
         navigation.navigate(
           "CustomizerWebView",
           {
-            product,
+            product:
+              liveProduct ||
+              product,
 
             selectedOptions: {
               size:
@@ -798,826 +1116,1169 @@ export default function ProductDetailScreen({
       }
     };
 
-  const imageUrl =
-    product.images?.[0] ||
-    "https://via.placeholder.com/300";
+  // ==========================================================
+  // IMAGE
+  // ==========================================================
 
-  const toggleDropdown = (
-    id
-  ) => {
-    setOpenDropdown(
-      openDropdown === id
-        ? null
-        : id
+  const imageUrl =
+    resolveImageUrl(
+      getFirstProductImage(
+        liveProduct
+      ) ||
+        getFirstProductImage(
+          product
+        )
     );
-  };
+
+  // ==========================================================
+  // DROPDOWN
+  // ==========================================================
+
+  const toggleDropdown =
+    (id) => {
+      setOpenDropdown(
+        openDropdown === id
+          ? null
+          : id
+      );
+    };
+
+  // ==========================================================
+  // FONT LOADING
+  // ==========================================================
+
+  if (!fontsLoaded) {
+    return (
+      <View
+        style={styles.loadingScreen}
+      >
+        <ActivityIndicator
+          size="large"
+          color={COLORS.primary}
+        />
+
+        <Text
+          style={
+            styles.loadingText
+          }
+        >
+          Loading...
+        </Text>
+      </View>
+    );
+  }
+
+  // ==========================================================
+  // UI
+  // ==========================================================
 
   return (
-    <ScrollView
-      style={styles.container}
+    <View
+      style={styles.screen}
     >
-      <Image
-        source={{
-          uri: imageUrl,
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+<View
+  style={[
+    styles.header,
+    {
+      paddingTop: insets.top,
+    },
+  ]}
+>
+        <TouchableOpacity
+          style={
+            styles.headerBackButton
+          }
+          onPress={() =>
+            navigation.goBack()
+          }
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="arrow-back"
+            size={27}
+            color={
+              COLORS.white
+            }
+          />
+        </TouchableOpacity>
+
+        <Text
+          style={styles.headerTitle}
+        >
+          Product Details
+        </Text>
+
+        <View
+          style={
+            styles.headerSpacer
+          }
+        />
+      </View>
+
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{
+          paddingBottom: 35,
         }}
-        style={styles.image}
-      />
-
-      <View
-        style={styles.infoContainer}
+        showsVerticalScrollIndicator={
+          false
+        }
       >
-        <Text style={styles.name}>
-          {product.name}
-        </Text>
+        {/* PRODUCT IMAGE */}
 
-        <Text style={styles.price}>
-          ₱
-          {finalTotal.toLocaleString()}
-          {selectedQty?.label
-            ? ` (${selectedQty.label})`
-            : ""}
-        </Text>
+        <View
+          style={[
+            styles.imageContainer,
+            {
+              height: scale(
+                220,
+                250,
+                290
+              ),
+            },
+          ]}
+        >
+          {imageUrl ? (
+            <Image
+              source={{
+                uri: imageUrl,
+              }}
+              style={styles.image}
+              resizeMode="contain"
+            />
+          ) : (
+            <View
+              style={
+                styles.imageFallback
+              }
+            >
+              <Ionicons
+                name="image-outline"
+                size={48}
+                color={
+                  COLORS.textMuted
+                }
+              />
 
-        {Number(product.stock) ===
-        0 ? (
+              <Text
+                style={
+                  styles.imageFallbackText
+                }
+              >
+                No product image
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* PRODUCT INFORMATION */}
+
+        <View
+          style={[
+            styles.infoContainer,
+            {
+              paddingHorizontal:
+                scale(
+                  14,
+                  18,
+                  24
+                ),
+            },
+          ]}
+        >
           <Text
             style={[
-              styles.stock,
+              styles.name,
               {
-                color:
-                  COLORS.danger,
-                fontWeight:
-                  "800",
+                fontSize: scale(
+                  22,
+                  24,
+                  27
+                ),
               },
             ]}
           >
-            Out of Stock
+            {displayProduct?.name ||
+              "Product"}
           </Text>
-        ) : (
+
           <Text
-            style={styles.stock}
+            style={[
+              styles.price,
+              {
+                fontSize: scale(
+                  20,
+                  22,
+                  24
+                ),
+              },
+            ]}
           >
-            Stock:{" "}
-            {product.stock ||
-              "Available"}{" "}
-            units
+            ₱
+            {finalTotal.toLocaleString()}
+
+            {selectedQty?.label
+              ? ` (${selectedQty.label})`
+              : ""}
           </Text>
-        )}
 
-        <Text
-          style={styles.sectionTitle}
-        >
-          Product Specifications
-        </Text>
+          {/* STOCK */}
 
-        {sizes.length > 0 && (
-          <CustomDropdown
-            label="1. Choose Size"
-            options={sizes.map(
-              (s) => ({
-                label: s,
-              })
-            )}
-            selected={
-              selectedSize
-            }
-            onSelect={(val) =>
-              setSelectedSize(
-                val.label
-              )
-            }
-            isOpen={
-              openDropdown ===
-              "size"
-            }
-            onToggle={() =>
-              toggleDropdown(
-                "size"
-              )
-            }
-          />
-        )}
-
-        {materials.length >
-          0 && (
-          <CustomDropdown
-            label="2. Choose Material"
-            options={
-              materials
-            }
-            selected={
-              selectedMaterial?.label
-            }
-            onSelect={
-              setSelectedMaterial
-            }
-            isOpen={
-              openDropdown ===
-              "material"
-            }
-            onToggle={() =>
-              toggleDropdown(
-                "material"
-              )
-            }
-          />
-        )}
-
-        {sides.length > 0 && (
-          <CustomDropdown
-            label="3. Choose Printed Sides"
-            options={sides.map(
-              (s) => ({
-                label: s,
-              })
-            )}
-            selected={
-              selectedSide
-            }
-            onSelect={(val) =>
-              setSelectedSide(
-                val.label
-              )
-            }
-            isOpen={
-              openDropdown ===
-              "sides"
-            }
-            onToggle={() =>
-              toggleDropdown(
-                "sides"
-              )
-            }
-          />
-        )}
-
-        {finishing.length >
-          0 && (
-          <CustomDropdown
-            label="4. Choose Finishing"
-            options={
-              finishing.map(
-                (f) => ({
-                  label: f,
-                })
-              )
-            }
-            selected={
-              selectedFinish
-            }
-            onSelect={(val) =>
-              setSelectedFinish(
-                val.label
-              )
-            }
-            isOpen={
-              openDropdown ===
-              "finish"
-            }
-            onToggle={() =>
-              toggleDropdown(
-                "finish"
-              )
-            }
-          />
-        )}
-
-        {liveProduct?.quantity_mode ===
-        "text" ? (
-          <View
-            style={
-              styles.dropdownContainer
-            }
-          >
+          {displayStock <= 0 ? (
             <Text
+              style={[
+                styles.stock,
+                {
+                  color:
+                    COLORS.danger,
+                },
+              ]}
+            >
+              Out of Stock
+            </Text>
+          ) : (
+            <Text
+              style={styles.stock}
+            >
+              Stock: {displayStock} units
+            </Text>
+          )}
+
+          {/* SPECIFICATIONS */}
+
+          <Text
+            style={styles.sectionTitle}
+          >
+            Product Specifications
+          </Text>
+
+          {/* SIZE */}
+
+          {sizes.length > 0 && (
+            <CustomDropdown
+              label="1. Choose Size"
+              options={sizes.map(
+                (size) => ({
+                  label: size,
+                  price: 0,
+                })
+              )}
+              selected={
+                selectedSize
+              }
+              onSelect={(value) =>
+                setSelectedSize(
+                  value.label
+                )
+              }
+              isOpen={
+                openDropdown ===
+                "size"
+              }
+              onToggle={() =>
+                toggleDropdown(
+                  "size"
+                )
+              }
+            />
+          )}
+
+          {/* MATERIAL */}
+
+          {materials.length > 0 && (
+            <CustomDropdown
+              label="2. Choose Material"
+              options={
+                materials
+              }
+              selected={
+                selectedMaterial?.label
+              }
+              onSelect={
+                setSelectedMaterial
+              }
+              isOpen={
+                openDropdown ===
+                "material"
+              }
+              onToggle={() =>
+                toggleDropdown(
+                  "material"
+                )
+              }
+            />
+          )}
+
+          {/* SIDES */}
+
+          {sides.length > 0 && (
+            <CustomDropdown
+              label="3. Choose Printed Sides"
+              options={sides.map(
+                (side) => ({
+                  label: side,
+                  price: 0,
+                })
+              )}
+              selected={
+                selectedSide
+              }
+              onSelect={(value) =>
+                setSelectedSide(
+                  value.label
+                )
+              }
+              isOpen={
+                openDropdown ===
+                "sides"
+              }
+              onToggle={() =>
+                toggleDropdown(
+                  "sides"
+                )
+              }
+            />
+          )}
+
+          {/* FINISHING */}
+
+          {finishing.length > 0 && (
+            <CustomDropdown
+              label="4. Choose Finishing"
+              options={finishing.map(
+                (finish) => ({
+                  label: finish,
+                  price: 0,
+                })
+              )}
+              selected={
+                selectedFinish
+              }
+              onSelect={(value) =>
+                setSelectedFinish(
+                  value.label
+                )
+              }
+              isOpen={
+                openDropdown ===
+                "finish"
+              }
+              onToggle={() =>
+                toggleDropdown(
+                  "finish"
+                )
+              }
+            />
+          )}
+
+          {/* QUANTITY */}
+
+          {displayProduct?.quantity_mode ===
+          "text" ? (
+            <View
               style={
-                styles.dropdownLabel
+                styles.dropdownContainer
               }
             >
-              5. Choose Quantity
-            </Text>
-
-            <View
-              style={{
-                flexDirection:
-                  "row",
-                alignItems:
-                  "center",
-              }}
-            >
-              <TouchableOpacity
+              <Text
                 style={
-                  styles.quantityMinusButton
+                  styles.dropdownLabel
                 }
-                onPress={() => {
-                  const current =
-                    parseInt(
-                      customQty,
-                      10
-                    ) || 0;
-
-                  const next =
-                    Math.max(
-                      0,
-                      current - 1
-                    );
-
-                  setCustomQty(
-                    String(next)
-                  );
-
-                  if (next <= 0) {
-                    setSelectedQty(
-                      null
-                    );
-                    return;
-                  }
-
-                  setSelectedQty({
-                    label: `${next} pcs`,
-                    price:
-                      Number(product.price) *
-                      next,
-                  });
-                }}
               >
-                <Text
-                  style={
-                    styles.quantityButtonText
-                  }
-                >
-                  −
-                </Text>
-              </TouchableOpacity>
+                5. Choose Quantity
+              </Text>
 
-              <TextInput
-                value={
-                  customQty
+              <View
+                style={
+                  styles.quantityRow
                 }
-                onChangeText={(
-                  value
-                ) => {
-                  const numericValue =
-                    value.replace(
-                      /[^0-9]/g,
-                      ""
-                    );
+              >
+                <TouchableOpacity
+                  style={
+                    styles.quantityMinusButton
+                  }
+                  onPress={() => {
+                    const current =
+                      parseInt(
+                        customQty,
+                        10
+                      ) || 0;
 
-                  const n =
-                    parseInt(
-                      numericValue,
-                      10
-                    ) || 0;
-
-                  const availableStock =
-                    Number(
-                      liveProduct?.stock ??
-                        product?.stock ??
-                        0
-                    );
-
-                  if (
-                    n >
-                    availableStock
-                  ) {
-                    Alert.alert(
-                      "Out of Stock",
-                      `Can't add more product: only ${availableStock} units are in stock.`
-                    );
+                    const next =
+                      Math.max(
+                        0,
+                        current - 1
+                      );
 
                     setCustomQty(
-                      String(
-                        availableStock
-                      )
+                      String(next)
                     );
 
                     if (
-                      availableStock <=
-                      0
+                      next <= 0
                     ) {
                       setSelectedQty(
                         null
                       );
+
                       return;
                     }
 
                     setSelectedQty({
-                      label: `${availableStock} pcs`,
+                      label: `${next} pcs`,
                       price:
-                        Number(
-                          product.price
-                        ) *
-                        availableStock,
+                        basePrice *
+                        next,
                     });
+                  }}
+                >
+                  <Text
+                    style={
+                      styles.quantityButtonText
+                    }
+                  >
+                    −
+                  </Text>
+                </TouchableOpacity>
 
-                    return;
-                  }
+                <TextInput
+                  value={customQty}
+                  onChangeText={(
+                    value
+                  ) => {
+                    const numericValue =
+                      value.replace(
+                        /[^0-9]/g,
+                        ""
+                      );
 
-                  setCustomQty(
-                    numericValue
-                  );
+                    const n =
+                      parseInt(
+                        numericValue,
+                        10
+                      ) || 0;
 
-                  if (n <= 0) {
-                    setSelectedQty(
-                      null
-                    );
-                    return;
-                  }
-
-                  setSelectedQty({
-                    label: `${n} pcs`,
-                    price:
+                    const availableStock =
                       Number(
-                        product.price
-                      ) * n,
-                  });
-                }}
-                keyboardType="numeric"
-                placeholder="Qty"
-                placeholderTextColor={
-                  COLORS.textMuted
+                        displayProduct?.stock
+                      ) || 0;
+
+                    if (
+                      n >
+                      availableStock
+                    ) {
+                      Alert.alert(
+                        "Out of Stock",
+                        `Can't add more product: only ${availableStock} units are in stock.`
+                      );
+
+                      setCustomQty(
+                        String(
+                          availableStock
+                        )
+                      );
+
+                      if (
+                        availableStock <=
+                        0
+                      ) {
+                        setSelectedQty(
+                          null
+                        );
+
+                        return;
+                      }
+
+                      setSelectedQty({
+                        label: `${availableStock} pcs`,
+                        price:
+                          basePrice *
+                          availableStock,
+                      });
+
+                      return;
+                    }
+
+                    setCustomQty(
+                      numericValue
+                    );
+
+                    if (n <= 0) {
+                      setSelectedQty(
+                        null
+                      );
+
+                      return;
+                    }
+
+                    setSelectedQty({
+                      label: `${n} pcs`,
+                      price:
+                        basePrice * n,
+                    });
+                  }}
+                  keyboardType="numeric"
+                  placeholder="Qty"
+                  placeholderTextColor={
+                    COLORS.inputPlaceholder
+                  }
+                  style={
+                    styles.quantityTextInput
+                  }
+                />
+
+                <TouchableOpacity
+                  style={
+                    styles.quantityPlusButton
+                  }
+                  onPress={() => {
+                    const current =
+                      parseInt(
+                        customQty,
+                        10
+                      ) || 0;
+
+                    const availableStock =
+                      Number(
+                        displayProduct?.stock
+                      ) || 0;
+
+                    if (
+                      current >=
+                      availableStock
+                    ) {
+                      Alert.alert(
+                        "Out of Stock",
+                        `Can't add more product: only ${availableStock} units are in stock.`
+                      );
+
+                      return;
+                    }
+
+                    const next =
+                      current + 1;
+
+                    setCustomQty(
+                      String(next)
+                    );
+
+                    setSelectedQty({
+                      label: `${next} pcs`,
+                      price:
+                        basePrice *
+                        next,
+                    });
+                  }}
+                >
+                  <Text
+                    style={
+                      styles.quantityButtonText
+                    }
+                  >
+                    +
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            quantities.length > 0 && (
+              <CustomDropdown
+                label="5. Choose Quantity Bundle"
+                options={
+                  quantities
                 }
-                style={
-                  styles.quantityTextInput
+                selected={
+                  selectedQty?.label
+                }
+                onSelect={
+                  setSelectedQty
+                }
+                isOpen={
+                  openDropdown ===
+                  "qty"
+                }
+                onToggle={() =>
+                  toggleDropdown(
+                    "qty"
+                  )
                 }
               />
+            )
+          )}
 
-              <TouchableOpacity
-                style={
-                  styles.quantityPlusButton
-                }
-                onPress={() => {
-                  const current =
-                    parseInt(
-                      customQty,
-                      10
-                    ) || 0;
+          {/* RUSH ORDER */}
 
-                  const availableStock =
-                    Number(
-                      liveProduct?.stock ??
-                        product?.stock ??
-                        0
-                    );
-
-                  if (
-                    current >=
-                    availableStock
-                  ) {
-                    Alert.alert(
-                      "Out of Stock",
-                      `Can't add more product: only ${availableStock} units are in stock.`
-                    );
-                    return;
-                  }
-
-                  const next =
-                    current + 1;
-
-                  setCustomQty(
-                    String(next)
-                  );
-
-                  setSelectedQty({
-                    label: `${next} pcs`,
-                    price:
-                      Number(
-                        product.price
-                      ) * next,
-                  });
-                }}
-              >
-                <Text
-                  style={
-                    styles.quantityButtonText
-                  }
-                >
-                  +
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          quantities.length >
-            0 && (
-            <CustomDropdown
-              label="5. Choose Quantity Bundle"
-              options={
-                quantities
-              }
-              selected={
-                selectedQty?.label
-              }
-              onSelect={
-                setSelectedQty
-              }
-              isOpen={
-                openDropdown ===
-                "qty"
-              }
-              onToggle={() =>
-                toggleDropdown(
-                  "qty"
-                )
-              }
-            />
-          )
-        )}
-
-        <View
-          style={
-            styles.rushOrderContainer
-          }
-        >
-          <TouchableOpacity
-            style={[
-              styles.rushOrderButton,
-              isRushOrder &&
-                styles.rushOrderButtonActive,
-            ]}
-            onPress={() =>
-              setIsRushOrder(
-                (current) =>
-                  !current
-              )
+          <View
+            style={
+              styles.rushOrderContainer
             }
           >
+            <TouchableOpacity
+              style={[
+                styles.rushOrderButton,
+                isRushOrder &&
+                  styles.rushOrderButtonActive,
+              ]}
+              onPress={() =>
+                setIsRushOrder(
+                  (current) =>
+                    !current
+                )
+              }
+              activeOpacity={0.85}
+            >
+              <View
+                style={
+                  styles.rushOrderLeft
+                }
+              >
+                <View
+                  style={
+                    styles.rushIconCircle
+                  }
+                >
+                  <Ionicons
+                    name={
+                      isRushOrder
+                        ? "flash"
+                        : "flash-outline"
+                    }
+                    size={20}
+                    color={
+                      isRushOrder
+                        ? COLORS.textDark
+                        : COLORS.primary
+                    }
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.rushOrderTextContainer
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.rushOrderTitle,
+                      isRushOrder &&
+                        styles.rushOrderTitleActive,
+                    ]}
+                  >
+                    Rush Order
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.rushOrderDescription,
+                      isRushOrder &&
+                        styles.rushOrderDescriptionActive,
+                    ]}
+                  >
+                    Priority production
+                    (+20%)
+                  </Text>
+                </View>
+              </View>
+
+              <Text
+                style={[
+                  styles.rushOrderPrice,
+                  isRushOrder &&
+                    styles.rushOrderPriceActive,
+                ]}
+              >
+                {isRushOrder
+                  ? `+₱${rushFee.toLocaleString()}`
+                  : "+20%"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* DESCRIPTION */}
+
+          <Text
+            style={styles.sectionTitle}
+          >
+            Description
+          </Text>
+
+          <Text
+            style={styles.description}
+          >
+            {displayProduct?.description ||
+              "No description available for this product."}
+          </Text>
+
+          {/* BULK ORDER */}
+
+          {isBulkOrder && (
             <View
               style={
-                styles.rushOrderLeft
+                styles.bulkOrderCard
               }
             >
               <Ionicons
-                name={
-                  isRushOrder
-                    ? "flash"
-                    : "flash-outline"
-                }
-                size={22}
+                name="information-circle-outline"
+                size={24}
                 color={
-                  isRushOrder
-                    ? "#FFFFFF"
-                    : COLORS.accentCyan
+                  COLORS.warning
                 }
               />
 
               <View
                 style={
-                  styles.rushOrderTextContainer
+                  styles.bulkOrderContent
                 }
               >
                 <Text
-                  style={[
-                    styles.rushOrderTitle,
-                    isRushOrder &&
-                      styles.rushOrderTitleActive,
-                  ]}
+                  style={
+                    styles.bulkOrderTitle
+                  }
                 >
-                  Rush Order
+                  Bulk Order
                 </Text>
 
                 <Text
-                  style={[
-                    styles.rushOrderDescription,
-                    isRushOrder &&
-                      styles.rushOrderDescriptionActive,
-                  ]}
+                  style={
+                    styles.bulkOrderText
+                  }
                 >
-                  Priority production
-                  (+20%)
+                  Your quantity is{" "}
+                  {
+                    selectedQuantityNumber
+                  }{" "}
+                  pcs. Orders of 50
+                  pcs or more require
+                  a quote and cannot
+                  be added to the cart.
+                </Text>
+
+                <Text
+                  style={
+                    styles.bulkOrderActionText
+                  }
+                >
+                  Please request a
+                  quote for this order.
                 </Text>
               </View>
             </View>
+          )}
 
-            <Text
+          {/* 3D DESIGN */}
+
+          {activeDesign && (
+            <View
+              style={
+                styles.designAttachedCard
+              }
+            >
+              <View
+                style={
+                  styles.designAttachedHeader
+                }
+              >
+                <View
+                  style={
+                    styles.designCheckCircle
+                  }
+                >
+                  <Ionicons
+                    name="checkmark"
+                    size={15}
+                    color={
+                      COLORS.textDark
+                    }
+                  />
+                </View>
+
+                <Text
+                  style={
+                    styles.designAttachedTitle
+                  }
+                >
+                  3D Design Attached
+                </Text>
+              </View>
+
+              <Text
+                style={
+                  styles.designAttachedDesc
+                }
+                numberOfLines={2}
+              >
+                {activeDesign.prompt
+                  ? `"${activeDesign.prompt}"`
+                  : "Custom 3D design ready"}
+              </Text>
+
+              <TouchableOpacity
+                style={
+                  styles.removeDesignBtn
+                }
+                onPress={() =>
+                  setActiveDesign(
+                    null
+                  )
+                }
+              >
+                <Text
+                  style={
+                    styles.removeDesignText
+                  }
+                >
+                  Remove Design
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ACTION BUTTONS */}
+
+          <View
+            style={[
+              styles.buttonContainer,
+              isSmall &&
+                styles.buttonContainerSmall,
+            ]}
+          >
+            <TouchableOpacity
               style={[
-                styles.rushOrderPrice,
-                isRushOrder &&
-                  styles.rushOrderPriceActive,
+                styles.cartButton,
+                isBulkOrder &&
+                  styles.bulkQuoteButton,
               ]}
-            >
-              {isRushOrder
-                ? `+₱${rushFee.toLocaleString()}`
-                : "+20%"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text
-          style={styles.sectionTitle}
-        >
-          Description
-        </Text>
-
-        <Text
-          style={styles.description}
-        >
-          {product.description ||
-            "No description available for this product."}
-        </Text>
-
-        {/* ---------------------------------------------------------
-            BULK ORDER NOTICE
-            50 PCS OR MORE
-        --------------------------------------------------------- */}
-
-        {isBulkOrder && (
-          <View
-            style={
-              styles.bulkOrderCard
-            }
-          >
-            <Ionicons
-              name="information-circle-outline"
-              size={24}
-              color="#C99700"
-            />
-
-            <View
-              style={
-                styles.bulkOrderContent
+              onPress={
+                isBulkOrder
+                  ? handleRequestQuote
+                  : PostCartItem
               }
-            >
-              <Text
-                style={
-                  styles.bulkOrderTitle
-                }
-              >
-                Bulk Order
-              </Text>
-
-              <Text
-                style={
-                  styles.bulkOrderText
-                }
-              >
-                Your quantity is{" "}
-                {
-                  selectedQuantityNumber
-                }{" "}
-                pcs. Orders of 50
-                pcs or more require
-                a quote and cannot
-                be added to the cart.
-              </Text>
-
-              <Text
-                style={
-                  styles.bulkOrderActionText
-                }
-              >
-                Please request a
-                quote for this order.
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {activeDesign && (
-          <View
-            style={
-              styles.designAttachedCard
-            }
-          >
-            <View
-              style={
-                styles.designAttachedHeader
+              disabled={
+                adding ||
+                selectedQuantityNumber <=
+                  0
               }
+              activeOpacity={0.85}
             >
-              <Ionicons
-                name="checkmark-circle"
-                size={20}
-                color={
-                  COLORS.accentCyan
-                }
-              />
+              {adding ? (
+                <ActivityIndicator
+                  color={
+                    COLORS.textDark
+                  }
+                />
+              ) : (
+                <>
+                  <Ionicons
+                    name={
+                      isBulkOrder
+                        ? "chatbubble-ellipses-outline"
+                        : "cart-outline"
+                    }
+                    size={18}
+                    color={
+                      COLORS.textDark
+                    }
+                    style={{
+                      marginRight: 6,
+                    }}
+                  />
 
-              <Text
-                style={
-                  styles.designAttachedTitle
-                }
-              >
-                3D Design Attached
-              </Text>
-            </View>
-
-            <Text
-              style={
-                styles.designAttachedDesc
-              }
-              numberOfLines={2}
-            >
-              {activeDesign.prompt
-                ? `"${activeDesign.prompt}"`
-                : "Custom 3D design ready"}
-            </Text>
+                  <Text
+                    style={
+                      styles.primaryButtonText
+                    }
+                  >
+                    {isBulkOrder
+                      ? "Request a Quote"
+                      : "Add to Cart"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={
-                styles.removeDesignBtn
+                styles.customizerButton
               }
-              onPress={() =>
-                setActiveDesign(
-                  null
-                )
+              onPress={
+                handleCustomizerPress
               }
+              activeOpacity={0.85}
             >
+              <Ionicons
+                name="cube-outline"
+                size={18}
+                color={
+                  COLORS.primary
+                }
+                style={{
+                  marginRight: 6,
+                }}
+              />
+
               <Text
                 style={
-                  styles.removeDesignText
+                  styles.customizerButtonText
                 }
               >
-                Remove Design
+                Customize in 3D
               </Text>
             </TouchableOpacity>
           </View>
-        )}
-
-        <View
-          style={
-            styles.buttonContainer
-          }
-        >
-          <TouchableOpacity
-            style={[
-              styles.cartButton,
-              isBulkOrder &&
-                styles.bulkQuoteButton,
-            ]}
-            onPress={
-              isBulkOrder
-                ? handleRequestQuote
-                : PostCartItem
-            }
-            disabled={
-              adding ||
-              selectedQuantityNumber <= 0
-            }
-          >
-            {adding ? (
-              <ActivityIndicator
-                color={
-                  COLORS.textLight
-                }
-              />
-            ) : (
-              <Text
-                style={
-                  styles.buttonText
-                }
-              >
-                {isBulkOrder
-                  ? "Request a Quote"
-                  : "Add to Cart"}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={
-              styles.customizerButton
-            }
-            onPress={
-              handleCustomizerPress
-            }
-          >
-            <Ionicons
-              name="cube-outline"
-              size={18}
-              color={
-                COLORS.textLight
-              }
-              style={{
-                marginRight: 6,
-              }}
-            />
-
-            <Text
-              style={
-                styles.buttonText
-              }
-            >
-              Customize in 3D
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
+// ============================================================
+// STYLES
+// ============================================================
+
 const styles = StyleSheet.create({
+  // ==========================================================
+  // SCREEN
+  // ==========================================================
+
+  screen: {
+    flex: 1,
+    backgroundColor:
+      COLORS.background,
+  },
+
   container: {
     flex: 1,
     backgroundColor:
-      COLORS.lightBg,
+      COLORS.background,
+  },
+
+  // ==========================================================
+  // HEADER
+  // ==========================================================
+
+  header: {
+    minHeight: 64,
+    backgroundColor: COLORS.backgroundDeep,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+
+  headerBackButton: {
+    width: 46,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 23,
+  },
+
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily:
+      "Poppins_700Bold",
+    fontSize: 21,
+    color:
+      COLORS.textPrimary,
+  },
+
+  headerSpacer: {
+    width: 46,
+    height: 46,
+  },
+
+  // ==========================================================
+  // LOADING
+  // ==========================================================
+
+  loadingScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor:
+      COLORS.background,
+  },
+
+  loadingText: {
+    marginTop: 10,
+    fontFamily:
+      "Poppins_500Medium",
+    fontSize: 13,
+    color:
+      COLORS.textSecondary,
+  },
+
+  // ==========================================================
+  // IMAGE
+  // ==========================================================
+
+  imageContainer: {
+    width: "100%",
+    backgroundColor:
+      COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
 
   image: {
     width: "100%",
-    height: 240,
-    resizeMode: "cover",
+    height: "100%",
   },
 
+  imageFallback: {
+    flex: 1,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor:
+      COLORS.surfaceDark,
+  },
+
+  imageFallbackText: {
+    marginTop: 8,
+    fontFamily:
+      "Poppins_500Medium",
+    fontSize: 12,
+    color:
+      COLORS.textMuted,
+  },
+
+  // ==========================================================
+  // INFORMATION
+  // ==========================================================
+
   infoContainer: {
-    padding: 16,
+    paddingTop: 18,
+    paddingBottom: 25,
   },
 
   name: {
-    fontSize: 22,
-    fontWeight: "900",
+    fontFamily:
+      "Poppins_700Bold",
     color:
       COLORS.textPrimary,
     marginBottom: 4,
   },
 
   price: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontFamily:
+      "Poppins_700Bold",
     color:
-      COLORS.accentCyan,
+      COLORS.primary,
     marginBottom: 4,
   },
 
   stock: {
+    fontFamily:
+      "Poppins_600SemiBold",
     fontSize: 12,
     color:
-      COLORS.accentGreen,
-    fontWeight: "700",
-    marginBottom: 16,
+      COLORS.success,
+    marginBottom: 18,
   },
 
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: "800",
+    fontFamily:
+      "Poppins_700Bold",
+    fontSize: 16,
     color:
       COLORS.textPrimary,
     marginTop: 12,
-    marginBottom: 10,
+    marginBottom: 11,
   },
+
+  description: {
+    fontFamily:
+      "Poppins_400Regular",
+    fontSize: 13,
+    color:
+      COLORS.textSecondary,
+    lineHeight: 21,
+    marginBottom: 20,
+  },
+
+  // ==========================================================
+  // DROPDOWNS
+  // ==========================================================
 
   dropdownContainer: {
     marginBottom: 16,
   },
 
   dropdownLabel: {
+    fontFamily:
+      "Poppins_600SemiBold",
     fontSize: 12,
-    fontWeight: "700",
     color:
-      COLORS.textMuted,
-    marginBottom: 6,
+      COLORS.textSecondary,
+    marginBottom: 7,
   },
 
   dropdownHeader: {
-    flexDirection:
-      "row",
+    minHeight: 50,
+    flexDirection: "row",
     justifyContent:
       "space-between",
-    alignItems:
-      "center",
+    alignItems: "center",
     backgroundColor:
-      COLORS.cardBg,
+      COLORS.surfaceDark,
     borderWidth: 1,
     borderColor:
-      COLORS.borderLight,
+      COLORS.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
   },
 
   dropdownHeaderActive: {
     borderColor:
-      COLORS.accentCyan,
+      COLORS.primary,
     backgroundColor:
-      "rgba(6, 182, 212, 0.04)",
+      "rgba(182, 255, 0, 0.05)",
   },
 
   dropdownHeaderText: {
+    flex: 1,
+    marginRight: 10,
+    fontFamily:
+      "Poppins_500Medium",
     fontSize: 14,
     color:
       COLORS.textPrimary,
-    fontWeight: "600",
   },
 
   dropdownList: {
     backgroundColor:
-      COLORS.cardBg,
+      COLORS.surfaceDark,
     borderWidth: 1,
     borderColor:
-      COLORS.borderLight,
+      COLORS.border,
     borderTopWidth: 0,
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
     marginTop: -2,
     overflow: "hidden",
   },
 
   dropdownItem: {
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderBottomWidth: 1,
     borderBottomColor:
-      COLORS.borderLight,
+      COLORS.borderDark,
   },
 
   dropdownItemLast: {
@@ -1625,100 +2286,115 @@ const styles = StyleSheet.create({
   },
 
   dropdownItemText: {
+    fontFamily:
+      "Poppins_400Regular",
     fontSize: 14,
     color:
-      COLORS.textPrimary,
+      COLORS.textSecondary,
   },
 
   dropdownItemTextActive: {
-    fontWeight: "700",
+    fontFamily:
+      "Poppins_700Bold",
     color:
-      COLORS.accentCyan,
+      COLORS.primary,
+  },
+
+  // ==========================================================
+  // QUANTITY
+  // ==========================================================
+
+  quantityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
   },
 
   quantityMinusButton: {
-    width: 48,
-    height: 48,
+    width: 50,
+    height: 50,
     backgroundColor:
-      "#f1f5f9",
+      COLORS.surfaceDark,
     borderWidth: 1,
     borderColor:
-      COLORS.borderLight,
-    borderTopLeftRadius: 8,
-    borderBottomLeftRadius: 8,
+      COLORS.border,
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
     alignItems: "center",
     justifyContent:
       "center",
   },
 
   quantityPlusButton: {
-    width: 48,
-    height: 48,
+    width: 50,
+    height: 50,
     backgroundColor:
-      "#f1f5f9",
+      COLORS.surfaceDark,
     borderWidth: 1,
     borderColor:
-      COLORS.borderLight,
-    borderTopRightRadius: 8,
-    borderBottomRightRadius: 8,
+      COLORS.border,
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
     alignItems: "center",
     justifyContent:
       "center",
   },
 
   quantityButtonText: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#475569",
+    fontFamily:
+      "Poppins_700Bold",
+    fontSize: 21,
+    color:
+      COLORS.primary,
   },
 
   quantityTextInput: {
-    width: 90,
-    height: 48,
+    flex: 1,
+    maxWidth: 130,
+    height: 50,
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor:
-      COLORS.borderLight,
+      COLORS.border,
     backgroundColor:
-      COLORS.cardBg,
+      COLORS.inputBackground,
     textAlign: "center",
+    fontFamily:
+      "Poppins_700Bold",
     fontSize: 16,
-    fontWeight: "700",
     color:
       COLORS.textPrimary,
   },
 
-  description: {
-    fontSize: 13,
-    color:
-      COLORS.textMuted,
-    lineHeight: 18,
-    marginBottom: 20,
-  },
+  // ==========================================================
+  // RUSH ORDER
+  // ==========================================================
 
   rushOrderContainer: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
 
   rushOrderButton: {
+    minHeight: 70,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent:
+      "space-between",
     backgroundColor:
-      COLORS.cardBg,
+      COLORS.surfaceDark,
     borderWidth: 1,
     borderColor:
-      COLORS.borderLight,
-    borderRadius: 12,
+      COLORS.border,
+    borderRadius: 13,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
 
   rushOrderButtonActive: {
     backgroundColor:
-      COLORS.accentCyan,
+      COLORS.primary,
     borderColor:
-      COLORS.accentCyan,
+      COLORS.primary,
   },
 
   rushOrderLeft: {
@@ -1727,22 +2403,38 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  rushIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor:
+      "rgba(182,255,0,0.10)",
+    alignItems: "center",
+    justifyContent:
+      "center",
+  },
+
   rushOrderTextContainer: {
     marginLeft: 10,
+    flex: 1,
   },
 
   rushOrderTitle: {
+    fontFamily:
+      "Poppins_700Bold",
     fontSize: 14,
-    fontWeight: "800",
     color:
       COLORS.textPrimary,
   },
 
   rushOrderTitleActive: {
-    color: "#FFFFFF",
+    color:
+      COLORS.textDark,
   },
 
   rushOrderDescription: {
+    fontFamily:
+      "Poppins_400Regular",
     fontSize: 12,
     color:
       COLORS.textMuted,
@@ -1750,33 +2442,38 @@ const styles = StyleSheet.create({
   },
 
   rushOrderDescriptionActive: {
-    color: "#FFFFFF",
+    color:
+      COLORS.textDark,
   },
 
   rushOrderPrice: {
+    fontFamily:
+      "Poppins_700Bold",
     fontSize: 13,
-    fontWeight: "800",
     color:
-      COLORS.accentCyan,
+      COLORS.primary,
   },
 
   rushOrderPriceActive: {
-    color: "#FFFFFF",
+    color:
+      COLORS.textDark,
   },
 
-  // ---------------------------------------------------------
+  // ==========================================================
   // BULK ORDER
-  // ---------------------------------------------------------
+  // ==========================================================
 
   bulkOrderCard: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#FFF8E1",
+    backgroundColor:
+      "rgba(245,158,11,0.10)",
     borderWidth: 1,
-    borderColor: "#E6C45A",
-    borderRadius: 12,
+    borderColor:
+      "rgba(245,158,11,0.35)",
+    borderRadius: 13,
     padding: 14,
-    marginBottom: 16,
+    marginBottom: 17,
   },
 
   bulkOrderContent: {
@@ -1785,103 +2482,85 @@ const styles = StyleSheet.create({
   },
 
   bulkOrderTitle: {
+    fontFamily:
+      "Poppins_700Bold",
     fontSize: 15,
-    fontWeight: "800",
-    color: "#8A6500",
+    color:
+      COLORS.warning,
     marginBottom: 4,
   },
 
   bulkOrderText: {
+    fontFamily:
+      "Poppins_400Regular",
     fontSize: 13,
     lineHeight: 19,
-    color: "#6B5A24",
+    color:
+      "rgba(255,255,255,0.72)",
   },
 
   bulkOrderActionText: {
+    fontFamily:
+      "Poppins_700Bold",
     fontSize: 13,
-    fontWeight: "800",
-    color: "#8A6500",
+    color:
+      COLORS.warning,
     marginTop: 6,
   },
 
   bulkQuoteButton: {
-    backgroundColor: "#C99700",
-  },
-
-  buttonContainer: {
-    flexDirection:
-      "row",
-    justifyContent:
-      "space-between",
-    marginBottom: 30,
-  },
-
-  cartButton: {
     backgroundColor:
-      COLORS.accentCyan,
-    flex: 1,
-    marginRight: 8,
-    paddingVertical: 14,
-    borderRadius: 24,
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
+      COLORS.warning,
   },
 
-  customizerButton: {
-    backgroundColor:
-      COLORS.primaryDark,
-    flex: 1,
-    marginLeft: 8,
-    paddingVertical: 14,
-    borderRadius: 24,
-    flexDirection:
-      "row",
-    alignItems:
-      "center",
-    justifyContent:
-      "center",
-  },
-
-  buttonText: {
-    color:
-      COLORS.textLight,
-    fontSize: 14,
-    fontWeight: "800",
-  },
+  // ==========================================================
+  // 3D DESIGN
+  // ==========================================================
 
   designAttachedCard: {
     backgroundColor:
-      COLORS.cardBg,
-    borderRadius: 12,
+      COLORS.surfaceDark,
+    borderRadius: 13,
     borderWidth: 1,
     borderColor:
-      COLORS.accentCyan,
-    padding: 12,
-    marginBottom: 16,
+      COLORS.primary,
+    padding: 13,
+    marginBottom: 17,
   },
 
   designAttachedHeader: {
-    flexDirection:
-      "row",
-    alignItems:
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+
+  designCheckCircle: {
+    width: 23,
+    height: 23,
+    borderRadius: 12,
+    backgroundColor:
+      COLORS.primary,
+    alignItems: "center",
+    justifyContent:
       "center",
-    marginBottom: 4,
   },
 
   designAttachedTitle: {
+    fontFamily:
+      "Poppins_700Bold",
     color:
       COLORS.textPrimary,
-    fontWeight: "800",
     fontSize: 14,
-    marginLeft: 6,
+    marginLeft: 7,
   },
 
   designAttachedDesc: {
+    fontFamily:
+      "Poppins_400Regular",
     color:
-      COLORS.textMuted,
+      COLORS.textSecondary,
     fontSize: 13,
+    lineHeight: 19,
     marginBottom: 8,
   },
 
@@ -1891,9 +2570,77 @@ const styles = StyleSheet.create({
   },
 
   removeDesignText: {
+    fontFamily:
+      "Poppins_700Bold",
     color:
       COLORS.danger,
-    fontWeight: "700",
     fontSize: 12,
+  },
+
+  // ==========================================================
+  // BUTTONS
+  // ==========================================================
+
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent:
+      "space-between",
+    marginTop: 5,
+    marginBottom: 12,
+  },
+
+  buttonContainerSmall: {
+    flexDirection: "column",
+  },
+
+  cartButton: {
+    minHeight: 52,
+    backgroundColor:
+      COLORS.primary,
+    flex: 1,
+    marginRight: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 14,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent:
+      "center",
+    flexDirection: "row",
+  },
+
+  customizerButton: {
+    minHeight: 52,
+    backgroundColor:
+      COLORS.surfaceDark,
+    flex: 1,
+    marginLeft: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 14,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor:
+      COLORS.borderStrong,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent:
+      "center",
+  },
+
+  primaryButtonText: {
+    fontFamily:
+      "Poppins_700Bold",
+    color:
+      COLORS.textDark,
+    fontSize: 13,
+    textAlign: "center",
+  },
+
+  customizerButtonText: {
+    fontFamily:
+      "Poppins_700Bold",
+    color:
+      COLORS.primary,
+    fontSize: 13,
+    textAlign: "center",
   },
 });

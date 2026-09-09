@@ -2,10 +2,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 
 :root {
-  --phc-primary: #7c3aed;
-  --phc-primary-dark: #5b21b6;
+  --phc-primary: #186800;
+  --phc-primary-dark: #11291a;
   --phc-primary-light: #ede9fe;
-  --phc-user-bg: #7c3aed;
+  --phc-user-bg: #009302;
   --phc-bot-bg: #f3f4f6;
   --phc-text: #1f2937;
   --phc-muted: #6b7280;
@@ -31,13 +31,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.45);
+  box-shadow: 0 6px 24px rgba(73, 237, 58, 0.453);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   z-index: 9998;
   font-family: var(--phc-font);
 }
-.phc-fab:hover { transform: scale(1.1); box-shadow: 0 8px 32px rgba(124,58,237,0.55); }
-.phc-fab--open { background: #374151; box-shadow: 0 4px 16px rgba(0,0,0,0.25); }
+.phc-fab:hover { transform: scale(1.1); box-shadow: 0 8px 32px #0fe8007a; }
+.phc-fab--open { background: #254e22; box-shadow: 0 4px 16px rgba(0,0,0,0.25); }
 
 /* Ping animation */
 .phc-ping {

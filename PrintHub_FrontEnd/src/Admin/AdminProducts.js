@@ -1,3 +1,4 @@
+//AdminProducts.js
 import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -26,8 +27,10 @@ import {
 
 const CATEGORY_ZONES = {
   tshirt: ["front", "back", "left_sleeve", "right_sleeve"],
-  jersey: ["front", "back", "left_sleeve", "right_sleeve"],
-  jersery: ["front", "back", "left_sleeve", "right_sleeve"],
+  hoodie: ["front", "back", "left_sleeve", "right_sleeve", "hood"],
+  sweatshirt: ["front", "back", "left_sleeve", "right_sleeve"],
+  jersey: ["front", "back"],
+  jersery: ["front", "back"],
   cap: ["front", "back", "left_side", "right_side"],
   notebook: ["front_cover", "back_cover"],
   calling_card: ["front", "back"],
@@ -51,6 +54,8 @@ const getCategoryZones = (category) =>
 const getCustomizerCategoryKey = (category) => {
   const norm = String(category || "").toLowerCase();
   if (norm === "tshirt" || norm === "t-shirts") return "T-shirts";
+  if (norm === "hoodie") return "Hoodie";
+  if (norm === "sweatshirt") return "Sweatshirt";
   if (norm === "jersey" || norm === "jersery") return "Jersey";
   if (norm === "cap" || norm === "hat") return "Cap";
   if (norm === "mug" || norm === "mugs") return "Mug";
@@ -84,21 +89,47 @@ const generateSideOptions = (category, zones) => {
     ) {
       options.push("Full Body Wrap");
     }
-  } else if (norm === "jersey" || norm === "jersery") {
-    if (zones.includes("front")) options.push("Front");
+  } else if (norm === "sweatshirt") {
+    if (zones.includes("front")) options.push("Front Center");
     if (zones.includes("back")) options.push("Back");
     if (zones.includes("front") && zones.includes("back")) {
       options.push("Front & Back");
     }
-    if (zones.includes("left_sleeve")) options.push("Sleeve (Left)");
-    if (zones.includes("right_sleeve")) options.push("Sleeve (Right)");
+    if (zones.includes("left_sleeve") || zones.includes("right_sleeve")) {
+      options.push("Sleeve");
+    }
     if (
       zones.includes("front") &&
       zones.includes("back") &&
       zones.includes("left_sleeve") &&
       zones.includes("right_sleeve")
     ) {
-      options.push("Full Sublimation");
+      options.push("All Sides");
+    }
+  } else if (norm === "hoodie") {
+    if (zones.includes("front")) options.push("Front Center");
+    if (zones.includes("back")) options.push("Back");
+    if (zones.includes("front") && zones.includes("back")) {
+      options.push("Front & Back");
+    }
+    if (zones.includes("left_sleeve") || zones.includes("right_sleeve")) {
+      options.push("Sleeve");
+    }
+    if (zones.includes("hood")) options.push("Hood");
+    if (
+      zones.includes("front") &&
+      zones.includes("back") &&
+      zones.includes("left_sleeve") &&
+      zones.includes("right_sleeve") &&
+      zones.includes("hood")
+    ) {
+      options.push("All Sides");
+    }
+  } else if (norm === "jersey" || norm === "jersery") {
+    if (zones.includes("front")) options.push("Front");
+    if (zones.includes("back")) options.push("Back");
+    if (zones.includes("front") && zones.includes("back")) {
+      options.push("Front & Back");
     }
   } else if (norm === "cap" || norm === "hat") {
     if (zones.includes("front")) options.push("Front Center");
@@ -741,6 +772,7 @@ function AdminProducts({
       substrateUsagePerUnit: fullProduct.substrateUsagePerUnit || "",
       inkColorChannel: fullProduct.inkColorChannel || "",
       inkUsagePerUnit: fullProduct.inkUsagePerUnit || "",
+      setupFee: fullProduct.setupFee ?? "",
       status: product.status,
       images: fullProduct.images || [],
       color_options: fullProduct.color_options || [],
@@ -836,6 +868,7 @@ function AdminProducts({
             substrateUsagePerUnit: editForm.substrateUsagePerUnit,
             inkColorChannel: editForm.inkColorChannel,
             inkUsagePerUnit: editForm.inkUsagePerUnit,
+            setupFee: editForm.setupFee,
             active: editForm.status === "active",
             images: editForm.images,
             color_options: editForm.color_options,
@@ -900,15 +933,17 @@ function AdminProducts({
 
     const categoryMap = {
       "T-shirts": "tshirt",
-      Jersey: "jersey",
-      Cap: "cap",
-      Mug: "mug",
-      Notebook: "notebook",
+      "Hoodie": "hoodie",
+      "Sweatshirt": "sweatshirt",
+      "Jersey": "jersey",
+      "Cap": "cap",
+      "Mug": "mug",
+      "Notebook": "notebook",
       "Business Card": "calling_card",
-      Banners: "banners",
+      "Banners": "banners",
       "Stickers & Labels": "stickers",
       "Hang Tags": "hang_tags",
-      Brochures: "brochures",
+      "Brochures": "brochures",
     };
     const dbCategory = categoryMap[categoryName] || "other";
     const newSides = customizerZones
@@ -1717,6 +1752,9 @@ function AdminProducts({
                           >
                             <option value="offset">Offset Print</option>
                             <option value="digital">Digital Print</option>
+                            <option value="screen-print">Screen Print</option>
+                            <option value="embroidery">Embroidery</option>
+                            <option value="large-format">Large Format</option>
                             <option value="service">Service</option>
                           </select>
                         </div>
@@ -1749,9 +1787,10 @@ function AdminProducts({
                             }}
                           >
                             <option value="tshirt">T-shirts</option>
+                            <option value="hoodie">Hoodie</option>
+                            <option value="sweatshirt">Sweatshirt</option>
                             <option value="jersery">Jersey</option>
                             <option value="cap">Cap</option>
-                            <option value="mugs">Mugs</option>
                             <option value="notebook">Notebook</option>
                             <option value="calling_card">Business Card</option>
                             <option value="banners">Banners</option>
@@ -1845,7 +1884,8 @@ function AdminProducts({
                           <option value="">— None —</option>
                           {inventoryOptions.substrates.map((s) => (
                             <option key={s.name} value={s.name}>
-                              {s.name} ({s.stock} {s.unit} in stock)
+                              {s.name} ({s.stock} {s.unit} in stock
+                              {s.cost != null ? `, ₱${Number(s.cost).toFixed(2)}/meter` : ", no cost set"})
                             </option>
                           ))}
                         </select>
@@ -1891,7 +1931,8 @@ function AdminProducts({
                           <option value="">— None —</option>
                           {inventoryOptions.inks.map((i) => (
                             <option key={i.name} value={i.name}>
-                              {i.name} ({i.stock} {i.unit} in stock)
+                              {i.name} ({i.stock} {i.unit} in stock
+                              {i.cost != null ? `, ₱${Number(i.cost).toFixed(2)}/ml` : ", no cost set"})
                             </option>
                           ))}
                         </select>
@@ -1918,6 +1959,27 @@ function AdminProducts({
                         />
                       </div>
 
+                                            <div className="dashform-group">
+                        <label>
+                          Setup Fee (₱){" "}
+                          <span style={{ color: "#cbd5e1", fontWeight: "400", fontSize: "12px" }}>
+                            (fixed labor/machine cost per unit, regardless of design size)
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editForm.setupFee || ""}
+                          onChange={(e) =>
+                            setEditForm({
+                              ...editForm,
+                              setupFee: e.target.value,
+                            })
+                          }
+                          placeholder="e.g. 15.00"
+                        />
+                      </div>
+
                       <div className="dashform-group">
                         <label>
                           Unit Blank{" "}
@@ -1937,7 +1999,8 @@ function AdminProducts({
                           <option value="">— None —</option>
                           {inventoryOptions.units.map((u) => (
                             <option key={u.name} value={u.name}>
-                              {u.name} ({u.stock} {u.unit} in stock)
+                              {u.name} ({u.stock} {u.unit} in stock
+                              {u.cost != null ? `, ₱${Number(u.cost).toFixed(2)}/pc` : ", no cost set"})
                             </option>
                           ))}
                         </select>

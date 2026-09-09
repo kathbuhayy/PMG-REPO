@@ -1,3 +1,4 @@
+// Admin-dashboard
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { createPortal } from "react-dom";
@@ -12,7 +13,7 @@ import AdminInquiries from "./AdminInquiries";
 import AdminProducts from "./AdminProducts";
 import AdminActivityLog from "./AdminActivityLog";
 import NotificationBell from "./NotificationBell";
-import ProductionQueue from "./ProductionQueue";
+// import ProductionQueue from "./ProductionQueue";
 import AdminRequisitions from "./AdminRequisitions";
 import StaffDashboard from "./StaffDashboard";
 import AdminReports from "./AdminReports";
@@ -67,42 +68,6 @@ import {
   FaTools,
 } from "react-icons/fa";
 import { LuPanelLeftClose, LuPanelLeftOpen } from "react-icons/lu";
-
-const MOCK_DASHBOARD = {
-  deliveriesPickup: 5,
-  revenueChangePercent: 12.5,
-  todaysSchedule: [
-    {
-      id: "PJ-1045",
-      time: "10:00 AM",
-      title: "T-Shirt Printing (50 pcs)",
-      staff: "Kat",
-      status: "In Production",
-      statusTone: "amber",
-      progress: 60,
-    },
-    {
-      id: "PJ-1046",
-      time: "1:00 PM",
-      title: "Flyers (500 pcs)",
-      staff: "Patrizia",
-      status: "Quality Check",
-      statusTone: "blue",
-      progress: 75,
-    },
-    {
-      id: "PJ-1047",
-      time: "3:00 PM",
-      title: "Business Cards (200 pcs)",
-      staff: "Rica",
-      status: "Pending",
-      statusTone: "grey",
-      progress: 0,
-    },
-  ],
-  // Simple relative trend line (not tied to real dates yet)
-  salesOverviewTrend: [10, 13, 12, 16, 15, 19, 18, 22, 21, 25, 24, 28, 27, 31],
-};
 
 // Builds a CSS conic-gradient string from [{ value, color }]
 const buildConicGradient = (segments) => {
@@ -232,6 +197,42 @@ function AdminDashboard() {
   const [inProductionCount, setInProductionCount] = useState(0);
   const [recentOrders, setRecentOrders] = useState([]);
 
+  // Sales overview state (real daily revenue trend for the dashboard chart)
+  const [salesOverview, setSalesOverview] = useState({
+    dailyRevenue: [],
+    totalSales: 0,
+    orders: 0,
+    customers: 0,
+    avgOrder: 0,
+  });
+  const [salesOverviewLoading, setSalesOverviewLoading] = useState(true);
+
+  const fetchSalesOverview = useCallback(async () => {
+    try {
+      setSalesOverviewLoading(true);
+      const res = await adminFetch(buildApiUrl("/api/admin/dashboard/sales-overview"));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to fetch sales overview");
+      setSalesOverview({
+        dailyRevenue: data.dailyRevenue || [],
+        totalSales: data.totalSales || 0,
+        orders: data.orders || 0,
+        customers: data.customers || 0,
+        avgOrder: data.avgOrder || 0,
+      });
+    } catch (err) {
+      console.error("Error fetching sales overview:", err);
+    } finally {
+      setSalesOverviewLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSalesOverview();
+    const interval = setInterval(fetchSalesOverview, 30000);
+    return () => clearInterval(interval);
+  }, [fetchSalesOverview]);
+
   // Low stock state
   const [lowStock, setLowStock] = useState({ products: [], pagination: {} });
   const [outOfStockCount, setOutOfStockCount] = useState(0);
@@ -313,7 +314,7 @@ function AdminDashboard() {
 
   const fetchQuotationsCount = useCallback(async () => {
     try {
-      const res = await adminFetch(buildApiUrl("/api/inquiries"));
+      const res = await adminFetch(buildApiUrl("/api/inquiries?status=new"));
       const data = await res.json();
       if (res.ok && Array.isArray(data)) setQuotationsCount(data.length);
     } catch (err) {
@@ -445,12 +446,7 @@ function AdminDashboard() {
         .slice(0, 5)
         .map((o) => ({
           id: o.order_number || o.orderNumber || `#${o.id ?? "—"}`,
-          customer:
-            o.customer_name ||
-            o.customerName ||
-            o.user?.name ||
-            o.user_name ||
-            "Customer",
+          customer: o.customer || "Customer",
           total: parseFloat(o.total || 0),
           status: o.status || "pending",
         }));
@@ -484,6 +480,7 @@ function AdminDashboard() {
       fetchDashboardStats(),
       fetchLowStock(),
       fetchOutOfStock(),
+      fetchSalesOverview(),
     ]);
     setIsRefreshing(false);
   };
@@ -599,12 +596,13 @@ function AdminDashboard() {
         label: "PRODUCTION",
         items: [
           { id: "designApprovals", label: "Design Approvals", icon: <FaClipboardCheck /> },
-          { id: "productionQueue", label: "Production Queue", icon: <FaListOl /> },
+          // { id: "productionQueue", label: "Production Queue", icon: <FaListOl /> },
           { id: "calendar", label: "Production Calendar", icon: <FaCalendarAlt /> },
           { id: "paymentVerification", label: "Payment Verification", icon: <FaMoneyCheckAlt /> },
           { id: "printJobs", label: "Print Jobs", icon: <FaPrint /> },
           { id: "qualityCheck", label: "Quality Check", icon: <FaCheckDouble /> },
           { id: "packaging", label: "Packaging", icon: <FaBoxOpen /> },
+          { id: "completedOrders", label: "Completed Orders", icon: <FaCheckCircle /> },
         ],
       },
       {
@@ -668,6 +666,15 @@ function AdminDashboard() {
       }
       if (staffRoles.includes("LOGISTICS_PACKER")) {
         STAFF_ALLOWED_IDS.push("packaging");
+      }
+      if (
+        staffRoles.includes("DESIGN_APPROVER") ||
+        staffRoles.includes("PAYMENT_VERIFIER") ||
+        staffRoles.includes("PRINT_TECHNICIAN") ||
+        staffRoles.includes("QUALITY_ASSURANCE_INSPECTOR") ||
+        staffRoles.includes("LOGISTICS_PACKER")
+      ) {
+        STAFF_ALLOWED_IDS.push("completedOrders");
       }
       if (staffRoles.includes("INVENTORY_CONTROLLER")) {
         STAFF_ALLOWED_IDS.push("inventory");
@@ -1033,23 +1040,24 @@ function AdminDashboard() {
     [productionOverview],
   );
   const salesChart = useMemo(
-    () => buildSparklinePath(MOCK_DASHBOARD.salesOverviewTrend, 300, 100),
-    [],
+    () => buildSparklinePath(
+      salesOverview.dailyRevenue.map((d) => d.revenue),
+      300,
+      100,
+    ),
+    [salesOverview.dailyRevenue],
   );
-  const avgOrderValue = dashStats.totalOrders
-    ? dashStats.totalRevenue / dashStats.totalOrders
-    : 0;
 
   const statCards = [
     {
       key: "revenue",
-      label: "Today's Revenue",
+      label: "Total Revenue",
       value: `₱${dashStats.totalRevenue.toLocaleString(undefined, {
         maximumFractionDigits: 0,
       })}`,
       icon: <FaMoneyBillWave />,
       tone: "green",
-      foot: `+${MOCK_DASHBOARD.revenueChangePercent}% vs yesterday`,
+      foot: "From completed orders",
     },
     {
       key: "pending",
@@ -1060,23 +1068,15 @@ function AdminDashboard() {
       foot: "View all orders",
       onClick: () => navigate("/admin/orders"),
     },
-    {
-      key: "production",
-      label: "In Production",
-      value: inProductionCount,
-      icon: <FaPrint />,
-      tone: "indigo",
-      foot: "View production queue",
-      onClick: () => navigate("/admin/productionQueue"),
-    },
-    {
-      key: "deliveries",
-      label: "Deliveries / Pickup",
-      value: MOCK_DASHBOARD.deliveriesPickup,
-      icon: <FaTruck />,
-      tone: "orange",
-      foot: "Ready for release",
-    },
+    // {
+    //   key: "production",
+    //   label: "In Production",
+    //   value: inProductionCount,
+    //   icon: <FaPrint />,
+    //   tone: "indigo",
+    //   foot: "View production queue",
+    //   onClick: () => navigate("/admin/productionQueue"),
+    // },
     {
       key: "lowstock",
       label: "Low Stock Items",
@@ -2380,7 +2380,7 @@ function AdminDashboard() {
                   <button
                     type="button"
                     className="dash-panel-link"
-                    onClick={() => navigate("/admin/productionQueue")}
+                    onClick={() => navigate("/admin/printJobs")}
                   >
                     View full production →
                   </button>
@@ -2392,15 +2392,15 @@ function AdminDashboard() {
                   </div>
                   <div className="urgent-list">
                     {[
-                      deadlineSoonCount > 0 && {
-                        id: "deadline",
-                        tone: "red",
-                        icon: <FaExclamationTriangle />,
-                        title: `${deadlineSoonCount} order${deadlineSoonCount === 1 ? "" : "s"} approaching their deadline`,
-                        subtitle: "Check production queue",
-                        actionLabel: "View Jobs",
-                        actionTab: "productionQueue",
-                      },
+                      // deadlineSoonCount > 0 && {
+                      //   id: "deadline",
+                      //   tone: "red",
+                      //   icon: <FaExclamationTriangle />,
+                      //   title: `${deadlineSoonCount} order${deadlineSoonCount === 1 ? "" : "s"} approaching their deadline`,
+                      //   subtitle: "Check production queue",
+                      //   actionLabel: "View Jobs",
+                      //   actionTab: "productionQueue",
+                      // },
                       designApprovalCount > 0 && {
                         id: "designs",
                         tone: "blue",
@@ -2434,49 +2434,6 @@ function AdminDashboard() {
                       </p>
                     )}
                   </div>
-                </div>
-
-                <div className="dash-panel schedule-panel">
-                  <div className="dash-panel-head">
-                    <h3>Today's Production Schedule</h3>
-                    <button
-                      type="button"
-                      className="row-btn"
-                      onClick={() => navigate("/admin/calendar")}
-                    >
-                      View Calendar
-                    </button>
-                  </div>
-                  <div className="schedule-list">
-                    {MOCK_DASHBOARD.todaysSchedule.map((job) => (
-                      <div className="schedule-item" key={job.id}>
-                        <div className="schedule-time">{job.time}</div>
-                        <div className="schedule-body">
-                          <div className="schedule-top">
-                            <span className="schedule-id">#{job.id}</span>
-                            <span className={`dashpage-pill status-${job.statusTone === "amber" ? "processing" : job.statusTone === "blue" ? "quoted" : "pending"}`}>
-                              {job.status}
-                            </span>
-                          </div>
-                          <p className="schedule-title">{job.title}</p>
-                          <p className="schedule-staff">Staff: {job.staff}</p>
-                          <div className="schedule-progress-track">
-                            <div
-                              className="schedule-progress-fill"
-                              style={{ width: `${job.progress}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    className="dash-panel-link"
-                    onClick={() => navigate("/admin/calendar")}
-                  >
-                    View full schedule →
-                  </button>
                 </div>
               </div>
 
@@ -2616,7 +2573,7 @@ function AdminDashboard() {
                       <span className="sales-total-label">Total Sales</span>
                       <p className="sales-total-value">
                         ₱
-                        {dashStats.totalRevenue.toLocaleString(undefined, {
+                        {salesOverview.totalSales.toLocaleString(undefined, {
                           maximumFractionDigits: 0,
                         })}
                       </p>
@@ -2644,20 +2601,20 @@ function AdminDashboard() {
                       <div>
                         <span className="sales-footer-label">Orders</span>
                         <p className="sales-footer-value">
-                          {dashStats.totalOrders}
+                          {salesOverview.orders}
                         </p>
                       </div>
                       <div>
                         <span className="sales-footer-label">Customers</span>
                         <p className="sales-footer-value">
-                          {dashStats.totalUsers}
+                          {salesOverview.customers}
                         </p>
                       </div>
                       <div>
                         <span className="sales-footer-label">Avg. Order</span>
                         <p className="sales-footer-value">
                           ₱
-                          {avgOrderValue.toLocaleString(undefined, {
+                          {salesOverview.avgOrder.toLocaleString(undefined, {
                             maximumFractionDigits: 0,
                           })}
                         </p>
@@ -2708,6 +2665,14 @@ function AdminDashboard() {
               useCardHeader
             />
           )}
+          {activeItem === "completedOrders" && (
+            <StageQueuePage
+              stage="COMPLETED"
+              title="Completed Orders"
+              description="Orders that have finished production."
+              useCardHeader
+            />
+          )}
 
           {activeItem === "profile" &&
             (isProfileEditRoute ? <EditAdminProfile /> : <AdminProfile />)}
@@ -2736,7 +2701,7 @@ function AdminDashboard() {
           {/* New sections without a page yet — placeholders */}
           {activeItem === "quotations" && <AdminInquiries/>}
           {activeItem === "supportInbox" && <AdminSupportInbox chat={chat} />}
-          {activeItem === "productionQueue" && <ProductionQueue />}
+          {/* {activeItem === "productionQueue" && <ProductionQueue />} */}
           {activeItem === "inventory" && <AdminInventory />}
           {activeItem === "requisitions" && <AdminRequisitions />}
           {activeItem === "payments" && <AdminPayments />}

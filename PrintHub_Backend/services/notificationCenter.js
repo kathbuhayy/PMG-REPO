@@ -1,3 +1,4 @@
+//notificationCenter.js
 const prisma = require("../db/prisma");
 
 /** Creates a single in-app notification for one user. Never throws — a

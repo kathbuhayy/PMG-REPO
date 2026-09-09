@@ -14,6 +14,7 @@
  *   dpiByLayerId    {object} – { [layerId]: { status, dpi } }, from layerDpiCheck
  */
 import React from "react";
+import { FaLock, FaLockOpen } from "react-icons/fa";
 import { SHAPE_PATHS } from "../../utils/shapeDefs";
 import "./TshirtCustomizer.css";
 
@@ -67,6 +68,7 @@ export default function LayersPanel({
   onRemove,
   onMove,
   onApplyToAll,
+  onToggleLock,
   dpiByLayerId = {},
 }) {
   // Top of visual stack listed first, like Printify/Photoshop.
@@ -106,12 +108,25 @@ export default function LayersPanel({
                     ? "Image"
                     : layer.kind === "shape"
                       ? `${layer.shapeType?.charAt(0).toUpperCase()}${layer.shapeType?.slice(1)}` || "Shape"
-                      : layer.text || "Text"}
+                      : layer.kind === "pattern"
+                        ? `${layer.patternType?.charAt(0).toUpperCase()}${layer.patternType?.slice(1)}` || "Pattern"
+                        : layer.text || "Text"}
                 </div>
                 <DpiBadge quality={dpiByLayerId[layer.id]} />
+                {typeof layer.opacity === "number" && layer.opacity < 1 && (
+                  <span className="lp-opacity-badge">{Math.round(layer.opacity * 100)}%</span>
+                )}
               </div>
 
               <div className="lp-row-actions" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className={`lp-lock-btn${layer.locked ? " active" : ""}`}
+                  title={layer.locked ? "Unlock layer" : "Lock layer"}
+                  onClick={() => onToggleLock?.(layer.id)}
+                >
+                  {layer.locked ? <FaLock size={11} /> : <FaLockOpen size={11} />}
+                </button>
                 <button
                   type="button"
                   className="lp-move-btn"

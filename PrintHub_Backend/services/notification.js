@@ -1,3 +1,4 @@
+//notification.js
 const { Resend } = require("resend");
 const prisma = require("../db/prisma");
 const { buildReceiptPayload } = require("./paymongo");
@@ -131,8 +132,10 @@ async function sendSystemEmail({ to, subject, text, html }) {
     .replace(emojiRegex, "")
     .trim();
 
+  const toList = Array.isArray(to) ? to : [to];
+
   const payload = {
-    to,
+    to: toList,
     subject: cleanSubject,
     body: text,
     status: resend ? "queued" : "mock",
@@ -163,7 +166,7 @@ async function sendSystemEmail({ to, subject, text, html }) {
   try {
     const { data, error } = await resend.emails.send({
       from: EMAIL_FROM,
-      to: [to],
+      to: toList,
       subject: cleanSubject,
       text: text || undefined,
       html: html || undefined,
@@ -495,6 +498,47 @@ async function notifyReturnComplaintReceived(order, inquiry) {
   });
 }
 
+// Sends an email once staff approve/reject a refund request.
+async function notifyRefundDecision(order, decision, amount, notes) {
+  const customerName = getCustomerName(order);
+  const isApproved = decision === "refunded";
+
+  const contentHtml =
+    `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;">` +
+    `Hi ${customerName},` +
+    `</p>` +
+    `<p style="margin:0 0 20px 0;font-size:15px;line-height:1.5;">` +
+    (isApproved
+      ? `Your refund for Order <strong>#${order.id}</strong> has been processed.`
+      : `We've reviewed your refund request for Order <strong>#${order.id}</strong> and are unable to approve it at this time.`) +
+    `</p>` +
+    `<div style="background:#f8fafc;border:1px solid #e2e8f0;` +
+    `border-radius:8px;padding:20px;margin-bottom:24px;font-size:14px;">` +
+    (isApproved
+      ? `<div style="margin-bottom:10px;"><strong>Amount refunded:</strong> ₱${Number(amount).toLocaleString()}</div>`
+      : "") +
+    (notes ? `<div><strong>Notes:</strong> ${notes}</div>` : "") +
+    `</div>` +
+    `<p style="margin:0;font-size:14px;color:#475569;">` +
+    `If you have questions, reply to this email or reach out through the support chat.` +
+    `</p>`;
+
+  return sendSystemEmail({
+    to: order.user?.email,
+    subject: isApproved
+      ? `Refund processed: Order #${order.id}`
+      : `Update on your refund request: Order #${order.id}`,
+    text: isApproved
+      ? `Hi ${customerName}, your refund of ₱${Number(amount).toLocaleString()} for Order #${order.id} has been processed.`
+      : `Hi ${customerName}, we were unable to approve your refund request for Order #${order.id}.${notes ? ` Notes: ${notes}` : ""}`,
+    html: renderBaseEmailTemplate({
+      title: isApproved ? "Refund Processed" : "Refund Request Update",
+      category: "Support",
+      contentHtml,
+    }),
+  });
+}
+
 // Alerts administrators via email when product stock falls below threshold.
 async function notifyLowStockProducts(products, threshold = 10) {
   const low = products.filter(
@@ -555,7 +599,7 @@ async function notifyLowStockProducts(products, threshold = 10) {
     `</p>`;
 
   return sendSystemEmail({
-    to: recipients.join(","),
+    to: recipients,
     subject: `PrintSync Inventory Alert: Low Stock Items`,
     text: low
       .map(
@@ -615,7 +659,7 @@ async function notifyAdminsNewOrderForReview(order) {
     `</p>`;
 
   return sendSystemEmail({
-    to: recipients.join(","),
+    to: recipients,
     subject: `PrintSync Admin Alert: Order #${order.id} Design Review`,
     text:
       `Order #${order.id} from ${customerName} is waiting ` +
@@ -822,7 +866,7 @@ async function notifyOutOfStockProducts(products) {
     `</p>`;
 
   return sendSystemEmail({
-    to: recipients.join(","),
+    to: recipients,
     subject: `PrintSync Inventory Alert: Out of Stock Items`,
     text: outOfStock
       .map(
@@ -905,6 +949,7 @@ module.exports = {
   notifyPaymentConfirmation,
   notifyPaymentFailed,
   notifyReturnComplaintReceived,
+  notifyRefundDecision,
   notifyLowStockProducts,
   notifyOutOfStockProducts,
   notifyAdminsNewOrderForReview,

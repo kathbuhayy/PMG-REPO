@@ -17,23 +17,26 @@ const PROJECTION_MODE = {
 
 const DECAL_SCALE = {
   front: {
-    w: 0.45,
-    h: 0.45,
-    depth: 0.3,
-    surfaceOffset: 0.005,
+    w: 70,
+    h: 0.90,
+    depth: 0.45,
+    surfaceOffset: 0.004,
   },
+
   back: {
-    w: 0.45,
-    h: 0.45,
-    depth: 0.3,
-    surfaceOffset: 0.005,
+    w: 0.68,
+    h: 0.6,
+    depth: 0.45,
+    surfaceOffset: 0.004,
   },
+
   wrap: {
-    w: 2.5,
-    h: 0.75,
-    depth: 0.8,
-    surfaceOffset: 0.005,
-    x: -0.25,
+    // Matches the mug body mesh's ACTUAL computed cylindrical UV range
+    // (measured via UV inspector: U 0.29–0.69, V 0.03–0.98).
+    w: 70,
+    h: 0.90,
+    x: 1,
+    y: 0,
   },
 };
 
@@ -44,6 +47,10 @@ export default function MugPreview3D(props) {
       zoneFaceMap={ZONE_FACE_MAP}
       projectionMode={PROJECTION_MODE}
       decalScale={DECAL_SCALE}
+      modelRotationY={-Math.PI / 2}
+      cylindricalUpAxis="z"
+      cylindricalFrontOffsetDeg={120}
+      cylindricalBackOffsetDeg={120}
     />
   );
 }

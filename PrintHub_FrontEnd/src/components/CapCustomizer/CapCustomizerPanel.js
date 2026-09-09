@@ -5,45 +5,17 @@ export default function CapCustomizerPanel(props) {
   return (
     <TshirtCustomizerPanel
       {...props}
-      modelPath="/models/cap.glb"
+      modelPath="/models/final_cap.glb"
       PreviewComponent={CapPreview3D}
       designType="cap"
       productLabel="cap"
       previewProps={{
-        projectionMode: "decal",
         decalScale: {
-          front: {
-            w: 0.34,
-            h: 0.3,
-            depth: 0.32,
-            surfaceOffset: 0.025,
-            y: -0.08,
-            z: -0.32,
-          },
-          back: {
-            w: 0.32,
-            h: 0.28,
-            depth: 0.28,
-            surfaceOffset: 0.015,
-            y: 0.15,
-          },
-          left_side: {
-            w: 0.28,
-            h: 0.28,
-            depth: 0.28,
-            surfaceOffset: 0.015,
-            y: 0.1,
-            z: -0.15,
-          },
-          right_side: {
-            w: 0.28,
-            h: 0.28,
-            depth: 0.28,
-            surfaceOffset: 0.015,
-            y: 0.1,
-            z: -0.15,
-          },
-        }
+          front: { w: 1, h: 1, depth: 3, surfaceOffset: 0.01, y: 0.01, z: 0.99 },
+          back: { w: 1, h: 1, depth: 3, surfaceOffset: 0.01, y: 0.01, z: 0.99 },
+          left_side: { w: 1.5, h: 2.5, depth: 3, surfaceOffset: 0.015, y: 0.1, z: -0.15 },
+          right_side: { w: 1.5, h: 2.5, depth: 3, surfaceOffset: 0.015, y: 0.1, z: -0.15 },
+        },
       }}
     />
   );

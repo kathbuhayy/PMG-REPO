@@ -10,7 +10,9 @@ const bcrypt = require("bcrypt");
 const multer = require("multer");
 const supabase = require("./db/supabase");
 const mockupRoutes = require("./routes/mockup");
-const { generateImage } = require("./services/falai");
+const { generateImage: generateFalImage } = require("./services/falai");
+const { generateWithCloudflare } = require("./services/cloudflareAI");
+const { computeItemPrice } = require("./services/pricingEngine");
 
 const {
   logActivity,
@@ -42,6 +44,7 @@ const {
   retrieveCheckoutSession,
   verifyWebhookSignature,
   createInquiryAndUpdateOrder,
+  createRefund,
 } = require("./services/paymongo");
 
 const { generateInvoicePdf } = require("./services/invoice");
@@ -79,6 +82,7 @@ const {
   notifyPaymentConfirmation,
   notifyPaymentFailed,
   notifyReturnComplaintReceived,
+  notifyRefundDecision,
   notifyLowStockProducts,
   notifyOutOfStockProducts,
   notifyAdminsNewOrderForReview,
@@ -1270,15 +1274,46 @@ app.post("/api/orders", async (req, res) => {
 
     let itemsTotal = 0;
 
-    // Validate submitted unitPrice against product DB price to prevent spoofing
+    // Validate submitted unitPrice against the same live-pricing formula
+    // used by /estimate-price, so a customer can't submit an arbitrarily
+    // low price by tampering with the frontend calculation.
+    const [substratesForCheck, inksForCheck, unitsForCheck] = await Promise.all([
+      prisma.inventorySubstrate.findMany({
+        select: { materialName: true, costPerMeter: true },
+      }),
+      prisma.inventoryInk.findMany({
+        select: { colorChannel: true, costPerMl: true },
+      }),
+      prisma.inventoryUnit.findMany({
+        select: { itemName: true, costPerUnit: true },
+      }),
+    ]);
+    const materialCostsForCheck = {};
+    substratesForCheck.forEach((s) => {
+      materialCostsForCheck[s.materialName] = s.costPerMeter;
+    });
+    inksForCheck.forEach((i) => {
+      materialCostsForCheck[i.colorChannel] = i.costPerMl;
+    });
+    unitsForCheck.forEach((u) => {
+      materialCostsForCheck[u.itemName] = u.costPerUnit;
+    });
+
     for (const it of items) {
       const product = productMap.get(it.productId);
       const submittedUnit = parseFloat(it.unitPrice || 0);
-      const dbPrice = parseFloat(product.price || 0);
 
-      // Allow unitPrice >= 50% of DB price (accommodates bulk batch
-      // discounts, material surcharges, and rounding)
-      if (dbPrice > 0 && submittedUnit < dbPrice * 0.5) {
+      const expected = computeItemPrice(
+        product,
+        it.customizations || {},
+        materialCostsForCheck,
+        it.quantity || 1,
+      );
+
+      // Allow unitPrice >= 80% of the expected formula price — a tighter
+      // tolerance than the old flat 50%, since this formula is now the
+      // actual source of truth rather than a rough approximation.
+      if (submittedUnit < expected.unitPrice * 0.8) {
         return res.status(400).json({
           message:
             `Price mismatch for "${product.name}". ` +
@@ -1307,6 +1342,12 @@ app.post("/api/orders", async (req, res) => {
           ...(it.customizations || {}),
           // Preserve any imageUrl provided by frontend
           ...(it.imageUrl ? { imageUrl: it.imageUrl } : {}),
+          pricingBreakdown: computeItemPrice(
+            productMap.get(it.productId),
+            it.customizations || {},
+            materialCostsForCheck,
+            it.quantity || 1,
+          ),
         },
       };
     });
@@ -1389,7 +1430,11 @@ app.get("/api/orders/:id", async (req, res) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id },
-      include: { items: { include: { product: true } }, user: true },
+      include: {
+        items: { include: { product: true } },
+        user: true,
+        rating: true,
+      },
     });
     if (!order || order.deleted_at)
       return res.status(404).json({ message: "Order not found" });
@@ -1409,8 +1454,10 @@ app.get("/api/user/:id/orders", async (req, res) => {
         items: {
           include: {
             product: { select: { id: true, name: true, images: true } },
+            productReview: true,
           },
         },
+        rating: true,
       },
     });
     res.json(orders);
@@ -1421,7 +1468,10 @@ app.get("/api/user/:id/orders", async (req, res) => {
 });
 
 const normalizeCartCustomizations = (value) => {
-  if (!value || typeof value !== "object") return {};
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
   return value;
 };
 
@@ -1432,14 +1482,434 @@ const cartItemPayload = (item) => ({
   name: item.title,
   price: Number(item.price),
   qty: item.qty,
+
+  // REAL PRODUCT STOCK
+  stock:
+    item.product?.stock ??
+    null,
+
+  product: item.product
+    ? {
+        id: item.product.id,
+        name: item.product.name,
+        stock: item.product.stock,
+        images:
+          item.product.images || [],
+      }
+    : null,
+
   productImage:
     item.productImage ||
     item.customizations?.imageUrl ||
     item.product?.images?.[0] ||
     null,
-  images: item.product?.images || [],
-  customizations: item.customizations || {},
+
+  images:
+    item.product?.images || [],
+
+  customizations:
+    item.customizations || {},
 });
+
+
+// =================================================
+// CUSTOMER CART API
+// =================================================
+
+// GET USER CART
+app.get(
+  "/api/user/:id/cart",
+  async (req, res) => {
+    const userId = parseInt(
+      req.params.id,
+      10
+    );
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "Invalid user id",
+      });
+    }
+
+    try {
+      const userExists =
+        await prisma.user.findUnique({
+          where: {
+            id: userId,
+          },
+        });
+
+      if (!userExists) {
+        return res.status(404).json({
+          message: "User not found",
+        });
+      }
+
+      const items =
+        await prisma.cartItem.findMany({
+          where: {
+            userId,
+          },
+
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+
+                // IMPORTANT
+                stock: true,
+
+                images: true,
+              },
+            },
+          },
+
+          orderBy: {
+            createdAt: "asc",
+          },
+        });
+
+      res.json(
+        items.map(cartItemPayload)
+      );
+    } catch (e) {
+      console.error(
+        "GET CART ERROR:",
+        e
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to load cart",
+      });
+    }
+  }
+);
+
+
+// ADD TO CART
+app.post(
+  "/api/user/:id/cart",
+  async (req, res) => {
+    const userId = parseInt(
+      req.params.id,
+      10
+    );
+
+    if (!userId) {
+      return res.status(400).json({
+        message: "Invalid user id",
+      });
+    }
+
+    const {
+      productId,
+      title,
+      name,
+      price,
+      qty = 1,
+      productImage,
+      images,
+      customizations,
+    } = req.body || {};
+
+    if (
+      !productId ||
+      !(title || name)
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid cart item",
+      });
+    }
+
+    try {
+      const userExists =
+        await prisma.user.findUnique({
+          where: {
+            id: userId,
+          },
+        });
+
+      if (!userExists) {
+        return res.status(404).json({
+          message:
+            "User not found",
+        });
+      }
+
+      const normalizedCustomizations =
+        normalizeCartCustomizations(
+          customizations
+        );
+
+      const existingItems =
+        await prisma.cartItem.findMany({
+          where: {
+            userId,
+            productId:
+              Number(productId),
+          },
+        });
+
+      const match =
+        existingItems.find(
+          (item) =>
+            JSON.stringify(
+              item.customizations ||
+                {}
+            ) ===
+            JSON.stringify(
+              normalizedCustomizations
+            )
+        );
+
+      const saved = match
+        ? await prisma.cartItem.update({
+            where: {
+              id: match.id,
+            },
+
+            data: {
+              qty: {
+                increment:
+                  Number(qty) || 1,
+              },
+            },
+
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  stock: true,
+                  images: true,
+                },
+              },
+            },
+          })
+        : await prisma.cartItem.create({
+            data: {
+              userId,
+
+              productId:
+                Number(productId),
+
+              title:
+                title || name,
+
+              price:
+                Number(price || 0),
+
+              qty: Math.max(
+                1,
+                Number(qty) || 1
+              ),
+
+              productImage:
+                productImage ||
+                images?.[0] ||
+                null,
+
+              customizations:
+                normalizedCustomizations,
+            },
+
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  stock: true,
+                  images: true,
+                },
+              },
+            },
+          });
+
+      res
+        .status(match ? 200 : 201)
+        .json(
+          cartItemPayload(saved)
+        );
+    } catch (e) {
+      console.error(
+        "ADD CART ERROR:",
+        e
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to save cart item",
+      });
+    }
+  }
+);
+
+
+// UPDATE CART QUANTITY
+app.patch(
+  "/api/user/:id/cart/:itemId",
+  async (req, res) => {
+    const userId = parseInt(
+      req.params.id,
+      10
+    );
+
+    const itemId = parseInt(
+      req.params.itemId,
+      10
+    );
+
+    const qty = Math.floor(
+      Number(
+        req.body?.qty || 0
+      )
+    );
+
+    if (
+      !userId ||
+      !itemId
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid cart item",
+      });
+    }
+
+    try {
+      if (qty < 1) {
+        await prisma.cartItem.deleteMany(
+          {
+            where: {
+              id: itemId,
+              userId,
+            },
+          }
+        );
+
+        return res.json({
+          message:
+            "Cart item removed",
+        });
+      }
+
+      const existing =
+        await prisma.cartItem.findFirst({
+          where: {
+            id: itemId,
+            userId,
+          },
+        });
+
+      if (!existing) {
+        return res.status(404).json({
+          message:
+            "Cart item not found",
+        });
+      }
+
+      const item =
+        await prisma.cartItem.update({
+          where: {
+            id: existing.id,
+          },
+
+          data: {
+            qty,
+          },
+
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+
+                // IMPORTANT
+                stock: true,
+
+                images: true,
+              },
+            },
+          },
+        });
+
+      res.json(
+        cartItemPayload(item)
+      );
+    } catch (e) {
+      console.error(
+        "UPDATE CART ERROR:",
+        e
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to update cart item",
+      });
+    }
+  }
+);
+
+
+// DELETE CART ITEM
+app.delete(
+  "/api/user/:id/cart/:itemId",
+  async (req, res) => {
+    const userId = parseInt(
+      req.params.id,
+      10
+    );
+
+    const itemId = parseInt(
+      req.params.itemId,
+      10
+    );
+
+    if (
+      !userId ||
+      !itemId
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid cart item",
+      });
+    }
+
+    try {
+      const result =
+        await prisma.cartItem.deleteMany({
+          where: {
+            id: itemId,
+            userId,
+          },
+        });
+
+      if (result.count === 0) {
+        return res.status(404).json({
+          message:
+            "Cart item not found",
+        });
+      }
+
+      res.json({
+        message:
+          "Cart item removed",
+      });
+    } catch (e) {
+      console.error(
+        "DELETE CART ERROR:",
+        e
+      );
+
+      res.status(500).json({
+        message:
+          "Failed to delete cart item",
+      });
+    }
+  }
+);
 
 // Customer cart API - shared by web and mobile clients.
 app.get("/api/user/:id/cart", async (req, res) => {
@@ -1541,6 +2011,7 @@ app.patch("/api/user/:id/cart/:itemId", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
   const itemId = parseInt(req.params.itemId, 10);
   const qty = Math.floor(Number(req.body?.qty || 0));
+  const price = req.body?.price;
 
   if (!userId || !itemId) {
     return res.status(400).json({ message: "Invalid cart item" });
@@ -1562,7 +2033,14 @@ app.patch("/api/user/:id/cart/:itemId", async (req, res) => {
 
     const item = await prisma.cartItem.update({
       where: { id: existing.id },
-      data: { qty },
+      data: {
+        qty,
+        // Only updates price when the client sends a fresh formula
+        // estimate (e.g. after a quantity change triggers re-pricing in
+        // CartContext.js) — omitting it here leaves the stored price
+        // untouched, so a plain qty-only PATCH still behaves as before.
+        ...(price != null && !isNaN(Number(price)) && { price: Number(price) }),
+      },
       include: { product: { select: { id: true, name: true, images: true } } },
     });
 
@@ -1644,9 +2122,10 @@ app.get("/api/admin/orders", async (req, res) => {
         },
         user: true,
         branch: true,
+        rating: true,
       },
     });
-    res.json(orders);
+    res.json(orders.map((o) => ({ ...o, customer: getCustomerName(o) })));
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "DB error" });
@@ -2239,6 +2718,7 @@ app.get("/api/admin/reports/sales", async (req, res) => {
       include: {
         user: true,
         items: { include: { product: true } },
+        rating: true,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -2257,6 +2737,12 @@ app.get("/api/admin/reports/sales", async (req, res) => {
       return acc;
     }, {});
 
+     // A rating is on the whole order, not a single line item — when an
+    // order is rated, that rating counts toward every product it
+    // contained. This is an approximation (multi-product orders spread
+    // one rating across several products) but it's the only signal the
+    // schema currently supports, and it's a reasonable one in a catalog
+    // where most orders are single-product.
     const productMap = new Map();
     orders.forEach((order) => {
       order.items.forEach((item) => {
@@ -2266,9 +2752,15 @@ app.get("/api/admin/reports/sales", async (req, res) => {
           name: item.product?.name || `Product #${key}`,
           quantity: 0,
           revenue: 0,
+          ratingSum: 0,
+          ratingCount: 0,
         };
         current.quantity += Number(item.quantity || 0);
         current.revenue += Number(item.total_price || 0);
+        if (order.rating) {
+          current.ratingSum += order.rating.stars;
+          current.ratingCount += 1;
+        }
         productMap.set(key, current);
       });
     });
@@ -2287,7 +2779,15 @@ app.get("/api/admin/reports/sales", async (req, res) => {
       },
       byStatus,
       topProducts: Array.from(productMap.values())
-        .sort((a, b) => b.revenue - a.revenue)
+        .map((p) => ({
+          productId: p.productId,
+          name: p.name,
+          quantity: p.quantity,
+          revenue: p.revenue,
+          averageRating: p.ratingCount > 0 ? p.ratingSum / p.ratingCount : null,
+          ratingCount: p.ratingCount,
+        }))
+        .sort((a, b) => b.quantity - a.quantity)
         .slice(0, 10),
       recentOrders: orders.slice(0, 25).map((order) => ({
         id: order.id,
@@ -2304,6 +2804,58 @@ app.get("/api/admin/reports/sales", async (req, res) => {
   }
 });
 
+// GET /api/admin/dashboard/sales-overview — real daily revenue trend + monthly
+// summary for the dashboard's Sales Overview card
+app.get("/api/admin/dashboard/sales-overview", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  try {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const orders = await prisma.order.findMany({
+      where: {
+        deleted_at: null,
+        payment_status: "paid",
+        createdAt: { gte: monthStart, lte: monthEnd },
+      },
+      select: { total: true, createdAt: true, userId: true },
+    });
+
+    const daysInMonthSoFar = now.getDate();
+    const dailyMap = new Map();
+    for (let d = 1; d <= daysInMonthSoFar; d++) {
+      const key = new Date(now.getFullYear(), now.getMonth(), d).toISOString().slice(0, 10);
+      dailyMap.set(key, 0);
+    }
+
+    let totalSales = 0;
+    const customerSet = new Set();
+    orders.forEach((o) => {
+      const key = o.createdAt.toISOString().slice(0, 10);
+      const amount = Number(o.total || 0);
+      totalSales += amount;
+      if (dailyMap.has(key)) dailyMap.set(key, dailyMap.get(key) + amount);
+      if (o.userId) customerSet.add(o.userId);
+    });
+
+    const dailyRevenue = Array.from(dailyMap.entries()).map(([date, revenue]) => ({
+      date,
+      revenue: parseFloat(revenue.toFixed(2)),
+    }));
+
+    res.json({
+      month: monthStart.toISOString().slice(0, 7),
+      dailyRevenue,
+      totalSales: parseFloat(totalSales.toFixed(2)),
+      orders: orders.length,
+      customers: customerSet.size,
+      avgOrder: orders.length ? parseFloat((totalSales / orders.length).toFixed(2)) : 0,
+    });
+  } catch (e) {
+    console.error("Dashboard sales-overview error:", e.message);
+    res.status(500).json({ message: "Failed to fetch sales overview" });
+  }
+});
 
 // GET /api/admin/payments — list all orders with payment detail, for the admin Payments page
 app.get("/api/admin/payments", async (req, res) => {
@@ -2370,6 +2922,7 @@ app.get("/api/admin/inventory", async (req, res) => {
         stock: s.stockMeters,
         safetyThreshold: s.safetyThreshold,
         belowThreshold: s.stockMeters <= s.safetyThreshold,
+        cost: s.costPerMeter,
       })),
       ...inks.map((i) => ({
         id: `ink-${i.id}`,
@@ -2379,6 +2932,7 @@ app.get("/api/admin/inventory", async (req, res) => {
         stock: i.volumeMl,
         safetyThreshold: i.safetyThreshold,
         belowThreshold: i.volumeMl <= i.safetyThreshold,
+        cost: i.costPerMl,
       })),
       ...units.map((u) => ({
         id: `unit-${u.id}`,
@@ -2388,6 +2942,7 @@ app.get("/api/admin/inventory", async (req, res) => {
         stock: u.stockUnits,
         safetyThreshold: u.safetyThreshold,
         belowThreshold: u.stockUnits <= u.safetyThreshold,
+        cost: u.costPerUnit,
       })),
     ];
 
@@ -2970,6 +3525,60 @@ app.get("/api/products/:id", async (req, res) => {
   }
 });
 
+// POST /api/products/:id/estimate-price — live design-based price quote.
+// Called repeatedly by the frontend as the customer edits their design,
+// so this must stay fast and read-only (no writes, no inventory decrement).
+app.post("/api/products/:id/estimate-price", async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const { customizations, quantity } = req.body || {};
+
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+    if (!product || product.deleted_at) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Gather cost-per-unit for every material this product could touch,
+    // in one batch, so computeItemPrice never needs its own DB access.
+    const [substrates, inks, units] = await Promise.all([
+      prisma.inventorySubstrate.findMany({
+        select: { materialName: true, costPerMeter: true },
+      }),
+      prisma.inventoryInk.findMany({
+        select: { colorChannel: true, costPerMl: true },
+      }),
+      prisma.inventoryUnit.findMany({
+        select: { itemName: true, costPerUnit: true },
+      }),
+    ]);
+
+    const materialCosts = {};
+    substrates.forEach((s) => {
+      materialCosts[s.materialName] = s.costPerMeter;
+    });
+    inks.forEach((i) => {
+      materialCosts[i.colorChannel] = i.costPerMl;
+    });
+    units.forEach((u) => {
+      materialCosts[u.itemName] = u.costPerUnit;
+    });
+
+    const result = computeItemPrice(
+      product,
+      customizations || {},
+      materialCosts,
+      quantity,
+    );
+
+    res.json(result);
+  } catch (e) {
+    console.error("Price estimate error:", e.message);
+    res.status(500).json({ message: "Failed to estimate price" });
+  }
+});
+
 // GET low-stock products (admin dashboard)
 app.get("/api/admin/low-stock", async (req, res) => {
   try {
@@ -3149,6 +3758,7 @@ app.put("/api/products/:id", async (req, res) => {
       inkColorChannel,
       inkUsagePerUnit,
       mockupViews,
+      setupFee,
     } = req.body;
 
     const product = await prisma.product.update({
@@ -3203,6 +3813,9 @@ app.put("/api/products/:id", async (req, res) => {
         ...(inkColorChannel !== undefined && { inkColorChannel: inkColorChannel || null }),
         ...(inkUsagePerUnit !== undefined && {
           inkUsagePerUnit: inkUsagePerUnit ? parseFloat(inkUsagePerUnit) : null,
+        }),
+        ...(setupFee !== undefined && {
+          setupFee: setupFee === "" || setupFee == null ? null : parseFloat(setupFee),
         }),
         ...(mockupViews !== undefined && { mockupViews }),
       },
@@ -3385,6 +3998,7 @@ app.get("/api/orders/:id", async (req, res) => {
           include: { product: true },
         },
         user: true,
+        rating: true,
       },
     });
 
@@ -4290,53 +4904,102 @@ app.use((err, req, res, next) => {
 });
 
 // POST /api/builder/generate-image — generate a 2D design image via fal.ai and store in Supabase
+// POST /api/builder/generate-image — generate a 2D design image
 app.post("/api/builder/generate-image", async (req, res) => {
   const userId = getUserId(req);
+
   const rawOwner = userId
     ? String(userId)
     : req.headers["x-forwarded-for"] || req.ip || "guest";
-  const ownerKey = String(rawOwner).replace(/[^a-zA-Z0-9_-]/g, "_");
+
+  const ownerKey = String(rawOwner).replace(
+    /[^a-zA-Z0-9_-]/g,
+    "_"
+  );
 
   const { prompt, imageSize } = req.body;
-  if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0)
-    return res.status(400).json({ message: "prompt is required" });
-  if (prompt.trim().length > 2000)
-    return res
-      .status(400)
-      .json({ message: "prompt must be 2000 characters or fewer" });
 
-  // Per-user cooldown (shared with 3D generation)
+  if (
+    !prompt ||
+    typeof prompt !== "string" ||
+    prompt.trim().length === 0
+  ) {
+    return res.status(400).json({
+      message: "prompt is required",
+    });
+  }
+
+  if (prompt.trim().length > 2000) {
+    return res.status(400).json({
+      message: "prompt must be 2000 characters or fewer",
+    });
+  }
+
+  // Per-user cooldown
   const now = Date.now();
   const last = generationCooldown[ownerKey] || 0;
-  const remaining = GENERATION_COOLDOWN_MS - (now - last);
+  const remaining =
+    GENERATION_COOLDOWN_MS - (now - last);
+
   if (remaining > 0) {
     return res.status(429).json({
-      message: `Please wait ${Math.ceil(remaining / 1000)} seconds before generating again`,
+      message:
+        `Please wait ${Math.ceil(remaining / 1000)} ` +
+        `seconds before generating again`,
       retryAfterMs: remaining,
     });
   }
+
   generationCooldown[ownerKey] = now;
 
   try {
     console.log(
-      `🎨 Builder generate-image (2D): owner=${ownerKey}${userId ? ` (userId=${userId})` : " (guest)"}, prompt="${prompt.slice(0, 80)}..."`,
+      `🎨 Builder generate-image (2D): owner=${ownerKey}` +
+        `${userId ? ` (userId=${userId})` : " (guest)"}, ` +
+        `prompt="${prompt.slice(0, 80)}..."`
     );
 
-    // Append system-level prompt guidelines to avoid copyrighted content
-    // and guide the generation to a transparent/white background graphic.
+    // PMG print-design guidelines
     const guidelines =
-      "flat vector graphic design, isolated subject on transparent " +
-      "or white background, no copyrighted characters, no trademarked logos, " +
-      "print-ready artwork, high contrast, clean edges";
+      "flat vector graphic design, isolated main subject, " +
+      "clean centered artwork, print-ready artwork, " +
+      "high contrast, clean edges, no copyrighted characters, " +
+      "no trademarked logos";
 
-    const finalPrompt = `${prompt.trim()}, ${guidelines}`;
+    const finalPrompt =
+      `${prompt.trim()}, ${guidelines}`;
 
-    const result = await generateImage({
-      prompt: finalPrompt,
-      imageSize: imageSize || "square_hd",
-    });
+    /*
+     * CLOUDFARE AI
+     *
+     * Set AI_IMAGE_PROVIDER=cloudflare in .env
+     * to use Cloudflare Workers AI.
+     *
+     * Otherwise the existing fal.ai pipeline remains active.
+     */
+    const provider =
+      String(
+        process.env.AI_IMAGE_PROVIDER || "fal"
+      ).toLowerCase();
 
-    console.log(`✅ Generated 2D image (CDN direct)`);
+    let result;
+
+    if (provider === "cloudflare") {
+      result = await generateWithCloudflare({
+        prompt: finalPrompt,
+        imageSize: imageSize || "square_hd",
+      });
+    } else {
+      result = await generateFalImage({
+        prompt: finalPrompt,
+        imageSize: imageSize || "square_hd",
+      });
+    }
+
+    console.log(
+      `✅ Generated 2D image using ${provider}`
+    );
+
     return res.json({
       imageUrl: result.url,
       width: result.width,
@@ -4344,13 +5007,22 @@ app.post("/api/builder/generate-image", async (req, res) => {
       prompt: prompt.trim(),
       stored: false,
       path: null,
+      provider,
+      backgroundRemoved:
+        result.backgroundRemoved || false,
     });
   } catch (e) {
     delete generationCooldown[ownerKey];
-    console.error("Builder generate-image error:", e.message);
-    return res
-      .status(500)
-      .json({ message: e.message || "Image generation failed" });
+
+    console.error(
+      "Builder generate-image error:",
+      e.message
+    );
+
+    return res.status(500).json({
+      message:
+        e.message || "Image generation failed",
+    });
   }
 });
 
@@ -4664,13 +5336,23 @@ app.post("/api/orders/:id/return-complaint", async (req, res) => {
       customerName,
     } = await createInquiryAndUpdateOrder(order, reason, details);
 
+    const orderWithRefund = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        refundStatus: "requested",
+        refundReason: reason,
+        refundRequestedAt: new Date(),
+      },
+      include: { items: { include: { product: true } }, user: true },
+    });
+
     const emailRes = await notifyReturnComplaintReceived(order, inquiry);
     const emailSent = emailRes?.status === "sent";
 
     res.status(201).json({
       message: "Return complaint submitted",
       inquiry,
-      order: updatedOrder,
+      order: orderWithRefund,
       emailSent,
       mockEmail: {
         to: customerEmail,
@@ -4684,6 +5366,267 @@ app.post("/api/orders/:id/return-complaint", async (req, res) => {
   } catch (e) {
     console.error("Return complaint failed:", e);
     res.status(500).json({ message: "Failed to submit return complaint" });
+  }
+});
+
+// PUT /api/admin/orders/:id/refund — staff/admin approves or rejects a
+// pending refund request. "approve" actually calls PayMongo and moves
+// money; "reject" just closes out the request with a note.
+app.put("/api/admin/orders/:id/refund", async (req, res) => {
+  try {
+    if (!(await isStaffOrAdmin(req))) {
+      return res
+        .status(403)
+        .json({ message: "Only staff or admin can decide refunds." });
+    }
+
+    const orderId = parseInt(req.params.id, 10);
+    const { action, amount, notes } = req.body;
+
+    if (!["approve", "reject"].includes(action)) {
+      return res
+        .status(400)
+        .json({ message: 'action must be "approve" or "reject"' });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { include: { product: true } }, user: true },
+    });
+
+    if (!order || order.deleted_at) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    if (order.refundStatus !== "requested") {
+      return res
+        .status(400)
+        .json({ message: "This order has no pending refund request." });
+    }
+
+    const reviewerId = getUserId(req);
+
+    if (action === "reject") {
+      const rejectedOrder = await prisma.order.update({
+        where: { id: orderId },
+        data: {
+          refundStatus: "rejected",
+          refundNotes: notes || null,
+          refundedBy: reviewerId,
+          status: "delivered",
+        },
+        include: { items: { include: { product: true } }, user: true },
+      });
+
+      await notifyRefundDecision(order, "rejected", null, notes).catch((e) =>
+        console.warn("notifyRefundDecision failed (non-fatal):", e.message)
+      );
+
+      await logActivity({
+        actor: req.actor,
+        action: "status_changed",
+        module: "orders",
+        description: `Refund request for Order #${orderId} rejected`,
+        metadata: { orderId, notes: notes || null },
+      });
+
+      return res.json({ message: "Refund request rejected", order: rejectedOrder });
+    }
+
+    // action === "approve"
+    const refundAmount = amount != null ? parseFloat(amount) : parseFloat(order.amountPaid || order.total);
+
+    if (!order.payment_reference) {
+      return res.status(400).json({
+        message: "This order has no recorded PayMongo payment to refund.",
+      });
+    }
+    if (!(refundAmount > 0) || refundAmount > parseFloat(order.amountPaid || order.total)) {
+      return res.status(400).json({ message: "Invalid refund amount." });
+    }
+
+    let pmRefund;
+    try {
+      pmRefund = await createRefund(order.payment_reference, refundAmount, "others");
+    } catch (pmErr) {
+      console.error("PayMongo refund failed:", pmErr.details || pmErr.message);
+      return res.status(502).json({
+        message: "PayMongo refund failed. No changes were made.",
+        details: pmErr.details || pmErr.message,
+      });
+    }
+
+    const refundedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        refundStatus: "refunded",
+        refundAmount,
+        refundNotes: notes || null,
+        refundedAt: new Date(),
+        refundedBy: reviewerId,
+        paymongoRefundId: pmRefund?.data?.id || null,
+        status: "refunded",
+        payment_status: "refunded",
+      },
+      include: { items: { include: { product: true } }, user: true },
+    });
+
+    await notifyRefundDecision(order, "refunded", refundAmount, notes).catch((e) =>
+      console.warn("notifyRefundDecision failed (non-fatal):", e.message)
+    );
+
+    await logActivity({
+      actor: req.actor,
+      action: "status_changed",
+      module: "orders",
+      description: `Refund of ₱${refundAmount} processed for Order #${orderId}`,
+      metadata: { orderId, refundAmount, paymongoRefundId: pmRefund?.data?.id },
+    });
+
+    res.json({ message: "Refund processed", order: refundedOrder });
+  } catch (err) {
+    console.error("PUT /api/admin/orders/:id/refund failed:", err);
+    res.status(500).json({ message: "Failed to process refund." });
+  }
+});
+
+// POST /api/orders/:id/rating — customer rates a delivered/completed
+// order. Upserts so re-submitting edits the existing rating.
+app.post("/api/orders/:id/rating", async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id, 10);
+    const { userId, stars, comment } = req.body;
+
+    const starsInt = parseInt(stars, 10);
+    if (!Number.isInteger(starsInt) || starsInt < 1 || starsInt > 5) {
+      return res.status(400).json({ message: "stars must be an integer from 1 to 5." });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!order || order.deleted_at) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    if (userId && order.userId !== parseInt(userId, 10)) {
+      return res.status(403).json({ message: "Order does not belong to user" });
+    }
+    if (order.payment_status !== "paid" || !["delivered", "completed"].includes(order.status)) {
+      return res.status(400).json({
+        message: "You can only rate an order after it has been delivered.",
+      });
+    }
+
+    const rating = await prisma.rating.upsert({
+      where: { orderId },
+      update: { stars: starsInt, comment: comment || null },
+      create: {
+        orderId,
+        userId: order.userId,
+        stars: starsInt,
+        comment: comment || null,
+      },
+    });
+
+    res.status(201).json({ message: "Rating saved", rating });
+  } catch (err) {
+    console.error("POST /api/orders/:id/rating failed:", err);
+    res.status(500).json({ message: "Failed to save rating." });
+  }
+});
+
+
+// POST /api/order-items/:id/review — customer reviews one specific product
+// from a delivered/completed order. Upserts so re-submitting edits it.
+app.post("/api/order-items/:id/review", async (req, res) => {
+  try {
+    const orderItemId = parseInt(req.params.id, 10);
+    const { userId, stars, comment } = req.body;
+
+    const starsInt = parseInt(stars, 10);
+    if (!Number.isInteger(starsInt) || starsInt < 1 || starsInt > 5) {
+      return res.status(400).json({ message: "stars must be an integer from 1 to 5." });
+    }
+
+    const orderItem = await prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: { order: true },
+    });
+    if (!orderItem) {
+      return res.status(404).json({ message: "Order item not found" });
+    }
+    if (userId && orderItem.order.userId !== parseInt(userId, 10)) {
+      return res.status(403).json({ message: "This item does not belong to user" });
+    }
+    if (
+      orderItem.order.payment_status !== "paid" ||
+      !["delivered", "completed"].includes(orderItem.order.status)
+    ) {
+      return res.status(400).json({
+        message: "You can only review a product after its order has been delivered.",
+      });
+    }
+
+    const review = await prisma.productReview.upsert({
+      where: { orderItemId },
+      update: { stars: starsInt, comment: comment || null },
+      create: {
+        orderItemId,
+        productId: orderItem.productId,
+        userId: orderItem.order.userId,
+        stars: starsInt,
+        comment: comment || null,
+      },
+    });
+
+    res.status(201).json({ message: "Review saved", review });
+  } catch (err) {
+    console.error("POST /api/order-items/:id/review failed:", err);
+    res.status(500).json({ message: "Failed to save review." });
+  }
+});
+
+// GET /api/products/:id/reviews — public, paginated reviews + average
+// rating for a product's page.
+app.get("/api/products/:id/reviews", async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const [reviews, total, agg] = await Promise.all([
+      prisma.productReview.findMany({
+        where: { productId },
+        include: { user: { select: { first_name: true, last_name: true } } },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.productReview.count({ where: { productId } }),
+      prisma.productReview.aggregate({
+        where: { productId },
+        _avg: { stars: true },
+        _count: { stars: true },
+      }),
+    ]);
+
+    res.json({
+      averageRating: agg._avg.stars || 0,
+      totalReviews: agg._count.stars || 0,
+      reviews: reviews.map((r) => ({
+        id: r.id,
+        stars: r.stars,
+        comment: r.comment,
+        createdAt: r.createdAt,
+        customerName: r.user
+          ? `${r.user.first_name || "Customer"}${
+              r.user.last_name ? ` ${r.user.last_name.charAt(0)}.` : ""
+            }`.trim()
+          : "Customer",
+      })),
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    console.error("GET /api/products/:id/reviews failed:", err);
+    res.status(500).json({ message: "Failed to fetch reviews." });
   }
 });
 

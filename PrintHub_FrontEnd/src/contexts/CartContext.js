@@ -1,3 +1,4 @@
+//CartContext.js(outside the hooks)
 import React, { createContext, useEffect, useMemo, useState } from "react";
 import { buildApiUrl } from "../config/api";
 import { getGuestDesignDraft, clearGuestDesignDraft } from "../utils/guestCustomization";
@@ -281,6 +282,34 @@ export function CartProvider({ children }) {
     }
   };
 
+  // Re-fetches the live formula price for one product+customization at a
+  // given quantity, so bulk-discount tiers and design-scaled material cost
+  // stay correct even when quantity is changed from the cart page rather
+  // than the customizer. Returns null on any failure so the caller can
+  // fall back to keeping the item's existing price rather than clearing it.
+  const fetchUnitPriceForQuantity = async (item, quantity) => {
+    if (!item.productId) return null;
+    try {
+      const res = await fetch(
+        buildApiUrl(`/api/products/${item.productId}/estimate-price`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customizations: item.customizations || {},
+            quantity,
+          }),
+        },
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      return typeof data.unitPrice === "number" ? data.unitPrice : null;
+    } catch (e) {
+      console.error("Failed to re-estimate price for quantity change:", e);
+      return null;
+    }
+  };
+
   const updateQuantity = async (itemId, newQty) => {
     const parsed = parseInt(newQty, 10);
     const finalQty = Number.isNaN(parsed) ? 1 : Math.floor(parsed);
@@ -290,18 +319,40 @@ export function CartProvider({ children }) {
       return;
     }
 
+    const currentItem = cartItems.find((item) => item.id === itemId);
+
+    // Optimistic update: apply the new quantity immediately so the UI
+    // feels responsive, keeping the existing unit price until the fresh
+    // estimate (which reflects any bulk-discount tier change) comes back.
     setCartItems((prevItems) =>
       prevItems.map((item) =>
         item.id === itemId ? { ...item, qty: finalQty } : item,
       ),
     );
 
+    const freshUnitPrice = currentItem
+      ? await fetchUnitPriceForQuantity(currentItem, finalQty)
+      : null;
+
+    if (freshUnitPrice != null) {
+      setCartItems((prevItems) =>
+        prevItems.map((item) =>
+          item.id === itemId
+            ? { ...item, qty: finalQty, price: freshUnitPrice }
+            : item,
+        ),
+      );
+    }
+
     if (userId && serverCartReady) {
       try {
         await fetch(buildApiUrl(`/api/user/${userId}/cart/${itemId}`), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ qty: finalQty }),
+          body: JSON.stringify({
+            qty: finalQty,
+            ...(freshUnitPrice != null ? { price: freshUnitPrice } : {}),
+          }),
         });
       } catch (e) {
         console.error("Failed to update server cart item:", e);

@@ -22,6 +22,7 @@ const ORDER_STATUS_LABELS = {
   delivered: "Delivered",
   cancelled: "Cancelled",
   return_requested: "Return requested",
+  refunded: "Refunded",
 };
 
 // Order status values that indicate active production.

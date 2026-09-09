@@ -11,6 +11,8 @@ const ORDER_TABS = [
   { key: "all", label: "All" },
   { key: "to_pay", label: "To pay" },
   { key: "to_receive", label: "To receive" },
+  { key: "to_review", label: "To review" },
+  { key: "return", label: "Refunds" },
 ];
 
 async function readApiResponse(response, fallbackMessage) {
@@ -89,6 +91,16 @@ function UserOrders() {
   const [complaintDetails, setComplaintDetails] = useState("");
   const [submittingComplaint, setSubmittingComplaint] =
     useState(false);
+
+  const [ratingOrder, setRatingOrder] = useState(null);
+  const [ratingStars, setRatingStars] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
+
+  const [reviewItem, setReviewItem] = useState(null); // { id, productName }
+  const [reviewStars, setReviewStars] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const [noticeModal, setNoticeModal] = useState(null);
   const [cancelTargetId, setCancelTargetId] = useState(null);
@@ -847,6 +859,118 @@ function UserOrders() {
     }
   };
 
+  
+  const handleSubmitRating = async (e) => {
+    e.preventDefault();
+    if (!ratingOrder || !ratingStars) return;
+
+    setSubmittingRating(true);
+
+    try {
+      const res = await fetch(
+        buildApiUrl(`/api/orders/${ratingOrder.id}/rating`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            stars: ratingStars,
+            comment: ratingComment,
+          }),
+        }
+      );
+
+      const data = await readApiResponse(res, "Rating saved");
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit rating.");
+      }
+
+      setOrders((prev) =>
+        prev.map((order) =>
+          order.id === ratingOrder.id
+            ? { ...order, rating: data.rating }
+            : order
+        )
+      );
+
+      setRatingOrder(null);
+      setRatingStars(0);
+      setRatingComment("");
+
+      setNoticeModal({
+        title: "Rating submitted",
+        message: "Thanks for rating your order!",
+        tone: "success",
+      });
+    } catch (err) {
+      setNoticeModal({
+        title: "Could not submit rating",
+        message: err.message || "Please try again.",
+        tone: "danger",
+      });
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!reviewItem || !reviewStars) return;
+
+    setSubmittingReview(true);
+
+    try {
+      const res = await fetch(
+        buildApiUrl(`/api/order-items/${reviewItem.id}/review`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            stars: reviewStars,
+            comment: reviewComment,
+          }),
+        }
+      );
+
+      const data = await readApiResponse(res, "Review saved");
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to submit review.");
+      }
+
+      setOrders((prev) =>
+        prev.map((order) => ({
+          ...order,
+          items: (order.items || []).map((item) =>
+            item.id === reviewItem.id
+              ? { ...item, productReview: data.review }
+              : item
+          ),
+        }))
+      );
+
+      setReviewItem(null);
+      setReviewStars(0);
+      setReviewComment("");
+
+      setNoticeModal({
+        title: "Review submitted",
+        message: "Thanks for reviewing this product!",
+        tone: "success",
+      });
+    } catch (err) {
+      setNoticeModal({
+        title: "Could not submit review",
+        message: err.message || "Please try again.",
+        tone: "danger",
+      });
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   /* =========================================================
      HELPERS
      ========================================================= */
@@ -1049,7 +1173,7 @@ function UserOrders() {
      ITEM
      ========================================================= */
 
-  const renderItem = (item) => {
+  const renderItem = (item, order) => {
     const design =
       item.customizations?.design;
 
@@ -1146,6 +1270,32 @@ function UserOrders() {
               item.total_price
             )}
           </strong>
+
+          {order.payment_status === "paid" &&
+            ["delivered", "completed"].includes(order.status) &&
+            (item.productReview ? (
+              <span className="uo-rating-stars" style={{ fontSize: 13 }}>
+                {"★".repeat(item.productReview.stars)}
+                {"☆".repeat(5 - item.productReview.stars)}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="uo-view-btn secondary"
+                style={{ marginTop: 6 }}
+                onClick={() => {
+                  setReviewItem({
+                    id: item.id,
+                    productName:
+                      item.product?.name || `Product #${item.productId}`,
+                  });
+                  setReviewStars(0);
+                  setReviewComment("");
+                }}
+              >
+                Review product
+              </button>
+            ))}
         </div>
       </div>
     );
@@ -1287,8 +1437,25 @@ function UserOrders() {
             File complaint
           </button>
         )}
+
+      {order.payment_status === "paid" &&
+        ["delivered", "completed"].includes(order.status) &&
+        !order.rating && (
+          <button
+            type="button"
+            className="uo-return-btn"
+            onClick={() => {
+              setRatingOrder(order);
+              setRatingStars(0);
+              setRatingComment("");
+            }}
+          >
+            Rate this order
+          </button>
+        )}
     </div>
   );
+  
 
   /* =========================================================
      ORDER CARD
@@ -1514,8 +1681,8 @@ function UserOrders() {
 
             {order.items?.length ? (
               <div className="uo-items-list">
-                {order.items.map(
-                  renderItem
+                {order.items.map((item) =>
+                  renderItem(item, order)
                 )}
               </div>
             ) : (
@@ -1609,6 +1776,43 @@ function UserOrders() {
                   it's approved or if any
                   changes are needed.
                 </p>
+              </div>
+            )}
+
+            {order.refundStatus === "requested" && (
+              <div className="uo-review-notice">
+                <strong>Your refund request is under review.</strong>
+                <p>Our team will get back to you shortly.</p>
+              </div>
+            )}
+
+            {order.refundStatus === "rejected" && (
+              <div className="uo-review-notice revision">
+                <strong>Your refund request was declined.</strong>
+                {order.refundNotes && <p>{order.refundNotes}</p>}
+              </div>
+            )}
+
+            {order.refundStatus === "refunded" && (
+              <div className="uo-review-notice refunded">
+                <strong>
+                  Refunded {formatCurrency(order.refundAmount)}.
+                </strong>
+                <p>It should reflect on your original payment method soon.</p>
+              </div>
+            )}
+
+            {order.rating && (
+              <div className="uo-rating-display">
+                <span className="uo-rating-stars">
+                  {"★".repeat(order.rating.stars)}
+                  {"☆".repeat(5 - order.rating.stars)}
+                </span>
+                {order.rating.comment && (
+                  <p className="uo-rating-comment">
+                    "{order.rating.comment}"
+                  </p>
+                )}
               </div>
             )}
 
@@ -1914,26 +2118,44 @@ function UserOrders() {
             </p>
 
             <div className="uo-receipt-items">
-              {(receipt.items ||
-                []).map((item) => (
-                <div key={item.id}>
-                  <span>
-                    {
-                      item.productName
-                    }{" "}
-                    x{" "}
-                    {
-                      item.quantity
-                    }
-                  </span>
+              {(receipt.items || []).map((item) => {
+                const breakdownParts = [];
+                if (item.setupFee != null) {
+                  breakdownParts.push(`Setup ${formatCurrency(item.setupFee)}`);
+                }
+                if (item.materialCost && item.materialCost.length > 0) {
+                  const materialTotal = item.materialCost.reduce(
+                    (sum, m) => sum + (m.lineCost || 0),
+                    0
+                  );
+                  breakdownParts.push(`Material ${formatCurrency(materialTotal)}`);
+                }
+                if (
+                  item.quantityDiscountFactor != null &&
+                  item.quantityDiscountFactor < 1
+                ) {
+                  const pct = Math.round((1 - item.quantityDiscountFactor) * 100);
+                  breakdownParts.push(`Bulk discount -${pct}%`);
+                }
 
-                  <strong>
-                    {formatCurrency(
-                      item.totalPrice
+                return (
+                  <div key={item.id} className="uo-receipt-item">
+                    <div className="uo-receipt-item-main">
+                      <span>
+                        {item.productName} x {item.quantity}
+                      </span>
+
+                      <strong>{formatCurrency(item.totalPrice)}</strong>
+                    </div>
+
+                    {breakdownParts.length > 0 && (
+                      <div className="uo-receipt-item-breakdown">
+                        {breakdownParts.join("  ·  ")}
+                      </div>
                     )}
-                  </strong>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="uo-receipt-total">
@@ -2060,6 +2282,119 @@ function UserOrders() {
       {/* =====================================================
           COMPLAINT MODAL
           ===================================================== */}
+      {ratingOrder && (
+        <div
+          className="uo-modal"
+          role="dialog"
+          aria-modal="true"
+        >
+          <form
+            className="uo-modal-card"
+            onSubmit={handleSubmitRating}
+          >
+            <button
+              type="button"
+              className="uo-modal-close"
+              onClick={() => setRatingOrder(null)}
+              aria-label="Close rating"
+            >
+              x
+            </button>
+
+            <h2>Rate your order</h2>
+            <p>Order #{ratingOrder.id}</p>
+
+            <div className="uo-star-picker">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`uo-star-btn ${n <= ratingStars ? "filled" : ""}`}
+                  onClick={() => setRatingStars(n)}
+                  aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <label>
+              Comments (optional)
+              <textarea
+                value={ratingComment}
+                onChange={(e) => setRatingComment(e.target.value)}
+                rows="4"
+                placeholder="Tell us what you liked or what we could improve."
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="uo-submit-return"
+              disabled={submittingRating || !ratingStars}
+            >
+              {submittingRating ? "Submitting..." : "Submit rating"}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {reviewItem && (
+        <div
+          className="uo-modal"
+          role="dialog"
+          aria-modal="true"
+        >
+          <form
+            className="uo-modal-card"
+            onSubmit={handleSubmitReview}
+          >
+            <button
+              type="button"
+              className="uo-modal-close"
+              onClick={() => setReviewItem(null)}
+              aria-label="Close review"
+            >
+              x
+            </button>
+
+            <h2>Review this product</h2>
+            <p>{reviewItem.productName}</p>
+
+            <div className="uo-star-picker">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`uo-star-btn ${n <= reviewStars ? "filled" : ""}`}
+                  onClick={() => setReviewStars(n)}
+                  aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <label>
+              Comments (optional)
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                rows="4"
+                placeholder="What did you think of this product?"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="uo-submit-return"
+              disabled={submittingReview || !reviewStars}
+            >
+              {submittingReview ? "Submitting..." : "Submit review"}
+            </button>
+          </form>
+        </div>
+      )}
 
       {complaintOrder && (
         <div
