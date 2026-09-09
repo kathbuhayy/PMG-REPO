@@ -2470,11 +2470,19 @@ app.get("/api/chat/conversations", requireAuth(prisma), requireRole("staff", "ad
         user: { select: { id: true, first_name: true, last_name: true, email: true } },
         assignedStaff: { select: { id: true, first_name: true, last_name: true } },
         messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        _count: {
+          select: { messages: { where: { senderRole: "customer", readAt: null } } },
+        },
       },
       orderBy: { lastMessageAt: "desc" },
     });
 
-    res.json({ conversations });
+    res.json({
+      conversations: conversations.map(({ _count, ...conv }) => ({
+        ...conv,
+        unreadCount: _count.messages,
+      })),
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Failed to fetch conversations" });
@@ -2503,6 +2511,21 @@ app.get("/api/chat/conversations/:id/messages", requireAuth(prisma), async (req,
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Failed to fetch messages" });
+  }
+});
+
+// PATCH /api/chat/conversations/:id/read — mark all customer messages in
+// this conversation as read (clears the unread badge for staff/admin).
+app.patch("/api/chat/conversations/:id/read", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+  try {
+    await prisma.message.updateMany({
+      where: { conversationId: parseInt(req.params.id), senderRole: "customer", readAt: null },
+      data: { readAt: new Date() },
+    });
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to mark conversation as read" });
   }
 });
 

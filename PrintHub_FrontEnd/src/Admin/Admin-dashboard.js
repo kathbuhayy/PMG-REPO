@@ -514,6 +514,10 @@ function AdminDashboard() {
   const canAccessSupportChat =
     role === "admin" || staffRoles.includes("CUSTOMER_SUPPORT");
   const chat = useSupportChat({ enabled: canAccessSupportChat });
+  const supportInboxUnreadCount = useMemo(
+    () => chat.conversations.filter((c) => (c.unreadCount || 0) > 0).length,
+    [chat.conversations]
+  );
 
   useEffect(() => {
     const userId = storedUser?.id;
@@ -635,7 +639,12 @@ function AdminDashboard() {
       {
         label: "COMMUNICATION",
         items: [
-          { id: "supportInbox", label: "Support Inbox", icon: <FaHeadset /> },
+          {
+            id: "supportInbox",
+            label: "Support Inbox",
+            icon: <FaHeadset />,
+            badge: supportInboxUnreadCount || null,
+          },
         ],
       },
       {
@@ -691,7 +700,7 @@ function AdminDashboard() {
     }
 
     return groups;
-  }, [role, dashStats.totalOrders, lowStock.pagination.total, quotationsCount, designApprovalCount, staffRoles]);
+  }, [role, dashStats.totalOrders, lowStock.pagination.total, quotationsCount, designApprovalCount, staffRoles, supportInboxUnreadCount]);
   const handleMenuItemClick = (item) => {
     if (role === "staff" && item.id === "customers") return;
     const targetTab = item.id === "customers" ? "manageaccount" : item.id;
