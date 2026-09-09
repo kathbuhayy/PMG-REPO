@@ -2,7 +2,6 @@ import React, {
   useEffect,
   useState,
   useMemo,
-  useRef,
 } from "react";
 
 import {
@@ -27,50 +26,74 @@ const fallbackImage =
   "https://via.placeholder.com/300x200?text=No+Image";
 
 
-const productTypes = [
-  "T-Shirts",
-  "Caps",
-  "Hoodies",
-  "Jerseys",
-  "Mugs",
-  "Posters",
-  "Banners",
-  "Stickers",
-  "Notebooks",
-  "Business Cards",
-  "Tarpaulins",
-  "IDs",
-  "Packaging",
+/* =========================================================
+   MAIN PRODUCT CATEGORIES
+   ========================================================= */
+
+const productCategories = [
+  {
+    id: "apparel",
+    name: "Apparel",
+    products: [
+      "Hoodie",
+      "Sweatshirt",
+      "T-shirt",
+      "Jersey",
+    ],
+  },
+
+  {
+    id: "wearables",
+    name: "Wearables & Accessories",
+    products: [
+      "Cap",
+    ],
+  },
+
+  {
+    id: "stickers",
+    name: "Stickers & Labels",
+    products: [
+      "Stickers & Labels",
+      "Product Hang Tags",
+    ],
+  },
+
+  {
+    id: "paper",
+    name: "Paper & Cards",
+    products: [
+      "Business Card",
+      "Flyers",
+      "Notebook",
+      "Note Cards / Thank You Cards",
+      "Brochures",
+    ],
+  },
+
+  {
+    id: "large-format",
+    name: "Large Format & Signage",
+    products: [
+      "Posters",
+      "Banners",
+      "Tarpaulin / Banners",
+    ],
+  },
+
+  {
+    id: "promotional",
+    name: "Promotional & Personalized Items",
+    products: [
+      "Mug",
+    ],
+  },
 ];
 
 
-const priceRanges = [
-  {
-    label: "Any price",
-    value: "all",
-  },
-  {
-    label: "Under ₱100",
-    value: "under100",
-  },
-  {
-    label: "₱100 – ₱250",
-    value: "100-250",
-  },
-  {
-    label: "₱250 – ₱500",
-    value: "250-500",
-  },
-  {
-    label: "₱500 – ₱1,000",
-    value: "500-1000",
-  },
-  {
-    label: "₱1,000+",
-    value: "1000plus",
-  },
-];
-
+/* =========================================================
+   CUSTOMER CHECK
+   ========================================================= */
 
 const getCustomerUser = () => {
   try {
@@ -98,6 +121,10 @@ const getCustomerUser = () => {
 };
 
 
+/* =========================================================
+   PRICE FORMAT
+   ========================================================= */
+
 const formatProductPrice = (price) => {
   if (
     price === null ||
@@ -115,7 +142,12 @@ const formatProductPrice = (price) => {
 };
 
 
-const normalizeProductType = (product) => {
+/* =========================================================
+   NORMALIZE PRODUCT NAME
+   Used to determine which MAIN CATEGORY a product belongs to.
+   ========================================================= */
+
+const normalizeProductName = (product) => {
   const name = String(
     product?.name || ""
   ).toLowerCase();
@@ -125,80 +157,148 @@ const normalizeProductType = (product) => {
   ).toLowerCase();
 
   const combined =
-    `${name} ${printType}`;
+    `${name} ${printType}`.trim();
+
+  return combined;
+};
 
 
-  if (
-    combined.includes("t-shirt") ||
-    combined.includes("shirt")
-  ) {
-    return "T-Shirts";
-  }
+/* =========================================================
+   GET MAIN CATEGORY FOR PRODUCT
+   ========================================================= */
+
+const getMainProductCategory = (
+  product
+) => {
+  const value =
+    normalizeProductName(product);
 
 
-  if (combined.includes("cap")) {
-    return "Caps";
-  }
-
-
-  if (combined.includes("hoodie")) {
-    return "Hoodies";
-  }
-
-
-  if (combined.includes("jersey")) {
-    return "Jerseys";
-  }
-
-
-  if (combined.includes("mug")) {
-    return "Mugs";
-  }
-
-
-  if (combined.includes("poster")) {
-    return "Posters";
-  }
-
-
-  if (combined.includes("banner")) {
-    return "Banners";
-  }
-
+  /* =========================
+     APPAREL
+     ========================= */
 
   if (
-    combined.includes("sticker") ||
-    combined.includes("label")
+    value.includes("hoodie")
   ) {
-    return "Stickers";
+    return "apparel";
   }
-
-
-  if (combined.includes("notebook")) {
-    return "Notebooks";
-  }
-
-
-  if (combined.includes("business card")) {
-    return "Business Cards";
-  }
-
-
-  if (combined.includes("tarpaulin")) {
-    return "Tarpaulins";
-  }
-
 
   if (
-    /\bid\b/.test(combined) ||
-    combined.includes("identification")
+    value.includes("sweatshirt")
   ) {
-    return "IDs";
+    return "apparel";
+  }
+
+  if (
+    value.includes("t-shirt") ||
+    value.includes("t shirt") ||
+    value.includes("shirt")
+  ) {
+    return "apparel";
+  }
+
+  if (
+    value.includes("jersey")
+  ) {
+    return "apparel";
   }
 
 
-  if (combined.includes("packaging")) {
-    return "Packaging";
+  /* =========================
+     WEARABLES & ACCESSORIES
+     ========================= */
+
+  if (
+    /\bcap\b/.test(value) ||
+    value.includes("caps")
+  ) {
+    return "wearables";
+  }
+
+
+  /* =========================
+     STICKERS & LABELS
+     ========================= */
+
+  if (
+    value.includes("sticker") ||
+    value.includes("label") ||
+    value.includes("hang tag") ||
+    value.includes("hangtag") ||
+    value.includes("product tag")
+  ) {
+    return "stickers";
+  }
+
+
+  /* =========================
+     PAPER & CARDS
+     ========================= */
+
+  if (
+    value.includes("business card")
+  ) {
+    return "paper";
+  }
+
+  if (
+    value.includes("flyer")
+  ) {
+    return "paper";
+  }
+
+  if (
+    value.includes("notebook")
+  ) {
+    return "paper";
+  }
+
+  if (
+    value.includes("note card") ||
+    value.includes("thank you card")
+  ) {
+    return "paper";
+  }
+
+  if (
+    value.includes("brochure")
+  ) {
+    return "paper";
+  }
+
+
+  /* =========================
+     LARGE FORMAT & SIGNAGE
+     ========================= */
+
+  if (
+    value.includes("poster")
+  ) {
+    return "large-format";
+  }
+
+  if (
+    value.includes("banner")
+  ) {
+    return "large-format";
+  }
+
+  if (
+    value.includes("tarpaulin")
+  ) {
+    return "large-format";
+  }
+
+
+  /* =========================
+     PROMOTIONAL & PERSONALIZED
+     ========================= */
+
+  if (
+    value.includes("mug")
+  ) {
+    return "promotional";
   }
 
 
@@ -206,58 +306,22 @@ const normalizeProductType = (product) => {
 };
 
 
-const getPriceMatch = (
-  price,
-  range
-) => {
-  if (range === "all") {
-    return true;
-  }
-
-  const numericPrice = Number(price);
-
-  if (!Number.isFinite(numericPrice)) {
-    return false;
-  }
-
-  switch (range) {
-    case "under100":
-      return numericPrice < 100;
-
-    case "100-250":
-      return (
-        numericPrice >= 100 &&
-        numericPrice <= 250
-      );
-
-    case "250-500":
-      return (
-        numericPrice > 250 &&
-        numericPrice <= 500
-      );
-
-    case "500-1000":
-      return (
-        numericPrice > 500 &&
-        numericPrice <= 1000
-      );
-
-    case "1000plus":
-      return numericPrice > 1000;
-
-    default:
-      return true;
-  }
-};
-
+/* =========================================================
+   PRODUCT OVERVIEW
+   ========================================================= */
 
 function ProductOverview() {
-  const navigate = useNavigate();
 
-  const location = useLocation();
+  const navigate =
+    useNavigate();
 
-  const filterRef = useRef(null);
+  const location =
+    useLocation();
 
+
+  /* =======================================================
+     STATE
+     ======================================================= */
 
   const [products, setProducts] =
     useState([]);
@@ -268,39 +332,36 @@ function ProductOverview() {
   const [error, setError] =
     useState(null);
 
-
   const [searchQuery, setSearchQuery] =
     useState("");
 
+  const [
+    selectedCategory,
+    setSelectedCategory,
+  ] = useState("all");
 
-  const [showFilters, setShowFilters] =
-    useState(false);
+  const [
+    selectedPriceRange,
+    setSelectedPriceRange,
+  ] = useState("all");
 
+  const [
+    showLoginModal,
+    setShowLoginModal,
+  ] = useState(false);
 
-  const [selectedTypes, setSelectedTypes] =
-    useState([]);
-
-
-  const [priceRange, setPriceRange] =
-    useState("all");
-
-
-  const [appliedFilters, setAppliedFilters] =
-    useState({
-      types: [],
-      price: "all",
-    });
-
-
-  const [showLoginModal, setShowLoginModal] =
-    useState(false);
+  const [
+    modalVariant,
+    setModalVariant,
+  ] = useState("default");
 
 
-  const [modalVariant, setModalVariant] =
-    useState("default");
-
+  /* =======================================================
+     READ SEARCH FROM URL
+     ======================================================= */
 
   useEffect(() => {
+
     const params =
       new URLSearchParams(
         location.search
@@ -309,683 +370,814 @@ function ProductOverview() {
     setSearchQuery(
       params.get("search") || ""
     );
-  }, [location.search]);
 
+  }, [
+    location.search,
+  ]);
+
+
+  /* =======================================================
+     FETCH PRODUCTS
+     ======================================================= */
 
   useEffect(() => {
+
     const fetchProducts =
       async () => {
+
         try {
+
           setLoading(true);
 
-          const res = await fetch(
-            buildApiUrl(
-              "/api/products?limit=100"
-            )
-          );
+          const res =
+            await fetch(
+              buildApiUrl(
+                "/api/products?limit=100"
+              )
+            );
+
 
           if (!res.ok) {
+
             throw new Error(
               "Failed to load products"
             );
+
           }
+
 
           const data =
             await res.json();
 
+
           const list =
             data.products || data;
+
 
           setProducts(
             Array.isArray(list)
               ? list
               : []
           );
+
+
         } catch (err) {
-          setError(err.message);
+
+          setError(
+            err.message
+          );
+
         } finally {
+
           setLoading(false);
+
         }
+
       };
+
 
     fetchProducts();
+
   }, []);
 
 
-  useEffect(() => {
-    const handleOutsideClick =
-      (event) => {
-        if (
-          filterRef.current &&
-          !filterRef.current.contains(
-            event.target
-          )
-        ) {
-          setShowFilters(false);
-        }
-      };
+  /* =======================================================
+     FILTER PRODUCTS
+     ======================================================= */
 
+  const filtered =
+    useMemo(() => {
 
-    document.addEventListener(
-      "mousedown",
-      handleOutsideClick
-    );
+      return products.filter(
+        (product) => {
 
-
-    return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleOutsideClick
-      );
-    };
-  }, []);
-
-
-  const activeFilterCount =
-    appliedFilters.types.length +
-    (appliedFilters.price !== "all"
-      ? 1
-      : 0);
-
-
-  const filtered = useMemo(() => {
-    return products.filter(
-      (product) => {
-        const name = String(
-          product?.name || ""
-        );
-
-
-        const productType =
-          normalizeProductType(
-            product
-          );
-
-
-        const matchesSearch =
-          name
-            .toLowerCase()
-            .includes(
-              searchQuery.toLowerCase()
+          const name =
+            String(
+              product?.name || ""
             );
 
 
-        const matchesType =
-          appliedFilters.types
-            .length === 0 ||
-          appliedFilters.types.includes(
-            productType
-          );
+          const matchesSearch =
+            name
+              .toLowerCase()
+              .includes(
+                searchQuery
+                  .toLowerCase()
+              );
 
 
-        const matchesPrice =
-          getPriceMatch(
-            product?.price,
-            appliedFilters.price
-          );
-
-
-        return (
-          matchesSearch &&
-          matchesType &&
-          matchesPrice
-        );
-      }
-    );
-  }, [
-    products,
-    searchQuery,
-    appliedFilters,
-  ]);
-
-
-  const toggleProductType =
-    (type) => {
-      setSelectedTypes(
-        (current) => {
-          if (
-            current.includes(type)
-          ) {
-            return current.filter(
-              (item) =>
-                item !== type
+          const productCategory =
+            getMainProductCategory(
+              product
             );
+
+
+            const matchesCategory =
+            selectedCategory ===
+              "all" ||
+            productCategory ===
+              selectedCategory;
+          
+          
+          /* =================================================
+             PRICE RANGE FILTER
+             ================================================= */
+          
+          const price = Number(
+            product?.price || 0
+          );
+          
+          let matchesPrice = true;
+          
+          if (selectedPriceRange === "under100") {
+            matchesPrice = price < 100;
           }
+          
+          if (selectedPriceRange === "100-250") {
+            matchesPrice =
+              price >= 100 &&
+              price <= 250;
+          }
+          
+          if (selectedPriceRange === "250-500") {
+            matchesPrice =
+              price > 250 &&
+              price <= 500;
+          }
+          
+          if (selectedPriceRange === "500-1000") {
+            matchesPrice =
+              price > 500 &&
+              price <= 1000;
+          }
+          
+          if (selectedPriceRange === "1000plus") {
+            matchesPrice = price > 1000;
+          }
+          
+          
+          return (
+            matchesSearch &&
+            matchesCategory &&
+            matchesPrice
+          );
 
-          return [
-            ...current,
-            type,
-          ];
         }
       );
+
+    }, [
+      products,
+      searchQuery,
+      selectedCategory,
+      selectedPriceRange,
+    ]);
+
+
+  /* =======================================================
+     CATEGORY SELECT
+     ======================================================= */
+
+  const handleCategorySelect =
+    (categoryId) => {
+
+      setSelectedCategory(
+        categoryId
+      );
+
     };
 
 
-  const clearTypes = () => {
-    setSelectedTypes([]);
-  };
-
-
-  const clearPrice = () => {
-    setPriceRange("all");
-  };
-
-
-  const clearAllFilters = () => {
-    setSelectedTypes([]);
-
-    setPriceRange("all");
-
-    setAppliedFilters({
-      types: [],
-      price: "all",
-    });
-  };
-
-
-  const applyFilters = () => {
-    setAppliedFilters({
-      types: [
-        ...selectedTypes,
-      ],
-      price: priceRange,
-    });
-
-    setShowFilters(false);
-  };
-
+  /* =======================================================
+     VIEW PRODUCT
+     ======================================================= */
 
   const handleViewProduct =
     (id) => {
+
       const user =
         getCustomerUser();
+
 
       if (
         !user &&
         !hasGuestUsageRemaining()
       ) {
+
         setModalVariant(
           "limitReached"
         );
 
-        setShowLoginModal(true);
+        setShowLoginModal(
+          true
+        );
 
         return;
+
       }
 
-      navigate(`/product/${id}`);
+
+      navigate(
+        `/product/${id}`
+      );
+
     };
 
 
+  /* =======================================================
+     GET SELECTED CATEGORY NAME
+     ======================================================= */
+
+  const selectedCategoryData =
+    productCategories.find(
+      (category) =>
+        category.id ===
+        selectedCategory
+    );
+
+
+  /* =======================================================
+     RENDER
+     ======================================================= */
+
   return (
     <>
+
       <div className="po-page fade-in-up">
+
         <div className="po-shell">
 
-          {/* =====================================================
-              PAGE HEADER
-          ===================================================== */}
-
-          <div className="po-top">
-            <div className="po-heading">
-
-              <div className="po-eyebrow">
-                OUR COLLECTION
-              </div>
-
-              <h1 className="po-title">
-                Product{" "}
-                <span>
-                  Overview
-                </span>
-              </h1>
-
-              <p>
-                Discover our complete
-                collection
-              </p>
-
-            </div>
-          </div>
+          <div className="po-layout">
 
 
-          {/* =====================================================
-              SEARCH + FILTER
-          ===================================================== */}
+            {/* =================================================
+                LEFT SIDEBAR
+            ================================================= */}
 
-          <div className="po-search-filter-row">
-
-            {/* SEARCH */}
-
-            <div className="po-search-wrap">
-              <span
-                aria-hidden="true"
-              >
-                ⌕
-              </span>
-
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(event) =>
-                  setSearchQuery(
-                    event.target.value
-                  )
-                }
-              />
-            </div>
+            <aside className="po-sidebar">
 
 
-            {/* FILTER */}
+              {/* SEARCH */}
 
-            <div
-              className="po-filter-area"
-              ref={filterRef}
-            >
-
-              <button
-                type="button"
-                className={`po-filter-button ${
-                  showFilters
-                    ? "active"
-                    : ""
-                }`}
-                onClick={() =>
-                  setShowFilters(
-                    (current) =>
-                      !current
-                  )
-                }
-              >
-
-                <span className="po-filter-icon">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </span>
-
-
-                <span>
-                  Filter
-                </span>
-
-
-                {activeFilterCount >
-                  0 && (
-                  <span className="po-filter-count">
-                    {activeFilterCount}
-                  </span>
-                )}
-
+              <div className="po-sidebar-search">
 
                 <span
-                  className={`po-filter-chevron ${
-                    showFilters
-                      ? "open"
-                      : ""
-                  }`}
+                  aria-hidden="true"
                 >
-                  ↓
+                  ⌕
                 </span>
 
-              </button>
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={
+                    searchQuery
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setSearchQuery(
+                      event.target.value
+                    )
+                  }
+                  aria-label="Search products"
+                />
 
+              </div>
 
-              {showFilters && (
-                <div className="po-filter-dropdown">
 
-                  {/* FILTER HEADER */}
+              {/* DIVIDER */}
 
-                  <div className="po-filter-header">
+              <div className="po-sidebar-divider" />
 
-                    <div>
 
-                      <div className="po-filter-eyebrow">
-                        REFINE RESULTS
-                      </div>
+              {/* CATEGORY */}
 
-                      <h2>
-                        Filter Products
-                      </h2>
+              <div className="po-category-heading">
+                Category
+              </div>
 
-                    </div>
 
+              <div className="po-category-list">
 
-                    <button
-                      type="button"
-                      className="po-filter-close"
-                      onClick={() =>
-                        setShowFilters(
-                          false
-                        )
-                      }
-                      aria-label="Close filters"
-                    >
-                      ×
-                    </button>
 
-                  </div>
+                {/* ALL PRODUCTS */}
 
-
-                  {/* PRODUCT TYPE */}
-
-                  <section className="po-filter-section">
-
-                    <div className="po-filter-section-heading">
-
-                      <h3>
-                        Product Type
-                      </h3>
-
-                      <button
-                        type="button"
-                        onClick={
-                          clearTypes
-                        }
-                      >
-                        Clear
-                      </button>
-
-                    </div>
-
-
-                    <div className="po-type-grid">
-
-                      {productTypes.map(
-                        (type) => {
-                          const checked =
-                            selectedTypes.includes(
-                              type
-                            );
-
-                          return (
-                            <label
-                              key={type}
-                              className={`po-check-option ${
-                                checked
-                                  ? "checked"
-                                  : ""
-                              }`}
-                            >
-
-                              <input
-                                type="checkbox"
-                                checked={
-                                  checked
-                                }
-                                onChange={() =>
-                                  toggleProductType(
-                                    type
-                                  )
-                                }
-                              />
-
-
-                              <span className="po-custom-checkbox">
-                                {checked &&
-                                  "✓"}
-                              </span>
-
-
-                              <span>
-                                {type}
-                              </span>
-
-                            </label>
-                          );
-                        }
-                      )}
-
-                    </div>
-
-                  </section>
-
-
-                  {/* PRICE RANGE */}
-
-                  <section className="po-filter-section">
-
-                    <div className="po-filter-section-heading">
-
-                      <h3>
-                        Price Range
-                      </h3>
-
-                      <button
-                        type="button"
-                        onClick={
-                          clearPrice
-                        }
-                      >
-                        Clear
-                      </button>
-
-                    </div>
-
-
-                    <div className="po-radio-row">
-
-                      {priceRanges.map(
-                        (item) => (
-                          <label
-                            key={
-                              item.value
-                            }
-                            className={`po-radio-option ${
-                              priceRange ===
-                              item.value
-                                ? "checked"
-                                : ""
-                            }`}
-                          >
-
-                            <input
-                              type="radio"
-                              name="priceRange"
-                              value={
-                                item.value
-                              }
-                              checked={
-                                priceRange ===
-                                item.value
-                              }
-                              onChange={() =>
-                                setPriceRange(
-                                  item.value
-                                )
-                              }
-                            />
-
-
-                            <span className="po-custom-radio"></span>
-
-
-                            <span>
-                              {item.label}
-                            </span>
-
-                          </label>
-                        )
-                      )}
-
-                    </div>
-
-                  </section>
-
-
-                  {/* FILTER ACTIONS */}
-
-                  <div className="po-filter-footer">
-
-                    <button
-                      type="button"
-                      className="po-clear-all"
-                      onClick={
-                        clearAllFilters
-                      }
-                    >
-                      Clear All
-                    </button>
-
-
-                    <button
-                      type="button"
-                      className="po-apply-filters"
-                      onClick={
-                        applyFilters
-                      }
-                    >
-                      Apply Filters
-                    </button>
-
-                  </div>
-
-                </div>
-              )}
-
-            </div>
-
-          </div>
-
-
-          {/* =====================================================
-              RESULTS
-          ===================================================== */}
-
-          {loading && (
-            <p className="po-state">
-              Loading products...
-            </p>
-          )}
-
-
-          {error && (
-            <p className="po-state po-state-error">
-              {error}
-            </p>
-          )}
-
-
-          {/* =====================================================
-              PRODUCT GRID
-          ===================================================== */}
-
-          <div className="po-grid">
-
-            {filtered.map(
-              (product) => (
                 <button
-                  key={product.id}
                   type="button"
-                  className="po-card"
+                  className={`po-category-item ${
+                    selectedCategory ===
+                    "all"
+                      ? "active"
+                      : ""
+                  }`}
                   onClick={() =>
-                    handleViewProduct(
-                      product.id
+                    handleCategorySelect(
+                      "all"
                     )
                   }
                 >
 
-                  <div className="po-img">
+                  <span className="po-category-icon">
+                   
+                  </span>
 
-                    <img
-                      src={
-                        product
-                          .images?.[0] ||
-                        fallbackImage
-                      }
-                      alt={
-                        product.name
-                      }
-                      onError={(
-                        event
-                      ) => {
-                        event.currentTarget.src =
-                          fallbackImage;
-                      }}
-                    />
-
-                  </div>
-
-
-                  <div className="po-card-body">
-
-                    <div className="po-card-meta">
-
-                      <span>
-                        {getProductCategory(
-                          product
-                        )}
-                      </span>
-
-                    </div>
-
-
-                    <div className="po-name">
-                      {product.name}
-                    </div>
-
-
-                    <div className="po-price">
-                      {formatProductPrice(
-                        product.price
-                      )}
-                    </div>
-
-
-                    <div className="po-card-footer">
-
-                      <span>
-                        View Product
-                      </span>
-
-                      <span className="po-card-arrow">
-                        →
-                      </span>
-
-                    </div>
-
-                  </div>
+                  <span>
+                    All Products
+                  </span>
 
                 </button>
-              )
-            )}
+
+
+                {/* MAIN CATEGORIES */}
+
+                {productCategories.map(
+                  (category) => (
+
+                    <button
+                      key={
+                        category.id
+                      }
+                      type="button"
+                      className={`po-category-item ${
+                        selectedCategory ===
+                        category.id
+                          ? "active"
+                          : ""
+                      }`}
+                      onClick={() =>
+                        handleCategorySelect(
+                          category.id
+                        )
+                      }
+                    >
+
+                      <span className="po-category-icon">
+                        {
+                          category.icon
+                        }
+                      </span>
+
+                      <span>
+                        {
+                          category.name
+                        }
+                      </span>
+
+                    </button>
+
+                  )
+                )}
+
+              </div>
+
+              {/* =================================================
+    PRICE RANGE
+================================================= */}
+
+<div className="po-price-section">
+
+<div className="po-price-divider" />
+
+<div className="po-price-heading">
+  Price Range
+</div>
+
+
+<div className="po-price-options">
+
+  <label
+    className={`po-price-option ${
+      selectedPriceRange === "all"
+        ? "active"
+        : ""
+    }`}
+  >
+
+    <input
+      type="radio"
+      name="priceRange"
+      value="all"
+      checked={
+        selectedPriceRange === "all"
+      }
+      onChange={() =>
+        setSelectedPriceRange(
+          "all"
+        )
+      }
+    />
+
+    <span className="po-radio"></span>
+
+    <span>
+      Any price
+    </span>
+
+  </label>
+
+
+  <label
+    className={`po-price-option ${
+      selectedPriceRange === "under100"
+        ? "active"
+        : ""
+    }`}
+  >
+
+    <input
+      type="radio"
+      name="priceRange"
+      value="under100"
+      checked={
+        selectedPriceRange ===
+        "under100"
+      }
+      onChange={() =>
+        setSelectedPriceRange(
+          "under100"
+        )
+      }
+    />
+
+    <span className="po-radio"></span>
+
+    <span>
+      Under ₱100
+    </span>
+
+  </label>
+
+
+  <label
+    className={`po-price-option ${
+      selectedPriceRange === "100-250"
+        ? "active"
+        : ""
+    }`}
+  >
+
+    <input
+      type="radio"
+      name="priceRange"
+      value="100-250"
+      checked={
+        selectedPriceRange ===
+        "100-250"
+      }
+      onChange={() =>
+        setSelectedPriceRange(
+          "100-250"
+        )
+      }
+    />
+
+    <span className="po-radio"></span>
+
+    <span>
+      ₱100 – ₱250
+    </span>
+
+  </label>
+
+
+  <label
+    className={`po-price-option ${
+      selectedPriceRange === "250-500"
+        ? "active"
+        : ""
+    }`}
+  >
+
+    <input
+      type="radio"
+      name="priceRange"
+      value="250-500"
+      checked={
+        selectedPriceRange ===
+        "250-500"
+      }
+      onChange={() =>
+        setSelectedPriceRange(
+          "250-500"
+        )
+      }
+    />
+
+    <span className="po-radio"></span>
+
+    <span>
+      ₱250 – ₱500
+    </span>
+
+  </label>
+
+
+  <label
+    className={`po-price-option ${
+      selectedPriceRange === "500-1000"
+        ? "active"
+        : ""
+    }`}
+  >
+
+    <input
+      type="radio"
+      name="priceRange"
+      value="500-1000"
+      checked={
+        selectedPriceRange ===
+        "500-1000"
+      }
+      onChange={() =>
+        setSelectedPriceRange(
+          "500-1000"
+        )
+      }
+    />
+
+    <span className="po-radio"></span>
+
+    <span>
+      ₱500 – ₱1,000
+    </span>
+
+  </label>
+
+
+  <label
+    className={`po-price-option ${
+      selectedPriceRange === "1000plus"
+        ? "active"
+        : ""
+    }`}
+  >
+
+    <input
+      type="radio"
+      name="priceRange"
+      value="1000plus"
+      checked={
+        selectedPriceRange ===
+        "1000plus"
+      }
+      onChange={() =>
+        setSelectedPriceRange(
+          "1000plus"
+        )
+      }
+    />
+
+    <span className="po-radio"></span>
+
+    <span>
+      ₱1,000+
+    </span>
+
+  </label>
+
+</div>
+
+</div>
+
+            </aside>
+
+
+            {/* =================================================
+                RIGHT SIDE
+            ================================================= */}
+
+            <main className="po-main">
+
+
+              {/* PAGE HEADER */}
+
+              <div className="po-top">
+
+                <div className="po-heading">
+
+                  <div className="po-eyebrow">
+                    OUR COLLECTION
+                  </div>
+
+
+                  <h1 className="po-title">
+
+                    Product{" "}
+
+                    <span>
+                      Overview
+                    </span>
+
+                  </h1>
+
+
+                  <p>
+                    Discover our complete collection
+                  </p>
+
+                </div>
+
+              </div>
+
+
+              {/* SELECTED CATEGORY INDICATOR */}
+
+              {selectedCategoryData && (
+
+                <div className="po-selected-category">
+
+                  <span>
+                    {selectedCategoryData.icon}
+                  </span>
+
+                  <strong>
+                    {selectedCategoryData.name}
+                  </strong>
+
+                </div>
+
+              )}
+
+
+              {/* LOADING */}
+
+              {loading && (
+
+                <p className="po-state">
+                  Loading products...
+                </p>
+
+              )}
+
+
+              {/* ERROR */}
+
+              {error && (
+
+                <p className="po-state po-state-error">
+                  {error}
+                </p>
+
+              )}
+
+
+              {/* PRODUCT GRID */}
+
+              {!loading &&
+                !error && (
+
+                  <div className="po-grid">
+
+                    {filtered.map(
+                      (product) => (
+
+                        <button
+                          key={
+                            product.id
+                          }
+                          type="button"
+                          className="po-card"
+                          onClick={() =>
+                            handleViewProduct(
+                              product.id
+                            )
+                          }
+                        >
+
+
+                          {/* IMAGE */}
+
+                          <div className="po-img">
+
+                            <img
+                              src={
+                                product
+                                  .images?.[0] ||
+                                fallbackImage
+                              }
+                              alt={
+                                product.name
+                              }
+                              onError={(
+                                event
+                              ) => {
+
+                                event.currentTarget.src =
+                                  fallbackImage;
+
+                              }}
+                            />
+
+                          </div>
+
+
+                          {/* BODY */}
+
+                          <div className="po-card-body">
+
+
+                            {/* PRODUCT CATEGORY */}
+
+                            <div className="po-card-meta">
+
+                              <span>
+                                {getProductCategory(
+                                  product
+                                )}
+                              </span>
+
+                            </div>
+
+
+                            {/* NAME */}
+
+                            <div className="po-name">
+                              {
+                                product.name
+                              }
+                            </div>
+
+
+                            {/* PRICE */}
+
+                            <div className="po-price">
+                              {formatProductPrice(
+                                product.price
+                              )}
+                            </div>
+
+
+                            {/* FOOTER */}
+
+                            <div className="po-card-footer">
+
+                              <span>
+                                View Product
+                              </span>
+
+                              <span className="po-card-arrow">
+                                →
+                              </span>
+
+                            </div>
+
+                          </div>
+
+                        </button>
+
+                      )
+                    )}
+
+                  </div>
+
+                )}
+
+
+              {/* EMPTY */}
+
+              {!loading &&
+                !error &&
+                filtered.length === 0 && (
+
+                  <div className="po-empty">
+
+                    <div className="po-empty-icon">
+                      ⌕
+                    </div>
+
+                    <h3>
+                      No products found
+                    </h3>
+
+                    <p>
+                      There are no products
+                      in this category yet.
+                    </p>
+
+                  </div>
+
+                )}
+
+            </main>
 
           </div>
 
-
-          {!loading &&
-            !error &&
-            filtered.length === 0 && (
-              <div className="po-empty">
-
-                <div className="po-empty-icon">
-                  ⌕
-                </div>
-
-                <h3>
-                  No products found
-                </h3>
-
-                <p>
-                  Try adjusting your
-                  search or filters.
-                </p>
-
-              </div>
-            )}
-
         </div>
+
       </div>
 
 
-      {/* =========================================================
+      {/* =====================================================
           LOGIN MODAL
-      ========================================================= */}
+      ===================================================== */}
 
       {showLoginModal && (
+
         <LoginRequiredModal
-          variant={modalVariant}
+
+          variant={
+            modalVariant
+          }
 
           onClose={() =>
             setShowLoginModal(
@@ -994,6 +1186,7 @@ function ProductOverview() {
           }
 
           onLogin={() => {
+
             localStorage.removeItem(
               "cart"
             );
@@ -1019,9 +1212,11 @@ function ProductOverview() {
                 },
               }
             );
+
           }}
 
           onRegister={() => {
+
             localStorage.removeItem(
               "cart"
             );
@@ -1041,9 +1236,13 @@ function ProductOverview() {
             navigate(
               "/user-register"
             );
+
           }}
+
         />
+
       )}
+
     </>
   );
 }
