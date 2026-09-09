@@ -13,7 +13,6 @@ const mockupRoutes = require("./routes/mockup");
 const { generateImage: generateFalImage } = require("./services/falai");
 const { generateWithCloudflare } = require("./services/cloudflareAI");
 const { computeItemPrice } = require("./services/pricingEngine");
-
 const {
   logActivity,
   resolveUserDisplayName,
