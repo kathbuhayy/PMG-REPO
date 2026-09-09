@@ -13,12 +13,14 @@ const mockupRoutes = require("./routes/mockup");
 const { generateImage: generateFalImage } = require("./services/falai");
 const { generateWithCloudflare } = require("./services/cloudflareAI");
 const { computeItemPrice } = require("./services/pricingEngine");
-const { 
-  logActivity, 
-  identifyActor, 
-  requireAuth, 
-  requireRole  
+const {
+  logActivity,
+  resolveUserDisplayName,
+  identifyActor,
+  requireAuth,
+  requireRole
 } = require("./services/activityLog");
+const { scheduleActivityLogCleanup } = require("./services/activityLogCleanup");
 
 const {
   generateModelFromText,
@@ -222,6 +224,22 @@ app.post("/api/login", async (req, res) => {
       });
 
       const token = signAuthToken(user);
+      const role = roleFromDb(user.role);
+
+      // Activity Log only tracks admin/staff actions — customer logins
+      // aren't relevant to that audit trail, so they're skipped here.
+      if (role === "admin" || role === "staff") {
+        const actorName =
+          `${user.first_name || ""} ${user.last_name || ""}`.trim() ||
+          user.email;
+        await logActivity({
+          actor: { id: user.id, name: actorName, email: user.email, role },
+          action: "logged_in",
+          module: "auth",
+          description: `${actorName} logged in`,
+          metadata: { userId: user.id },
+        });
+      }
 
       return res.json({
         message: "Login successful",
@@ -230,7 +248,7 @@ app.post("/api/login", async (req, res) => {
           id: user.id,
           email: user.email,
           firstName: user.first_name,
-          role: roleFromDb(user.role),
+          role,
         },
       });
     }
@@ -673,6 +691,43 @@ app.post("/api/admin/archived-users/:id/restore", async (req, res) => {
   }
 });
 
+// Activity Log dropdown filters are high-level categories, but logActivity()
+// call sites across this file write many more specific literal strings
+// (e.g. "stock_added", "requisition_status_changed", "staff_role_granted").
+// These maps let one filter selection match every action/module that
+// belongs to it, instead of only its own exact literal value.
+const ACTIVITY_MODULE_FILTER_GROUPS = {
+  orders: ["orders"],
+  products: ["products"],
+  users: ["users"],
+  inquiries: ["inquiries"],
+  inventory: ["inventory"],
+  auth: ["auth"],
+};
+
+const ACTIVITY_ACTION_FILTER_GROUPS = {
+  created: ["created"],
+  updated: [
+    "updated",
+    "stock_added",
+    "staff_role_granted",
+    "staff_role_revoked",
+    "role_updated",
+  ],
+  deleted: ["deleted", "item_removed"],
+  status_changed: [
+    "status_changed",
+    "requisition_status_changed",
+    "delivered",
+    "converted",
+    "payment_recorded",
+    "design_approved",
+    "account_status_changed",
+  ],
+  restored: ["restored"],
+  logged_in: ["logged_in"],
+};
+
 app.get("/api/admin/activity-logs", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -680,8 +735,14 @@ app.get("/api/admin/activity-logs", async (req, res) => {
     const skip = (page - 1) * limit;
 
     const where = {};
-    if (req.query.module) where.module = req.query.module;
-    if (req.query.action) where.action = req.query.action;
+    if (req.query.module) {
+      const group = ACTIVITY_MODULE_FILTER_GROUPS[req.query.module];
+      where.module = group ? { in: group } : req.query.module;
+    }
+    if (req.query.action) {
+      const group = ACTIVITY_ACTION_FILTER_GROUPS[req.query.action];
+      where.action = group ? { in: group } : req.query.action;
+    }
     if (req.query.userId) where.userId = parseInt(req.query.userId);
     if (req.query.from || req.query.to) {
       where.createdAt = {};
@@ -2169,11 +2230,12 @@ app.post("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("a
           data: { userId, role, assignedBy: req.actor.id },
         });
 
+    const targetName = await resolveUserDisplayName(userId);
     await logActivity({
       actor: req.actor,
       action: "staff_role_granted",
       module: "users",
-      description: `Granted ${role} to user #${userId}`,
+      description: `Granted ${role} to ${targetName}`,
       metadata: { userId, role },
     });
 
@@ -2195,11 +2257,12 @@ app.delete("/api/admin/users/:id/staff-roles/:role", requireAuth(prisma), requir
       data: { unassignedAt: new Date() },
     });
 
+    const targetName = await resolveUserDisplayName(userId);
     await logActivity({
       actor: req.actor,
       action: "staff_role_revoked",
       module: "users",
-      description: `Revoked ${role} from user #${userId}`,
+      description: `Revoked ${role} from ${targetName}`,
       metadata: { userId, role },
     });
 
@@ -6382,4 +6445,6 @@ function setupChatWebSocket(wss) {
     console.log(`✅ Server running on port ${PORT}`);
     console.log(`✅ Chat WebSocket listening on /ws/chat`);
   });
+
+  scheduleActivityLogCleanup();
 })();

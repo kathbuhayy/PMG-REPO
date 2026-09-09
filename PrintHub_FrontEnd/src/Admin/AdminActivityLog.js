@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { FaHistory } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 
+// Known literal `action` strings (see ACTIVITY_ACTION_FILTER_GROUPS in
+// PrintHub_Backend/server.js) mapped to clean display titles. Anything not
+// listed here falls back to auto-titleizing the raw snake_case string —
+// see formatActionLabel below.
 const ACTION_LABELS = {
   created: "Created",
   updated: "Updated",
@@ -9,6 +13,17 @@ const ACTION_LABELS = {
   status_changed: "Status Changed",
   restored: "Restored",
   logged_in: "Logged In",
+  staff_role_granted: "Role Granted",
+  staff_role_revoked: "Role Revoked",
+  role_updated: "Role Updated",
+  account_status_changed: "Account Status Changed",
+  stock_added: "Stock Added",
+  payment_recorded: "Payment Recorded",
+  design_approved: "Design Approved",
+  delivered: "Delivered",
+  item_removed: "Item Removed",
+  requisition_status_changed: "Requisition Status Changed",
+  converted: "Converted",
 };
 
 const MODULE_LABELS = {
@@ -16,7 +31,73 @@ const MODULE_LABELS = {
   products: "Products",
   users: "Manage Accounts",
   inquiries: "Inquiries",
+  inventory: "Inventory",
   auth: "Authentication",
+};
+
+// Formats a raw action string for the table's Action column: uses the
+// curated label above when known, otherwise auto-titleizes the raw
+// snake_case value (e.g. an action added later without an ACTION_LABELS
+// entry yet still renders as "Some New Action" instead of "some_new_action").
+const formatActionLabel = (action) => {
+  if (!action) return "";
+  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+  return action
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+// Maps each filter dropdown value to every literal module/action string
+// that should count as a match. Mirrors ACTIVITY_MODULE_FILTER_GROUPS /
+// ACTIVITY_ACTION_FILTER_GROUPS in PrintHub_Backend/server.js — the server
+// applies these same groups via a Prisma `{ in: [...] }` clause, so this
+// copy is a client-side safety-net re-check on whatever page comes back,
+// not an independent guess. Keep both lists in sync if either changes.
+const MODULE_FILTER_GROUPS = {
+  orders: ["orders"],
+  products: ["products"],
+  users: ["users"],
+  inquiries: ["inquiries"],
+  inventory: ["inventory"],
+  auth: ["auth"],
+};
+
+const ACTION_FILTER_GROUPS = {
+  created: ["created"],
+  updated: [
+    "updated",
+    "stock_added",
+    "staff_role_granted",
+    "staff_role_revoked",
+    "role_updated",
+  ],
+  deleted: ["deleted", "item_removed"],
+  status_changed: [
+    "status_changed",
+    "requisition_status_changed",
+    "delivered",
+    "converted",
+    "payment_recorded",
+    "design_approved",
+    "account_status_changed",
+  ],
+  restored: ["restored"],
+  logged_in: ["logged_in"],
+};
+
+// Case-insensitive, whitespace/underscore/hyphen-tolerant normalization so
+// "logged_in", "logged-in", "LOGIN " etc. all compare equal.
+const normalize = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .trim();
+
+const matchesFilter = (rawValue, filterValue, groups) => {
+  if (!filterValue) return true; // "All" — ignore this filter entirely
+  const normalizedValue = normalize(rawValue);
+  const members = groups[filterValue] || [filterValue];
+  return members.some((member) => normalize(member) === normalizedValue);
 };
 
 function AdminActivityLog() {
@@ -35,6 +116,11 @@ function AdminActivityLog() {
     to: "",
   });
 
+  // The backend now expands each Module/Action filter into its full group
+  // of matching literal values (see ACTIVITY_*_FILTER_GROUPS in server.js),
+  // so normal server-side pagination works correctly again — the client
+  // just re-applies the same category/substring matching below as a
+  // safety-net refinement over whatever page comes back.
   const fetchLogs = useCallback(
     async (page = 1) => {
       setLoading(true);
@@ -84,6 +170,25 @@ function AdminActivityLog() {
   const hasActiveFilters =
     filters.module || filters.action || filters.from || filters.to;
 
+  // Safety-net re-check on top of the server's own filtering (case- and
+  // formatting-tolerant); AND match on Module + Action, either side
+  // skipped entirely when its filter is "All" (empty string).
+  const filteredLogs = useMemo(() => {
+    return logs.filter((log) => {
+      const matchesModule = matchesFilter(
+        log.module,
+        filters.module,
+        MODULE_FILTER_GROUPS,
+      );
+      const matchesAction = matchesFilter(
+        log.action,
+        filters.action,
+        ACTION_FILTER_GROUPS,
+      );
+      return matchesModule && matchesAction;
+    });
+  }, [logs, filters.module, filters.action]);
+
   return (
     <div className="activity-log-page">
       <div className="admin-page-header">
@@ -118,6 +223,7 @@ function AdminActivityLog() {
                 <option value="products">Products</option>
                 <option value="users">Manage Accounts</option>
                 <option value="inquiries">Inquiries</option>
+                <option value="inventory">Inventory</option>
                 <option value="auth">Authentication</option>
               </select>
             </div>
@@ -162,17 +268,6 @@ function AdminActivityLog() {
               />
             </div>
 
-            {hasActiveFilters && (
-              <button
-                type="button"
-                className="row-btn"
-                onClick={() =>
-                  setFilters({ module: "", action: "", from: "", to: "" })
-                }
-              >
-                Clear
-              </button>
-            )}
           </div>
         </div>
 
@@ -196,14 +291,16 @@ function AdminActivityLog() {
                     Loading...
                   </td>
                 </tr>
-              ) : logs.length === 0 ? (
+              ) : filteredLogs.length === 0 ? (
                 <tr>
                   <td className="empty-row" colSpan={7}>
-                    No activity recorded yet
+                    {hasActiveFilters
+                      ? "No activity matches the selected filters"
+                      : "No activity recorded yet"}
                   </td>
                 </tr>
               ) : (
-                logs.map((log) => (
+                filteredLogs.map((log) => (
                   <tr key={log.id}>
                     <td>{log.userName || "Unknown"}</td>
                     <td>{log.userEmail || "—"}</td>
@@ -211,7 +308,7 @@ function AdminActivityLog() {
                       {log.userRole || "—"}
                     </td>
                     <td>{MODULE_LABELS[log.module] || log.module}</td>
-                    <td>{ACTION_LABELS[log.action] || log.action}</td>
+                    <td>{formatActionLabel(log.action)}</td>
                     <td>{log.description}</td>
                     <td>{formatTimestamp(log.createdAt)}</td>
                   </tr>
