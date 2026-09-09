@@ -1,0 +1,1458 @@
+/* =========================================================
+   PMG PRINTING HOUSE
+   RESPONSIVE SPLASH SCREEN
+========================================================= */
+
+.pmg-print-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+  
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+  
+    overflow: hidden;
+  
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  
+    background:
+      radial-gradient(
+        circle at 50% 46%,
+        rgba(36, 116, 72, 0.16) 0%,
+        rgba(9, 46, 29, 0.08) 28%,
+        transparent 58%
+      ),
+      linear-gradient(
+        135deg,
+        #020b07 0%,
+        #03150d 48%,
+        #020906 100%
+      );
+  
+    color: #ffffff;
+  
+    isolation: isolate;
+  
+    font-family:
+      "Poppins",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
+  }
+  
+  
+  /* =========================================================
+     SUBTLE GRID
+  ========================================================= */
+  
+  .pmg-print-grid {
+    position: absolute;
+    inset: 0;
+  
+    background-image:
+      linear-gradient(
+        rgba(255, 255, 255, 0.018) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.018) 1px,
+        transparent 1px
+      );
+  
+    background-size: 70px 70px;
+  
+    opacity: 0.28;
+  
+    pointer-events: none;
+  }
+  
+  
+  /* =========================================================
+     CENTRAL GREEN GLOW
+  ========================================================= */
+  
+  .pmg-print-glow {
+    position: absolute;
+  
+    width: min(70vw, 760px);
+    height: min(70vw, 760px);
+  
+    left: 50%;
+    top: 50%;
+  
+    transform: translate(-50%, -50%);
+  
+    border-radius: 50%;
+  
+    background:
+      radial-gradient(
+        circle,
+        rgba(52, 211, 113, 0.10) 0%,
+        rgba(34, 197, 94, 0.045) 34%,
+        transparent 70%
+      );
+  
+    filter: blur(18px);
+  
+    animation:
+      pmgGlowPulse
+      5s
+      ease-in-out
+      infinite;
+  
+    pointer-events: none;
+  }
+  
+  
+  /* =========================================================
+     GREEN LIGHT SWEEP
+  ========================================================= */
+  
+  .pmg-light-sweep {
+    position: absolute;
+  
+    top: -30%;
+    left: -30%;
+  
+    width: 35%;
+    height: 160%;
+  
+    background:
+      linear-gradient(
+        90deg,
+        transparent,
+        rgba(132, 204, 22, 0.025),
+        rgba(132, 204, 22, 0.08),
+        rgba(132, 204, 22, 0.025),
+        transparent
+      );
+  
+    filter: blur(25px);
+  
+    transform: rotate(20deg);
+  
+    animation:
+      pmgLightSweep
+      7s
+      ease-in-out
+      infinite;
+  
+    pointer-events: none;
+  }
+  
+  
+  /* =========================================================
+     REGISTRATION MARKS
+  ========================================================= */
+  
+  .pmg-registration-mark {
+    position: absolute;
+  
+    width: 26px;
+    height: 26px;
+  
+    opacity: 0.22;
+  
+    pointer-events: none;
+  }
+  
+  .pmg-registration-mark::before,
+  .pmg-registration-mark::after {
+    content: "";
+  
+    position: absolute;
+  
+    background: rgba(255, 255, 255, 0.35);
+  }
+  
+  .pmg-registration-mark::before {
+    width: 26px;
+    height: 1px;
+  
+    left: 0;
+    top: 50%;
+  }
+  
+  .pmg-registration-mark::after {
+    width: 1px;
+    height: 26px;
+  
+    left: 50%;
+    top: 0;
+  }
+  
+  
+  /* corners */
+  
+  .pmg-mark-tl {
+    top: 8%;
+    left: 7%;
+  }
+  
+  .pmg-mark-tr {
+    top: 8%;
+    right: 7%;
+  }
+  
+  .pmg-mark-bl {
+    bottom: 8%;
+    left: 7%;
+  }
+  
+  .pmg-mark-br {
+    bottom: 8%;
+    right: 7%;
+  }
+  
+  
+  /* =========================================================
+     CMYK INDICATOR
+  ========================================================= */
+  
+  .pmg-cmyk-indicator {
+    position: absolute;
+  
+    right: 7%;
+    bottom: 13%;
+  
+    display: flex;
+  
+    gap: 4px;
+  
+    opacity: 0.42;
+  }
+  
+  .pmg-cmyk-indicator span {
+    width: 5px;
+    height: 5px;
+  
+    border-radius: 50%;
+  }
+  
+  .pmg-cmyk-c {
+    background: #06b6d4;
+  }
+  
+  .pmg-cmyk-m {
+    background: #ec4899;
+  }
+  
+  .pmg-cmyk-y {
+    background: #facc15;
+  }
+  
+  .pmg-cmyk-k {
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  
+  
+  /* =========================================================
+     FLOATING PAPER
+  ========================================================= */
+  
+  .pmg-print-paper {
+    position: absolute;
+  
+    width: clamp(
+      100px,
+      11vw,
+      175px
+    );
+  
+    aspect-ratio: 0.72;
+  
+    padding: 8px;
+  
+    box-sizing: border-box;
+  
+    background: rgba(245, 248, 246, 0.92);
+  
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  
+    box-shadow:
+      0 18px 45px rgba(0, 0, 0, 0.28);
+  
+    border-radius: 3px;
+  
+    opacity: 0;
+  
+    pointer-events: none;
+  
+    animation:
+      pmgPaperFloat
+      7s
+      ease-in-out
+      0.5s
+      infinite;
+  }
+  
+  
+  /* left paper */
+  
+  .pmg-paper-left {
+    left: 5%;
+    top: 20%;
+  
+    transform: rotate(-7deg);
+  }
+  
+  .pmg-paper-inner {
+    width: 100%;
+    height: 100%;
+  
+    box-sizing: border-box;
+  
+    border: 1px solid rgba(3, 21, 13, 0.08);
+  
+    padding: 15% 12%;
+  
+    background:
+      linear-gradient(
+        145deg,
+        #ffffff,
+        #eef4ef
+      );
+  }
+  
+  .pmg-paper-line {
+    height: 3px;
+  
+    width: 75%;
+  
+    margin-bottom: 8px;
+  
+    border-radius: 10px;
+  
+    background: rgba(3, 21, 13, 0.12);
+  }
+  
+  .pmg-paper-line-large {
+    width: 90%;
+    height: 6px;
+  
+    background: rgba(3, 21, 13, 0.2);
+  }
+  
+  .pmg-paper-line-short {
+    width: 45%;
+  }
+  
+  .pmg-paper-accent {
+    display: flex;
+  
+    gap: 4px;
+  
+    margin-top: 22%;
+  }
+  
+  .pmg-paper-accent span {
+    width: 18px;
+    height: 18px;
+  
+    border-radius: 2px;
+  }
+  
+  .pmg-paper-accent span:nth-child(1) {
+    background: #06b6d4;
+  }
+  
+  .pmg-paper-accent span:nth-child(2) {
+    background: #ec4899;
+  }
+  
+  .pmg-paper-accent span:nth-child(3) {
+    background: #facc15;
+  }
+  
+  
+  /* =========================================================
+     BUSINESS CARD
+  ========================================================= */
+  
+  .pmg-business-card {
+    position: absolute;
+  
+    right: 7%;
+    top: 25%;
+  
+    width: clamp(
+      110px,
+      13vw,
+      190px
+    );
+  
+    aspect-ratio: 1.7;
+  
+    padding: 14px;
+  
+    box-sizing: border-box;
+  
+    border-radius: 5px;
+  
+    background:
+      linear-gradient(
+        135deg,
+        #071b12,
+        #0b2b1b
+      );
+  
+    border:
+      1px solid rgba(
+        132,
+        204,
+        22,
+        0.22
+      );
+  
+    box-shadow:
+      0 20px 45px rgba(0, 0, 0, 0.3);
+  
+    opacity: 0;
+  
+    animation:
+      pmgCardFloat
+      8s
+      ease-in-out
+      1s
+      infinite;
+  
+    pointer-events: none;
+  }
+  
+  .pmg-card-logo {
+    font-size: clamp(
+      15px,
+      1.8vw,
+      25px
+    );
+  
+    font-weight: 900;
+  
+    letter-spacing: 1px;
+  
+    color: #a3e635;
+  }
+  
+  .pmg-card-line {
+    width: 55%;
+    height: 2px;
+  
+    margin-top: 18px;
+  
+    background: rgba(
+      255,
+      255,
+      255,
+      0.22
+    );
+  }
+  
+  .pmg-card-line-short {
+    width: 35%;
+  
+    margin-top: 7px;
+  }
+  
+  
+  /* =========================================================
+     PAPER STACK
+  ========================================================= */
+  
+  .pmg-paper-stack {
+    position: absolute;
+  
+    bottom: -12px;
+    left: 50%;
+  
+    width: clamp(
+      160px,
+      20vw,
+      300px
+    );
+  
+    height: clamp(
+      45px,
+      6vw,
+      80px
+    );
+  
+    transform:
+      translateX(-50%)
+      rotate(-2deg);
+  
+    pointer-events: none;
+  
+    animation:
+      pmgStackFloat
+      8s
+      ease-in-out
+      infinite;
+  }
+  
+  .pmg-paper-stack > span {
+    position: absolute;
+  
+    left: 0;
+  
+    width: 100%;
+    height: 100%;
+  
+    border-radius: 4px;
+  
+    background: #e9eee9;
+  
+    border:
+      1px solid
+      rgba(0, 0, 0, 0.12);
+  
+    box-shadow:
+      0 4px 8px rgba(0, 0, 0, 0.22);
+  }
+  
+  .pmg-paper-stack > span:nth-child(1) {
+    bottom: 12px;
+  }
+  
+  .pmg-paper-stack > span:nth-child(2) {
+    bottom: 6px;
+  }
+  
+  .pmg-paper-stack > span:nth-child(3) {
+    bottom: 0;
+  }
+  
+  .pmg-paper-stack-top {
+    position: absolute;
+  
+    inset: 0;
+  
+    padding: 12px 15px;
+  
+    box-sizing: border-box;
+  
+    background:
+      linear-gradient(
+        145deg,
+        #ffffff,
+        #edf2ee
+      );
+  
+    border-radius: 4px;
+  
+    border:
+      1px solid
+      rgba(0, 0, 0, 0.12);
+  }
+  
+  .pmg-paper-stack-top div {
+    width: 45%;
+    height: 3px;
+  
+    margin-bottom: 7px;
+  
+    border-radius: 10px;
+  
+    background: rgba(3, 21, 13, 0.12);
+  }
+  
+  
+  /* =========================================================
+     SMALL PRINT DETAILS
+  ========================================================= */
+  
+  .pmg-print-detail {
+    position: absolute;
+  
+    width: 4px;
+    height: 4px;
+  
+    border-radius: 50%;
+  
+    background: #a3e635;
+  
+    opacity: 0.35;
+  
+    animation:
+      pmgDetailPulse
+      4s
+      ease-in-out
+      infinite;
+  }
+  
+  .pmg-detail-one {
+    left: 19%;
+    bottom: 31%;
+  }
+  
+  .pmg-detail-two {
+    right: 20%;
+    bottom: 42%;
+  
+    animation-delay: 1.2s;
+  }
+  
+  .pmg-detail-three {
+    right: 13%;
+    top: 51%;
+  
+    animation-delay: 2s;
+  }
+  
+  
+  /* =========================================================
+     MAIN CONTENT
+  ========================================================= */
+  
+  .pmg-splash-content {
+    position: relative;
+  
+    z-index: 20;
+  
+    width: min(
+      90vw,
+      620px
+    );
+  
+    display: flex;
+  
+    flex-direction: column;
+  
+    align-items: center;
+  
+    justify-content: center;
+  
+    text-align: center;
+  }
+  
+  
+  /* =========================================================
+     LOGO
+  ========================================================= */
+  
+  .pmg-splash-logo {
+    position: relative;
+  
+    width: clamp(
+      105px,
+      14vw,
+      175px
+    );
+  
+    aspect-ratio: 1;
+  
+    display: flex;
+  
+    align-items: center;
+    justify-content: center;
+  
+    margin-bottom: clamp(
+      22px,
+      3vh,
+      34px
+    );
+  
+    animation:
+      pmgLogoEnter
+      1s
+      cubic-bezier(0.22, 1, 0.36, 1)
+      both;
+  }
+  
+  .pmg-splash-logo img {
+    position: relative;
+  
+    z-index: 2;
+  
+    width: 100%;
+    height: 100%;
+  
+    object-fit: contain;
+  
+    user-select: none;
+  
+    -webkit-user-drag: none;
+  }
+  
+  .pmg-logo-glow {
+    position: absolute;
+  
+    width: 80%;
+    height: 80%;
+  
+    border-radius: 50%;
+  
+    background:
+      radial-gradient(
+        circle,
+        rgba(132, 204, 22, 0.22),
+        transparent 68%
+      );
+  
+    filter: blur(15px);
+  
+    animation:
+      pmgLogoGlow
+      3.5s
+      ease-in-out
+      infinite;
+  }
+  
+  
+  /* =========================================================
+     TAGLINE
+  ========================================================= */
+  
+  .pmg-splash-content h1 {
+    margin: 0;
+  
+    font-size: clamp(
+      22px,
+      3.4vw,
+      42px
+    );
+  
+    line-height: 1.15;
+  
+    font-weight: 800;
+  
+    letter-spacing: clamp(
+      0.5px,
+      0.16vw,
+      2px
+    );
+  
+    color: #ffffff;
+  
+    animation:
+      pmgTextEnter
+      0.9s
+      ease-out
+      0.25s
+      both;
+  }
+  
+  .pmg-splash-content h1 span {
+    color: #a3e635;
+  }
+  
+  
+  /* =========================================================
+     DESCRIPTION
+  ========================================================= */
+  
+  .pmg-splash-content p {
+    margin:
+  
+      clamp(9px, 1.4vh, 14px)
+  
+      0
+  
+      clamp(25px, 3.5vh, 36px);
+  
+    font-size: clamp(
+      9px,
+      1.25vw,
+      13px
+    );
+  
+    line-height: 1.5;
+  
+    font-weight: 400;
+  
+    letter-spacing: clamp(
+      0.4px,
+      0.08vw,
+      1px
+    );
+  
+    color:
+      rgba(
+        255,
+        255,
+        255,
+        0.55
+      );
+  
+    animation:
+      pmgTextEnter
+      0.9s
+      ease-out
+      0.45s
+      both;
+  }
+  
+  
+  /* =========================================================
+     LOADING BAR
+  ========================================================= */
+  
+  .pmg-loading {
+    position: relative;
+  
+    width: min(
+      300px,
+      70vw
+    );
+  
+    height: clamp(
+      3px,
+      0.35vw,
+      5px
+    );
+  
+    overflow: hidden;
+  
+    border-radius: 999px;
+  
+    background:
+      rgba(
+        255,
+        255,
+        255,
+        0.10
+      );
+  
+    box-shadow:
+      inset 0 0 0 1px
+      rgba(
+        255,
+        255,
+        255,
+        0.025
+      );
+  
+    animation:
+      pmgBarEnter
+      0.8s
+      ease-out
+      0.65s
+      both;
+  }
+  
+  .pmg-loading span {
+    display: block;
+  
+    width: 0%;
+    height: 100%;
+  
+    border-radius: inherit;
+  
+    background:
+      linear-gradient(
+        90deg,
+        #22c55e,
+        #84cc16,
+        #bef264
+      );
+  
+    box-shadow:
+      0 0 15px
+      rgba(
+        132,
+        204,
+        22,
+        0.65
+      );
+  
+    animation:
+      pmgProgress
+      3.2s
+      cubic-bezier(
+        0.4,
+        0,
+        0.2,
+        1
+      )
+      forwards;
+  }
+  
+  
+  /* =========================================================
+     LOADING LABEL
+  ========================================================= */
+  
+  .pmg-loading-label {
+    margin-top: 10px;
+  
+    font-size: clamp(
+      7px,
+      0.75vw,
+      9px
+    );
+  
+    letter-spacing: 1.6px;
+  
+    font-weight: 500;
+  
+    color:
+      rgba(
+        255,
+        255,
+        255,
+        0.28
+      );
+  
+    animation:
+      pmgTextEnter
+      0.8s
+      ease-out
+      0.8s
+      both;
+  }
+  
+  
+  /* =========================================================
+     BOTTOM STATUS
+  ========================================================= */
+  
+  .pmg-splash-status {
+    position: absolute;
+  
+    z-index: 15;
+  
+    left: 7%;
+    right: 7%;
+    bottom: 5%;
+  
+    display: flex;
+  
+    justify-content: space-between;
+  
+    font-size: clamp(
+      7px,
+      0.7vw,
+      9px
+    );
+  
+    letter-spacing: 1.3px;
+  
+    color:
+      rgba(
+        255,
+        255,
+        255,
+        0.25
+      );
+  
+    pointer-events: none;
+  }
+  
+  
+  /* =========================================================
+     ANIMATIONS
+  ========================================================= */
+  
+  @keyframes pmgLogoEnter {
+    from {
+      opacity: 0;
+      transform: scale(0.86);
+    }
+  
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  
+  @keyframes pmgLogoGlow {
+    0%,
+    100% {
+      opacity: 0.45;
+      transform: scale(0.92);
+    }
+  
+    50% {
+      opacity: 0.9;
+      transform: scale(1.08);
+    }
+  }
+  
+  @keyframes pmgTextEnter {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes pmgBarEnter {
+    from {
+      opacity: 0;
+      transform: scaleX(0.85);
+    }
+  
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+  
+  @keyframes pmgProgress {
+    0% {
+      width: 0%;
+    }
+  
+    20% {
+      width: 20%;
+    }
+  
+    45% {
+      width: 45%;
+    }
+  
+    70% {
+      width: 72%;
+    }
+  
+    88% {
+      width: 89%;
+    }
+  
+    100% {
+      width: 100%;
+    }
+  }
+  
+  @keyframes pmgPaperFloat {
+    0%,
+    100% {
+      opacity: 0.42;
+      transform:
+        translate3d(0, 0, 0)
+        rotate(-7deg);
+    }
+  
+    50% {
+      opacity: 0.62;
+      transform:
+        translate3d(14px, -12px, 0)
+        rotate(-4deg);
+    }
+  }
+  
+  @keyframes pmgCardFloat {
+    0%,
+    100% {
+      opacity: 0.38;
+      transform:
+        translate3d(0, 0, 0)
+        rotate(4deg);
+    }
+  
+    50% {
+      opacity: 0.55;
+      transform:
+        translate3d(-12px, 10px, 0)
+        rotate(1deg);
+    }
+  }
+  
+  @keyframes pmgStackFloat {
+    0%,
+    100% {
+      transform:
+        translateX(-50%)
+        translateY(0)
+        rotate(-2deg);
+    }
+  
+    50% {
+      transform:
+        translateX(-50%)
+        translateY(-3px)
+        rotate(-1deg);
+    }
+  }
+  
+  @keyframes pmgDetailPulse {
+    0%,
+    100% {
+      opacity: 0.15;
+      transform: scale(0.8);
+    }
+  
+    50% {
+      opacity: 0.5;
+      transform: scale(1.2);
+    }
+  }
+  
+  @keyframes pmgGlowPulse {
+    0%,
+    100% {
+      opacity: 0.65;
+      transform:
+        translate(-50%, -50%)
+        scale(0.94);
+    }
+  
+    50% {
+      opacity: 1;
+      transform:
+        translate(-50%, -50%)
+        scale(1.06);
+    }
+  }
+  
+  @keyframes pmgLightSweep {
+    0% {
+      left: -35%;
+      opacity: 0;
+    }
+  
+    20% {
+      opacity: 0.8;
+    }
+  
+    70% {
+      opacity: 0.45;
+    }
+  
+    100% {
+      left: 120%;
+      opacity: 0;
+    }
+  }
+  
+  
+  /* =========================================================
+     SMALL PHONES
+     320px – 374px
+  ========================================================= */
+  
+  @media (max-width: 374px) {
+    .pmg-splash-content {
+      width: 94vw;
+    }
+  
+    .pmg-splash-logo {
+      width: 88px;
+      margin-bottom: 17px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: 19px;
+      letter-spacing: 0.5px;
+    }
+  
+    .pmg-splash-content p {
+      max-width: 90%;
+      font-size: 8px;
+      margin-bottom: 20px;
+    }
+  
+    .pmg-loading {
+      width: 215px;
+    }
+  
+    .pmg-loading-label {
+      font-size: 6px;
+      letter-spacing: 1px;
+    }
+  
+    /* Move background objects farther away */
+    .pmg-paper-left {
+      left: -45px;
+      top: 17%;
+      transform: rotate(-9deg) scale(0.75);
+    }
+  
+    .pmg-business-card {
+      right: -45px;
+      top: 22%;
+      transform: rotate(5deg) scale(0.75);
+    }
+  
+    .pmg-paper-stack {
+      width: 180px;
+    }
+  
+    .pmg-registration-mark {
+      transform: scale(0.7);
+    }
+  
+    .pmg-cmyk-indicator {
+      right: 6%;
+      bottom: 12%;
+    }
+  }
+  
+  
+  /* =========================================================
+     NORMAL PHONES
+     375px – 480px
+  ========================================================= */
+  
+  @media (min-width: 375px) and (max-width: 480px) {
+    .pmg-splash-content {
+      width: 92vw;
+    }
+  
+    .pmg-splash-logo {
+      width: 105px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: 21px;
+    }
+  
+    .pmg-splash-content p {
+      font-size: 8.5px;
+    }
+  
+    .pmg-loading {
+      width: 245px;
+    }
+  
+    .pmg-paper-left {
+      left: -28px;
+      top: 19%;
+  
+      transform: rotate(-8deg) scale(0.82);
+    }
+  
+    .pmg-business-card {
+      right: -30px;
+      top: 23%;
+  
+      transform: rotate(5deg) scale(0.82);
+    }
+  
+    .pmg-paper-stack {
+      width: 210px;
+    }
+  }
+  
+  
+  /* =========================================================
+     LARGE PHONES
+     481px – 767px
+  ========================================================= */
+  
+  @media (min-width: 481px) and (max-width: 767px) {
+    .pmg-splash-logo {
+      width: 125px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: 27px;
+    }
+  
+    .pmg-splash-content p {
+      font-size: 10px;
+    }
+  
+    .pmg-paper-left {
+      left: 1%;
+    }
+  
+    .pmg-business-card {
+      right: 2%;
+    }
+  
+    .pmg-paper-stack {
+      width: 250px;
+    }
+  }
+  
+  
+  /* =========================================================
+     TABLETS
+  ========================================================= */
+  
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .pmg-splash-logo {
+      width: 145px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: 31px;
+    }
+  
+    .pmg-splash-content p {
+      font-size: 11px;
+    }
+  }
+  
+  
+  /* =========================================================
+     LAPTOP
+  ========================================================= */
+  
+  @media (min-width: 1024px) and (max-width: 1439px) {
+    .pmg-splash-logo {
+      width: 155px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: 34px;
+    }
+  }
+  
+  
+  /* =========================================================
+     LARGE DESKTOP
+  ========================================================= */
+  
+  @media (min-width: 1440px) {
+    .pmg-splash-logo {
+      width: 175px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: 40px;
+    }
+  }
+  
+  
+  /* =========================================================
+     ULTRA LARGE DESKTOP
+  ========================================================= */
+  
+  @media (min-width: 1920px) {
+    .pmg-splash-logo {
+      width: 190px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: 44px;
+    }
+  
+    .pmg-paper-left {
+      left: 9%;
+    }
+  
+    .pmg-business-card {
+      right: 10%;
+    }
+  }
+  
+  
+  /* =========================================================
+     SHORT SCREEN
+  ========================================================= */
+  
+  @media (max-height: 650px) {
+    .pmg-splash-logo {
+      width: clamp(
+        70px,
+        15vh,
+        110px
+      );
+  
+      margin-bottom: 12px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: clamp(
+        18px,
+        4vh,
+        28px
+      );
+    }
+  
+    .pmg-splash-content p {
+      margin-top: 7px;
+      margin-bottom: 15px;
+    }
+  
+    .pmg-loading {
+      width: min(
+        240px,
+        60vw
+      );
+    }
+  
+    .pmg-splash-status {
+      bottom: 3%;
+    }
+  }
+  
+  
+  /* =========================================================
+     LANDSCAPE PHONES
+  ========================================================= */
+  
+  @media (
+    max-height: 500px
+  ) and (
+    orientation: landscape
+  ) {
+    .pmg-splash-content {
+      padding: 10px;
+    }
+  
+    .pmg-splash-logo {
+      width: 65px;
+      margin-bottom: 7px;
+    }
+  
+    .pmg-splash-content h1 {
+      font-size: 18px;
+    }
+  
+    .pmg-splash-content p {
+      margin-top: 5px;
+      margin-bottom: 11px;
+      font-size: 7px;
+    }
+  
+    .pmg-loading {
+      width: 210px;
+      height: 3px;
+    }
+  
+    .pmg-loading-label {
+      margin-top: 6px;
+      font-size: 6px;
+    }
+  
+    .pmg-paper-left,
+    .pmg-business-card {
+      opacity: 0.25;
+    }
+  
+    .pmg-paper-stack {
+      transform:
+        translateX(-50%)
+        scale(0.75)
+        rotate(-2deg);
+    }
+  }
+  
+  
+  /* =========================================================
+     REDUCED MOTION
+  ========================================================= */
+  
+  @media (prefers-reduced-motion: reduce) {
+    .pmg-print-glow,
+    .pmg-light-sweep,
+    .pmg-print-paper,
+    .pmg-business-card,
+    .pmg-paper-stack,
+    .pmg-print-detail,
+    .pmg-splash-logo,
+    .pmg-logo-glow,
+    .pmg-splash-content h1,
+    .pmg-splash-content p,
+    .pmg-loading,
+    .pmg-loading span,
+    .pmg-loading-label {
+      animation: none !important;
+    }
+  
+    .pmg-loading span {
+      width: 100%;
+    }
+  }

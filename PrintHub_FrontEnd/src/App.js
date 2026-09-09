@@ -990,32 +990,10 @@ function ChatbotRouteGate() {
    ========================================================= */
 
 function App() {
-  const [showSplash, setShowSplash] =
-    useState(() => {
-      try {
-        return (
-          sessionStorage.getItem(
-            "pmg_splash_seen"
-          ) !== "true"
-        );
-      } catch {
-        return true;
-      }
-    });
-
-  const handleSplashComplete =
-    () => {
-      setShowSplash(false);
-
-      try {
-        sessionStorage.setItem(
-          "pmg_splash_seen",
-          "true"
-        );
-      } catch {
-        // Splash state is cosmetic only.
-      }
-    };
+  const [showSplash, setShowSplash] = useState(true);
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+  };
 
   return (
     <CartProvider>
