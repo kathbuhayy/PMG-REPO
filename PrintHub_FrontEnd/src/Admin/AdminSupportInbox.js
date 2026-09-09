@@ -1,6 +1,62 @@
 import React, { useState } from "react";
 import { FaHeadset, FaPaperPlane } from "react-icons/fa";
 
+function isSameDay(a, b) {
+  const d1 = new Date(a);
+  const d2 = new Date(b);
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
+
+function formatMessageTime(dateStr) {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${ampm}`;
+}
+
+function formatDateSeparator(dateStr) {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (isSameDay(date, now)) return "Today";
+  if (isSameDay(date, yesterday)) return "Yesterday";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function UnreadBadge({ count }) {
+  if (!count) return null;
+  return (
+    <span
+      style={{
+        minWidth: "18px",
+        height: "18px",
+        padding: "0 5px",
+        borderRadius: "999px",
+        background: "#EF4444",
+        color: "#fff",
+        fontSize: "10px",
+        fontWeight: 700,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        lineHeight: 1,
+      }}
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
 function AdminSupportInbox({ chat }) {
   const [input, setInput] = useState("");
   const activeConversation = chat.conversations.find((c) => c.id === chat.activeId);
@@ -44,22 +100,34 @@ function AdminSupportInbox({ chat }) {
                   background: chat.activeId === conv.id ? "#eff6ff" : "#fff",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <strong style={{ fontSize: "13px" }}>
-                    {conv.user?.first_name} {conv.user?.last_name}
-                  </strong>
-                  {!conv.assignedStaff && (
-                    <span style={{ fontSize: "10px", color: "#d97706", fontWeight: 700 }}>UNCLAIMED</span>
-                  )}
+                <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <strong style={{ fontSize: "13px" }}>
+                        {conv.user?.first_name} {conv.user?.last_name}
+                      </strong>
+                      {!conv.assignedStaff && (
+                        <span style={{ fontSize: "10px", color: "#d97706", fontWeight: 700 }}>UNCLAIMED</span>
+                      )}
+                    </div>
+                    <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {conv.messages?.[0]?.body || "No messages yet"}
+                    </p>
+                    {conv.assignedStaff && (
+                      <span style={{ fontSize: "11px", color: "#2563eb" }}>
+                        Assigned: {conv.assignedStaff.first_name}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0 }}>
+                    {conv.messages?.[0]?.createdAt && (
+                      <span style={{ fontSize: "10px", color: "#94a3b8" }}>
+                        {formatMessageTime(conv.messages[0].createdAt)}
+                      </span>
+                    )}
+                    <UnreadBadge count={conv.unreadCount} />
+                  </div>
                 </div>
-                <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {conv.messages?.[0]?.body || "No messages yet"}
-                </p>
-                {conv.assignedStaff && (
-                  <span style={{ fontSize: "11px", color: "#2563eb" }}>
-                    Assigned: {conv.assignedStaff.first_name}
-                  </span>
-                )}
               </div>
             ))
           )}
@@ -83,22 +151,60 @@ function AdminSupportInbox({ chat }) {
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-              {chat.messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  style={{
-                    alignSelf: msg.senderRole === "staff" ? "flex-end" : "flex-start",
-                    maxWidth: "70%",
-                    background: msg.senderRole === "staff" ? "#2563eb" : "#f1f5f9",
-                    color: msg.senderRole === "staff" ? "#fff" : "#0f172a",
-                    padding: "8px 12px",
-                    borderRadius: "12px",
-                    fontSize: "13px",
-                  }}
-                >
-                  {msg.body}
-                </div>
-              ))}
+              {chat.messages.map((msg, idx) => {
+                const prevMsg = chat.messages[idx - 1];
+                const showDateSeparator = !prevMsg || !isSameDay(prevMsg.createdAt, msg.createdAt);
+                return (
+                  <React.Fragment key={msg.id}>
+                    {showDateSeparator && (
+                      <div style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}>
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            color: "#64748b",
+                            background: "#f1f5f9",
+                            padding: "3px 10px",
+                            borderRadius: "999px",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {formatDateSeparator(msg.createdAt)}
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignSelf: msg.senderRole === "staff" ? "flex-end" : "flex-start",
+                        maxWidth: "70%",
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: msg.senderRole === "staff" ? "#2563eb" : "#f1f5f9",
+                          color: msg.senderRole === "staff" ? "#fff" : "#0f172a",
+                          padding: "8px 12px",
+                          borderRadius: "12px",
+                          fontSize: "13px",
+                        }}
+                      >
+                        {msg.body}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          color: "#94a3b8",
+                          marginTop: "3px",
+                          alignSelf: msg.senderRole === "staff" ? "flex-end" : "flex-start",
+                        }}
+                      >
+                        {formatMessageTime(msg.createdAt)}
+                      </span>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
             </div>
 
             <div style={{ display: "flex", gap: "8px", padding: "12px 16px", borderTop: "1px solid #e2e8f0" }}>
