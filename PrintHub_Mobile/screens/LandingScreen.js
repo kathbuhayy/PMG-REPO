@@ -20,6 +20,7 @@ import {
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -368,10 +369,12 @@ export default function LandingScreen({
   }, []);
 
   const { width } =
-    useWindowDimensions();
+  useWindowDimensions();
 
-  const isSmall =
-    width <= 360;
+const insets = useSafeAreaInsets();
+
+const isSmall =
+  width <= 360;
 
   const isMedium =
     width > 360 &&
@@ -928,18 +931,20 @@ export default function LandingScreen({
       {/* HEADER */}
 
       <View
-        style={[
-          styles.headerWrapper,
-          {
-            paddingTop: scale(
-              8,
-              9,
-              10,
-              12
-            ),
-          },
-        ]}
-      >
+  style={[
+    styles.headerWrapper,
+    {
+      paddingTop:
+        insets.top +
+        scale(
+          4,
+          5,
+          6,
+          8
+        ),
+    },
+  ]}
+>
         <View
           style={[
             styles.header,

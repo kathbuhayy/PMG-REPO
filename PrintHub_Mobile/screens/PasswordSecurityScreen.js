@@ -14,6 +14,7 @@ import {
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useFonts } from "expo-font";
@@ -553,81 +554,96 @@ export default function PasswordSecurityScreen({
           HEADER
       ================================================== */}
 
-      <View
+{/* ==================================================
+    HEADER
+================================================== */}
+
+<SafeAreaView
+  style={styles.safeArea}
+  edges={["top"]}
+>
+  <View
+    style={[
+      styles.header,
+      {
+        minHeight: 68 * scale,
+        paddingHorizontal: 18 * scale,
+      },
+    ]}
+  >
+
+    {/* BACK BUTTON */}
+
+    <TouchableOpacity
+      style={[
+        styles.backButton,
+        {
+          width: 44 * scale,
+          height: 44 * scale,
+        },
+      ]}
+      onPress={() =>
+        navigation.goBack()
+      }
+      activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+    >
+      <Ionicons
+        name="arrow-back"
+        size={26 * scale}
+        color="#FFFFFF"
+      />
+    </TouchableOpacity>
+
+
+    {/* CENTERED TITLE + SUBTITLE */}
+
+    <View
+      style={styles.headerCenter}
+      pointerEvents="none"
+    >
+      <Text
         style={[
-          styles.header,
+          styles.headerTitle,
           {
-            paddingHorizontal:
-              14 * scale,
+            fontSize: 22 * scale,
+            lineHeight: 28 * scale,
           },
         ]}
+        numberOfLines={1}
       >
+        Passwords & Security
+      </Text>
 
-        <TouchableOpacity
-          style={
-            styles.backButton
-          }
-          onPress={() =>
-            navigation.goBack()
-          }
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={28 * scale}
-            color={
-              COLORS.textPrimary
-            }
-          />
-        </TouchableOpacity>
+      <Text
+        style={[
+          styles.headerSubtitle,
+          {
+            fontSize: 8.5 * scale,
+          },
+        ]}
+        numberOfLines={1}
+      >
+        ACCOUNT SECURITY
+      </Text>
+    </View>
 
 
-        <View
-          style={
-            styles.headerCenter
-          }
-        >
-          <Text
-            style={[
-              styles.headerTitle,
-              {
-                fontSize:
-                  21 * scale,
-              },
-            ]}
-          >
-            Passwords & Security
-          </Text>
+    {/* INVISIBLE RIGHT SPACER */}
 
-          <Text
-            style={[
-              styles.headerSubtitle,
-              {
-                fontSize:
-                  8 * scale,
-              },
-            ]}
-          >
-            ACCOUNT SECURITY
-          </Text>
-        </View>
+    <View
+      style={[
+        styles.headerRightSpacer,
+        {
+          width: 44 * scale,
+          height: 44 * scale,
+        },
+      ]}
+    />
 
-
-        <View
-          style={
-            styles.headerLogoBox
-          }
-        >
-          <Image
-            source={pmgLogo}
-            style={
-              styles.headerLogo
-            }
-            resizeMode="contain"
-          />
-        </View>
-
-      </View>
+  </View>
+</SafeAreaView>
 
 
       {/* ==================================================
@@ -1972,87 +1988,83 @@ const styles =
     ========================================================
     */
 
+    safeArea: {
+      backgroundColor: "#020805",
+    },
+    
     header: {
-      height: 86,
-
-      backgroundColor:
-        "#020805",
-
+      width: "100%",
+    
       flexDirection: "row",
-
+    
       alignItems: "center",
-
+    
+      justifyContent: "space-between",
+    
+      backgroundColor: "#020805",
+    
       borderBottomWidth: 1,
-
+    
       borderBottomColor:
         "rgba(142,255,0,0.16)",
-
-      paddingTop: 12,
     },
-
+    
     backButton: {
-      width: 44,
-
-      height: 44,
-
       alignItems: "center",
-
-      justifyContent:
-        "center",
+    
+      justifyContent: "center",
+    
+      borderRadius: 999,
     },
-
+    
     headerCenter: {
-      flex: 1,
-
+      position: "absolute",
+    
+      left: 0,
+    
+      right: 0,
+    
+      top: 0,
+    
+      bottom: 0,
+    
       alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      marginLeft: -3,
+    
+      justifyContent: "center",
+    
+      paddingHorizontal: 60,
+    
+      zIndex: 10,
     },
-
+    
     headerTitle: {
       fontFamily:
         "Poppins_700Bold",
-
-      color:
-        "#F5F7F5",
-
+    
+      color: "#F5F7F5",
+    
       letterSpacing: -0.5,
-
+    
       textAlign: "center",
+    
+      includeFontPadding: false,
     },
-
+    
     headerSubtitle: {
       fontFamily:
         "Poppins_600SemiBold",
-
-      color:
-        "#8EFF00",
-
+    
+      color: "#8EFF00",
+    
       letterSpacing: 1.3,
-
-      marginTop: 1,
+    
+      marginTop: 2,
+    
+      textAlign: "center",
     },
-
-    headerLogoBox: {
-      width: 70,
-
-      height: 38,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      marginLeft: 5,
-    },
-
-    headerLogo: {
-      width: "100%",
-
-      height: "100%",
+    
+    headerRightSpacer: {
+      opacity: 0,
     },
 
 

@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useIsFocused } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "../config";
 import { COLORS } from "../theme";
@@ -42,6 +43,7 @@ const scale = (size) => {
 export default function CartScreen({
   navigation,
 }) {
+  const insets = useSafeAreaInsets();
   const [user, setUser] = useState(null);
   const [cartItems, setCartItems] =
     useState([]);
@@ -83,9 +85,9 @@ export default function CartScreen({
     setSelectedItemIds((prev) =>
       prev.includes(id)
         ? prev.filter(
-            (itemId) =>
-              itemId !== id
-          )
+          (itemId) =>
+            itemId !== id
+        )
         : [...prev, id]
     );
   };
@@ -199,7 +201,7 @@ export default function CartScreen({
       } catch (err) {
         console.error(
           "[CheckUserStatus] {ReadStorage}: " +
-            err.message
+          err.message
         );
 
         setLoading(false);
@@ -230,7 +232,7 @@ export default function CartScreen({
         if (!response.ok) {
           throw new Error(
             data.message ||
-              "Failed to load cart"
+            "Failed to load cart"
           );
         }
 
@@ -240,7 +242,7 @@ export default function CartScreen({
       } catch (err) {
         console.error(
           "[GetCartItems] {FetchCartList}: " +
-            err.message
+          err.message
         );
       } finally {
         setLoading(false);
@@ -313,7 +315,7 @@ export default function CartScreen({
       if (!response.ok) {
         throw new Error(
           data.message ||
-            "Failed to update quantity"
+          "Failed to update quantity"
         );
       }
 
@@ -323,7 +325,7 @@ export default function CartScreen({
     } catch (err) {
       console.error(
         "[PatchCartItem] {UpdateCartQty}: " +
-          err.message
+        err.message
       );
 
       Alert.alert(
@@ -362,7 +364,7 @@ export default function CartScreen({
         if (!response.ok) {
           throw new Error(
             data.message ||
-              "Failed to delete cart item"
+            "Failed to delete cart item"
           );
         }
 
@@ -380,7 +382,7 @@ export default function CartScreen({
       } catch (err) {
         console.error(
           "[DeleteCartItem] {DeleteCart}: " +
-            err.message
+          err.message
         );
 
         Alert.alert(
@@ -413,9 +415,9 @@ export default function CartScreen({
             Number(
               item.price || 0
             ) *
-              Number(
-                item.qty || 0
-              ),
+            Number(
+              item.qty || 0
+            ),
           0
         );
     };
@@ -463,7 +465,7 @@ export default function CartScreen({
   const allSelected =
     cartItems.length > 0 &&
     selectedCount ===
-      cartItems.length;
+    cartItems.length;
 
   /*
    * ==========================================================
@@ -519,36 +521,36 @@ export default function CartScreen({
       const details =
         item.customizations
           ? [
-              item
-                .customizations
-                .quantity &&
-                `Qty: ${item.customizations.quantity}`,
+            item
+              .customizations
+              .quantity &&
+            `Qty: ${item.customizations.quantity}`,
 
-              item
-                .customizations
-                .size &&
-                `Size: ${item.customizations.size}`,
+            item
+              .customizations
+              .size &&
+            `Size: ${item.customizations.size}`,
 
-              item
-                .customizations
-                .material &&
-                `Mat: ${item.customizations.material}`,
+            item
+              .customizations
+              .material &&
+            `Mat: ${item.customizations.material}`,
 
-              finishVal &&
-                `Fin: ${finishVal}`,
+            finishVal &&
+            `Fin: ${finishVal}`,
 
-              item
-                .customizations
-                .side &&
-                `Side: ${item.customizations.side}`,
+            item
+              .customizations
+              .side &&
+            `Side: ${item.customizations.side}`,
 
-              item
-                .customizations
-                .color &&
-                `Color: ${item.customizations.color}`,
-            ]
-              .filter(Boolean)
-              .join(" · ")
+            item
+              .customizations
+              .color &&
+            `Color: ${item.customizations.color}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")
           : "";
 
       const availableStock =
@@ -558,11 +560,11 @@ export default function CartScreen({
 
       const isOutOfStock =
         availableStock !==
-          null &&
+        null &&
         availableStock <
-          Number(
-            item.qty || 0
-          );
+        Number(
+          item.qty || 0
+        );
 
       const isSelected =
         selectedItemIds.includes(
@@ -574,7 +576,7 @@ export default function CartScreen({
           style={[
             styles.card,
             isOutOfStock &&
-              styles.cardOutOfStock,
+            styles.cardOutOfStock,
           ]}
         >
           {/* ==================================================
@@ -603,7 +605,7 @@ export default function CartScreen({
                 style={[
                   styles.checkbox,
                   isSelected &&
-                    styles.checkboxSelected,
+                  styles.checkboxSelected,
                 ]}
               >
                 {isSelected && (
@@ -695,26 +697,26 @@ export default function CartScreen({
               {item
                 .customizations
                 ?.design && (
-                <View
-                  style={
-                    styles.designBadge
-                  }
-                >
-                  <Ionicons
-                    name="cube-outline"
-                    size={12}
-                    color="#176B3A"
-                  />
-
-                  <Text
+                  <View
                     style={
-                      styles.designBadgeText
+                      styles.designBadge
                     }
                   >
-                    3D Design Attached
-                  </Text>
-                </View>
-              )}
+                    <Ionicons
+                      name="cube-outline"
+                      size={12}
+                      color="#176B3A"
+                    />
+
+                    <Text
+                      style={
+                        styles.designBadgeText
+                      }
+                    >
+                      3D Design Attached
+                    </Text>
+                  </View>
+                )}
 
               {/* PRICE */}
 
@@ -799,17 +801,16 @@ export default function CartScreen({
 
                       if (
                         stock !==
-                          null &&
+                        null &&
                         newQty >
-                          stock
+                        stock
                       ) {
                         Alert.alert(
                           "Stock Limit",
-                          `Only ${stock} item${
-                            stock ===
+                          `Only ${stock} item${stock ===
                             1
-                              ? ""
-                              : "s"
+                            ? ""
+                            : "s"
                           } available.`
                         );
 
@@ -876,7 +877,7 @@ export default function CartScreen({
             style={[
               styles.stockBar,
               isOutOfStock &&
-                styles.stockBarOut,
+              styles.stockBarOut,
             ]}
           >
             <View
@@ -888,7 +889,7 @@ export default function CartScreen({
                 style={[
                   styles.stockIcon,
                   isOutOfStock &&
-                    styles.stockIconOut,
+                  styles.stockIconOut,
                 ]}
               >
                 <Ionicons
@@ -910,7 +911,7 @@ export default function CartScreen({
                 style={[
                   styles.stockStatus,
                   isOutOfStock &&
-                    styles.stockStatusOut,
+                  styles.stockStatusOut,
                 ]}
               >
                 {isOutOfStock
@@ -925,7 +926,7 @@ export default function CartScreen({
               }
             >
               {availableStock !==
-              null
+                null
                 ? isOutOfStock
                   ? `${availableStock} available`
                   : `${availableStock} available`
@@ -1049,9 +1050,12 @@ export default function CartScreen({
         }
       >
         <View
-          style={
-            styles.headerLeft
-          }
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + scale(8),
+            },
+          ]}
         >
           <TouchableOpacity
             style={
@@ -1091,7 +1095,7 @@ export default function CartScreen({
             >
               {selectedCount}{" "}
               {selectedCount ===
-              1
+                1
                 ? "item"
                 : "items"}{" "}
               selected
@@ -1103,8 +1107,8 @@ export default function CartScreen({
           style={[
             styles.clearButton,
             selectedCount ===
-              0 &&
-              styles.clearButtonDisabled,
+            0 &&
+            styles.clearButtonDisabled,
           ]}
           disabled={
             selectedCount ===
@@ -1120,7 +1124,7 @@ export default function CartScreen({
             size={18}
             color={
               selectedCount ===
-              0
+                0
                 ? "#AEB5AE"
                 : "#E5484D"
             }
@@ -1130,8 +1134,8 @@ export default function CartScreen({
             style={[
               styles.clearButtonText,
               selectedCount ===
-                0 &&
-                styles.clearButtonTextDisabled,
+              0 &&
+              styles.clearButtonTextDisabled,
             ]}
           >
             Clear Selected
@@ -1144,7 +1148,7 @@ export default function CartScreen({
       ==================================================== */}
 
       {cartItems.length ===
-      0 ? (
+        0 ? (
         <View
           style={
             styles.emptyContainer
@@ -1282,7 +1286,7 @@ export default function CartScreen({
                     style={[
                       styles.smallCheckbox,
                       allSelected &&
-                        styles.smallCheckboxSelected,
+                      styles.smallCheckboxSelected,
                     ]}
                   >
                     {allSelected && (
@@ -1411,7 +1415,7 @@ export default function CartScreen({
                   style={[
                     styles.checkoutCheckbox,
                     allSelected &&
-                      styles.checkoutCheckboxSelected,
+                    styles.checkoutCheckboxSelected,
                   ]}
                 >
                   {allSelected && (
@@ -1439,7 +1443,7 @@ export default function CartScreen({
                   >
                     {selectedCount}{" "}
                     {selectedCount ===
-                    1
+                      1
                       ? "item"
                       : "items"}{" "}
                     selected
@@ -1508,14 +1512,14 @@ export default function CartScreen({
                 (
                   hasOosItem ||
                   selectedCount ===
-                    0
+                  0
                 ) &&
-                  styles.checkoutBtnDisabled,
+                styles.checkoutBtnDisabled,
               ]}
               disabled={
                 hasOosItem ||
                 selectedCount ===
-                  0
+                0
               }
               onPress={() => {
                 if (
@@ -1555,7 +1559,7 @@ export default function CartScreen({
                 size={20}
                 color={
                   hasOosItem ||
-                  selectedCount ===
+                    selectedCount ===
                     0
                     ? "#8B918B"
                     : "#FFFFFF"
@@ -1569,9 +1573,9 @@ export default function CartScreen({
                 style={[
                   styles.checkoutText,
                   !hasOosItem &&
-                    selectedCount >
-                      0 &&
-                    styles.checkoutTextEnabled,
+                  selectedCount >
+                  0 &&
+                  styles.checkoutTextEnabled,
                 ]}
               >
                 Proceed to Payment
@@ -1613,15 +1617,14 @@ const styles =
     header: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent:
-        "space-between",
-      paddingHorizontal:
-        scale(16),
-      paddingTop: scale(15),
-      paddingBottom:
-        scale(12),
-      backgroundColor:
-        "#F4F7F4",
+      justifyContent: "space-between",
+      paddingHorizontal: scale(16),
+
+      // Automatically accounts for the phone's status bar
+      paddingTop: scale(8),
+
+      paddingBottom: scale(12),
+      backgroundColor: "#F4F7F4",
     },
 
     headerLeft: {

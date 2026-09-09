@@ -15,11 +15,16 @@ import {
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "../config";
 
 const { width } = Dimensions.get("window");
+const scale = Math.min(
+  Math.max(width / 390, 0.85),
+  1.15
+);
 
 const COLORS = {
   // PMG GREEN
@@ -473,8 +478,8 @@ export default function InquiriesScreen({ route, navigation }) {
 
     const dateStr = selectedInquiry.createdAt
       ? new Date(
-          selectedInquiry.createdAt
-        ).toLocaleDateString()
+        selectedInquiry.createdAt
+      ).toLocaleDateString()
       : "";
 
     const status =
@@ -552,14 +557,14 @@ export default function InquiriesScreen({ route, navigation }) {
                   <Ionicons
                     name={
                       String(status).toLowerCase() ===
-                      "rejected"
+                        "rejected"
                         ? "close-circle-outline"
                         : String(
-                            status
-                          ).toLowerCase() ===
+                          status
+                        ).toLowerCase() ===
                           "converted"
-                        ? "checkmark-circle-outline"
-                        : "time-outline"
+                          ? "checkmark-circle-outline"
+                          : "time-outline"
                     }
                     size={25}
                     color={statusColor}
@@ -686,8 +691,8 @@ export default function InquiriesScreen({ route, navigation }) {
                 <Text style={styles.priceValue}>
                   {selectedInquiry.quoted_price
                     ? `₱${Number(
-                        selectedInquiry.quoted_price
-                      ).toLocaleString()}`
+                      selectedInquiry.quoted_price
+                    ).toLocaleString()}`
                     : "Pending"}
                 </Text>
               </View>
@@ -810,34 +815,88 @@ export default function InquiriesScreen({ route, navigation }) {
           : undefined
       }
     >
-      {/* HEADER */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.headerEyebrow}>
-              PMG PRINTING HOUSE
-            </Text>
+      {/* ==================================================
+    HEADER
+================================================== */}
 
-            <Text style={styles.headerTitle}>
+      {/* ==================================================
+    HEADER
+================================================== */}
+
+      <SafeAreaView
+        style={styles.safeArea}
+        edges={["top"]}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              minHeight: 68 * scale,
+              paddingHorizontal: 18 * scale,
+            },
+          ]}
+        >
+
+          {/* BACK BUTTON */}
+
+          <TouchableOpacity
+            style={[
+              styles.backButton,
+              {
+                width: 44 * scale,
+                height: 44 * scale,
+              },
+            ]}
+            onPress={() =>
+              navigation.goBack()
+            }
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons
+              name="arrow-back"
+              size={26 * scale}
+              color={COLORS.white}
+            />
+          </TouchableOpacity>
+
+
+          {/* CENTERED TITLE */}
+
+          <View
+            style={styles.headerTitleContainer}
+            pointerEvents="none"
+          >
+            <Text
+              style={[
+                styles.headerTitle,
+                {
+                  fontSize: 22 * scale,
+                  lineHeight: 28 * scale,
+                },
+              ]}
+              numberOfLines={1}
+            >
               Custom Quotes
             </Text>
           </View>
 
-          <View style={styles.headerIcon}>
-            <Ionicons
-              name="chatbubbles-outline"
-              size={23}
-              color={COLORS.black}
-            />
-          </View>
+
+          {/* INVISIBLE RIGHT SPACER */}
+
+          <View
+            style={[
+              styles.headerRightSpacer,
+              {
+                width: 44 * scale,
+                height: 44 * scale,
+              },
+            ]}
+          />
+
         </View>
-
-        <Text style={styles.headerSubtitle}>
-          Get a personalized quote for your
-          printing requirements.
-        </Text>
-      </View>
-
+      </SafeAreaView>
       {/* TABS */}
       <View style={styles.tabWrapper}>
         <View style={styles.tabHeader}>
@@ -846,7 +905,7 @@ export default function InquiriesScreen({ route, navigation }) {
             style={[
               styles.tab,
               activeTab === "list" &&
-                styles.activeTab,
+              styles.activeTab,
             ]}
             onPress={() =>
               setActiveTab("list")
@@ -867,7 +926,7 @@ export default function InquiriesScreen({ route, navigation }) {
                 style={[
                   styles.tabText,
                   activeTab === "list" &&
-                    styles.activeTabText,
+                  styles.activeTabText,
                 ]}
               >
                 My Requests
@@ -877,14 +936,14 @@ export default function InquiriesScreen({ route, navigation }) {
                 style={[
                   styles.countBadge,
                   activeTab === "list" &&
-                    styles.activeCountBadge,
+                  styles.activeCountBadge,
                 ]}
               >
                 <Text
                   style={[
                     styles.countText,
                     activeTab === "list" &&
-                      styles.activeCountText,
+                    styles.activeCountText,
                   ]}
                 >
                   {inquiries.length}
@@ -898,7 +957,7 @@ export default function InquiriesScreen({ route, navigation }) {
             style={[
               styles.tab,
               activeTab === "new" &&
-                styles.activeTab,
+              styles.activeTab,
             ]}
             onPress={() =>
               setActiveTab("new")
@@ -919,7 +978,7 @@ export default function InquiriesScreen({ route, navigation }) {
                 style={[
                   styles.tabText,
                   activeTab === "new" &&
-                    styles.activeTabText,
+                  styles.activeTabText,
                 ]}
               >
                 New Request
@@ -1234,7 +1293,7 @@ export default function InquiriesScreen({ route, navigation }) {
               style={[
                 styles.submitBtn,
                 submitting &&
-                  styles.submitBtnDisabled,
+                styles.submitBtnDisabled,
               ]}
               onPress={handleSubmit}
               disabled={submitting}
@@ -1448,49 +1507,58 @@ const styles = StyleSheet.create({
   // =========================================================
 
   header: {
+    width: "100%",
+    minHeight: 68,
+
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+
     backgroundColor: COLORS.black,
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 20,
+
+    paddingHorizontal: 18,
+
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
 
-  headerTop: {
-    flexDirection: "row",
+  backButton: {
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    borderRadius: 999,
   },
 
-  headerEyebrow: {
-    color: COLORS.green,
-    fontSize: 9,
-    fontWeight: "900",
-    letterSpacing: 1.5,
-    marginBottom: 4,
+  headerTitleContainer: {
+    position: "absolute",
+
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    paddingHorizontal: 60,
+
+    zIndex: 10,
   },
 
   headerTitle: {
     color: COLORS.white,
-    fontSize: 27,
+
+    fontSize: 22,
+    lineHeight: 28,
+
     fontWeight: "900",
+
+    textAlign: "center",
+
+    includeFontPadding: false,
   },
 
-  headerSubtitle: {
-    color: COLORS.muted,
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 7,
-    maxWidth: width - 90,
-  },
-
-  headerIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: COLORS.green,
-    alignItems: "center",
-    justifyContent: "center",
+  headerRightSpacer: {
+    opacity: 0,
   },
 
   // =========================================================

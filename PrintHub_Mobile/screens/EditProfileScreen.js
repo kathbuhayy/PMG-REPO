@@ -16,7 +16,9 @@ import {
 } from "react-native";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
 
 import { Ionicons } from "@expo/vector-icons";
 
@@ -713,80 +715,100 @@ export default function EditProfileScreen({
   ==========================================================
   */
 
-  const uploadAvatar =
-    async (asset) => {
-      setAvatarUploading(
-        true
-      );
-
-      try {
-        const formData =
-          new FormData();
-
-        formData.append(
-          "file",
-          {
-            uri: asset.uri,
-
-            name:
-              asset.fileName ||
-              "avatar.jpg",
-
-            type:
-              asset.mimeType ||
-              "image/jpeg",
-          }
-        );
-
-        const res =
-          await fetch(
-            `${API_BASE_URL}/api/user/avatar-upload`,
-            {
-              method: "POST",
-
-              body: formData,
-
-              headers: {
-                "x-user-id":
-                  String(
-                    user.id
-                  ),
-
-                "Content-Type":
-                  "multipart/form-data",
-              },
-            }
-          );
-
-        const data =
-          await res.json();
-
-        if (!res.ok) {
-          throw new Error(
-            data.message ||
-              "Upload failed"
-          );
+  const uploadAvatar = async (asset) => {
+    setAvatarUploading(true);
+  
+    try {
+      const file = new File(asset.uri);
+  
+      const formData = new FormData();
+  
+      formData.append("file", file);
+  
+      const res = await fetch(
+        `${API_BASE_URL}/api/user/avatar-upload`,
+        {
+          method: "POST",
+  
+          headers: {
+            "x-user-id": String(user.id),
+          },
+  
+          body: formData,
         }
-
-        setForm(
-          (previous) => ({
-            ...previous,
-            avatar_url:
-              data.url,
-          })
-        );
-      } catch (err) {
-        Alert.alert(
-          "Error",
-          err.message ||
-            "Failed to upload avatar"
-        );
-      } finally {
-        setAvatarUploading(
-          false
+      );
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        throw new Error(
+          data.message || "Upload failed"
         );
       }
-    };
+  
+      const newAvatarUrl = data.url;
+
+      // Save the new profile picture to the database immediately
+      const saveAvatarRes = await fetch(
+        `${API_BASE_URL}/api/user-profile/${user.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            avatar_url: newAvatarUrl,
+          }),
+        }
+      );
+      
+      const saveAvatarData =
+        await saveAvatarRes.json();
+      
+      if (!saveAvatarRes.ok) {
+        throw new Error(
+          saveAvatarData.message ||
+            "Picture uploaded, but could not be saved to your profile."
+        );
+      }
+      
+      // Update the Edit Profile screen immediately
+      setForm((previous) => ({
+        ...previous,
+        avatar_url: newAvatarUrl,
+      }));
+      
+      // Also update the locally stored user
+      const savedUser =
+        await AsyncStorage.getItem("user");
+      
+      if (savedUser) {
+        const parsedUser =
+          JSON.parse(savedUser);
+      
+        await AsyncStorage.setItem(
+          "user",
+          JSON.stringify({
+            ...parsedUser,
+            avatar_url: newAvatarUrl,
+          })
+        );
+      }
+    } catch (err) {
+      console.error(
+        "[EditProfile] Avatar upload error:",
+        err
+      );
+  
+      Alert.alert(
+        "Error",
+        err.message ||
+          "Failed to upload avatar"
+      );
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
 
   /*
@@ -871,81 +893,83 @@ export default function EditProfileScreen({
       style={styles.container}
     >
 
-      {/* ====================================================
-          HEADER
-      ==================================================== */}
+{/* ====================================================
+    HEADER
+==================================================== */}
 
-      <View
+<SafeAreaView
+  style={styles.safeArea}
+  edges={["top"]}
+>
+  <View
+    style={[
+      styles.header,
+      {
+        minHeight: 64 * scale,
+        paddingHorizontal: 14 * scale,
+      },
+    ]}
+  >
+    {/* BACK BUTTON */}
+
+    <TouchableOpacity
+      style={[
+        styles.backButton,
+        {
+          width: 44 * scale,
+          height: 44 * scale,
+        },
+      ]}
+      onPress={() =>
+        navigation.goBack()
+      }
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+    >
+      <Ionicons
+        name="arrow-back"
+        size={28 * scale}
+        color={COLORS.textPrimary}
+      />
+    </TouchableOpacity>
+
+
+    {/* CENTERED TITLE */}
+
+    <View
+      style={styles.headerTitleContainer}
+      pointerEvents="none"
+    >
+      <Text
         style={[
-          styles.header,
+          styles.headerTitle,
           {
-            paddingHorizontal:
-              18 * scale,
+            fontSize: 23 * scale,
+            lineHeight: 29 * scale,
           },
         ]}
+        numberOfLines={1}
       >
-        <TouchableOpacity
-          style={
-            styles.backButton
-          }
-          onPress={() =>
-            navigation.goBack()
-          }
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={28}
-            color={
-              COLORS.textPrimary
-            }
-          />
-        </TouchableOpacity>
+        Edit Profile
+      </Text>
+    </View>
 
-        <View
-          style={
-            styles.headerTitleContainer
-          }
-        >
-          <Text
-            style={[
-              styles.headerTitle,
-              {
-                fontSize:
-                  23 * scale,
-              },
-            ]}
-          >
-            Edit Profile
-          </Text>
 
-          <Text
-            style={[
-              styles.headerSubtitle,
-              {
-                fontSize:
-                  8.5 * scale,
-              },
-            ]}
-          >
-            PERSONAL INFORMATION
-          </Text>
-        </View>
+    {/* INVISIBLE RIGHT SPACER
+        Keeps the title mathematically centered */}
 
-        <View
-          style={
-            styles.headerLogoBox
-          }
-        >
-          <Image
-            source={pmgLogo}
-            style={
-              styles.headerLogo
-            }
-            resizeMode="contain"
-          />
-        </View>
-      </View>
+    <View
+      style={[
+        styles.headerRightSpacer,
+        {
+          width: 44 * scale,
+          height: 44 * scale,
+        },
+      ]}
+    />
+  </View>
+</SafeAreaView>
 
 
       {/* ====================================================
@@ -2294,92 +2318,81 @@ const styles =
     },
 
 
-    /*
-    ========================================================
-    HEADER
-    ========================================================
-    */
+/*
+========================================================
+HEADER
+========================================================
+*/
 
-    header: {
-      height: 86,
+safeArea: {
+  backgroundColor:
+    COLORS.background,
+},
 
-      backgroundColor:
-        COLORS.surfaceDark,
+header: {
+  width: "100%",
 
-      flexDirection: "row",
+  backgroundColor:
+    COLORS.surfaceDark,
 
-      alignItems: "center",
+  flexDirection: "row",
 
-      borderBottomWidth: 1,
+  alignItems: "center",
 
-      borderBottomColor:
-        COLORS.border,
+  justifyContent:
+    "space-between",
 
-      paddingTop: 12,
-    },
+  borderBottomWidth: 1,
 
-    backButton: {
-      width: 44,
+  borderBottomColor:
+    COLORS.border,
+},
 
-      height: 44,
+backButton: {
+  alignItems: "center",
 
-      alignItems: "center",
+  justifyContent:
+    "center",
 
-      justifyContent:
-        "center",
-    },
+  borderRadius: 999,
+},
 
-    headerTitleContainer: {
-      flex: 1,
+headerTitleContainer: {
+  position: "absolute",
 
-      alignItems: "center",
+  left: 0,
 
-      justifyContent:
-        "center",
+  right: 0,
 
-      marginLeft: -4,
-    },
+  top: 0,
 
-    headerTitle: {
-      fontFamily:
-        "Poppins_700Bold",
+  bottom: 0,
 
-      color:
-        COLORS.textPrimary,
+  alignItems: "center",
 
-      letterSpacing: -0.5,
-    },
+  justifyContent:
+    "center",
 
-    headerSubtitle: {
-      fontFamily:
-        "Poppins_600SemiBold",
+  paddingHorizontal: 60,
+},
 
-      color:
-        COLORS.primary,
+headerTitle: {
+  fontFamily:
+    "Poppins_700Bold",
 
-      letterSpacing: 1.2,
+  color:
+    COLORS.textPrimary,
 
-      marginTop: 1,
-    },
+  letterSpacing: -0.5,
 
-    headerLogoBox: {
-      width: 72,
+  textAlign: "center",
 
-      height: 38,
+  includeFontPadding: false,
+},
 
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      marginLeft: 5,
-    },
-
-    headerLogo: {
-      width: "100%",
-
-      height: "100%",
-    },
+headerRightSpacer: {
+  opacity: 0,
+},
 
 
     /*

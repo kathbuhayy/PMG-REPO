@@ -4,6 +4,8 @@ import React, {
   useState,
 } from "react";
 
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import {
   ActivityIndicator,
   Image,
@@ -248,9 +250,8 @@ const resolveImageUrl = (image) => {
     return value;
   }
 
-  return `${API_BASE_URL}${
-    value.startsWith("/") ? "" : "/"
-  }${value}`;
+  return `${API_BASE_URL}${value.startsWith("/") ? "" : "/"
+    }${value}`;
 };
 
 const localImage = (product) => {
@@ -313,6 +314,8 @@ export default function CatalogScreen({
 }) {
   const { width } =
     useWindowDimensions();
+
+  const insets = useSafeAreaInsets();
 
   const isSmall =
     width <= 360;
@@ -520,7 +523,7 @@ export default function CatalogScreen({
           if (
             alive &&
             fetchedProducts.length >
-              0
+            0
           ) {
             setProducts(
               fetchedProducts
@@ -530,7 +533,7 @@ export default function CatalogScreen({
           console.log(
             "Catalog product fetch:",
             error?.message ||
-              error
+            error
           );
         } finally {
           clearTimeout(timeout);
@@ -557,14 +560,14 @@ export default function CatalogScreen({
 
   const currentProduct =
     heroProducts[
-      heroIndex %
-        heroProducts.length
+    heroIndex %
+    heroProducts.length
     ] ||
     FALLBACK_PRODUCTS[0];
 
-      /* =======================================================
-     AUTO HERO CAROUSEL
-  ======================================================= */
+  /* =======================================================
+ AUTO HERO CAROUSEL
+======================================================= */
 
   useEffect(() => {
     if (heroProducts.length < 2) {
@@ -790,7 +793,7 @@ export default function CatalogScreen({
           }
         );
       } catch (
-        fallbackError
+      fallbackError
       ) {
         console.warn(
           "Product navigation error:",
@@ -897,12 +900,14 @@ export default function CatalogScreen({
         style={[
           styles.headerWrapper,
           {
-            paddingTop: scale(
-              8,
-              9,
-              10,
-              12
-            ),
+            paddingTop:
+              insets.top +
+              scale(
+                4,
+                5,
+                6,
+                8
+              ),
           },
         ]}
       >
@@ -1282,8 +1287,8 @@ export default function CatalogScreen({
                   style={[
                     styles.heroDot,
                     index ===
-                      heroIndex &&
-                      styles.heroDotActive,
+                    heroIndex &&
+                    styles.heroDotActive,
                   ]}
                 />
               )
@@ -1383,7 +1388,7 @@ export default function CatalogScreen({
                           CATEGORY_CARD_HEIGHT,
                       },
                       isSelected &&
-                        styles.categoryCardSelected,
+                      styles.categoryCardSelected,
                     ]}
                     onPress={() =>
                       selectCategory(
