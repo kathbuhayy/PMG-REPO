@@ -75,6 +75,29 @@ function getQuantityDiscountFactor(product, quantity) {
 }
 
 /**
+ * Per-unit price implied by the quantity tier at or below the requested
+ * qty (mirrors getQuantityDiscountFactor's own tier-matching so both stay
+ * consistent), treating each "label|price" entry as the TOTAL price for
+ * that tier's quantity. Returns null if quantity_options has no usable
+ * tiers to derive a price from.
+ */
+function computeQuantityLadderUnitPrice(product, quantity) {
+  const options = (product.quantity_options || [])
+    .map(parseQuantityOptionEntry)
+    .filter(Boolean)
+    .sort((a, b) => a.qty - b.qty);
+
+  if (options.length === 0) return null;
+
+  let matchedTier = options[0];
+  for (const tier of options) {
+    if (tier.qty <= quantity) matchedTier = tier;
+  }
+
+  return matchedTier.price / matchedTier.qty;
+}
+
+/**
  * Computes the full price breakdown for one line item, without touching
  * the database (no decrement, no order lookup) — safe to call repeatedly
  * from a live-pricing endpoint as the customer edits their design.
@@ -131,7 +154,31 @@ function computeItemPrice(product, customizations, materialCosts, quantity) {
   const preDiscountUnitPrice = setupFee + markedUpMaterialCost;
 
   const quantityDiscountFactor = getQuantityDiscountFactor(product, qty);
-  const finalUnitPrice = preDiscountUnitPrice * quantityDiscountFactor;
+  const materialBasedUnitPrice = preDiscountUnitPrice * quantityDiscountFactor;
+
+  // The advertised price customers actually compare against: the flat
+  // catalog price shown on the product card/grid, or — when that's just a
+  // nominal/placeholder figure (common for items priced entirely through
+  // bulk tiers, e.g. stickers sold per sheet-of-50) — the per-unit rate
+  // implied by the quantity-tier ladder the admin configured, whichever is
+  // higher. Scaled by size so a bigger banner still costs proportionally
+  // more (computeSizeAreaScale stays 1 for non-dimensional sizes).
+  const catalogUnitPrice = Number(product.price) || 0;
+  const ladderUnitPrice = computeQuantityLadderUnitPrice(product, qty);
+  const advertisedUnitPrice =
+    Math.max(catalogUnitPrice, ladderUnitPrice ?? 0) * sizeScale;
+
+  // rawMaterialCost/setupFee model internal COGS, meant to justify pricing
+  // ABOVE the advertised rate only when the customer's own choices actually
+  // consume more material than the baseline — i.e. a custom design with
+  // real print coverage. With no design attached, there's nothing to
+  // justify charging more than the advertised price, so use it directly
+  // rather than let an uncalibrated substrate/ink estimate over- or
+  // under-price the item relative to what the product page shows.
+  const hasDesign = Boolean(customizations?.design);
+  let finalUnitPrice = hasDesign
+    ? Math.max(materialBasedUnitPrice, advertisedUnitPrice)
+    : advertisedUnitPrice;
 
   const grandTotal = finalUnitPrice * qty;
 
