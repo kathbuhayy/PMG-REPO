@@ -85,6 +85,12 @@ function UserLoginPage() {
       localStorage.setItem("authToken", authToken);
     }
 
+    // Login navigates client-side (no full page reload), but CartProvider
+    // sits above <BrowserRouter> so it never re-renders from that nav on
+    // its own - this tells it to re-check localStorage and load this
+    // user's cart right away instead of only after a manual refresh.
+    window.dispatchEvent(new Event("userLoggedIn"));
+
     const targetPath =
       location.state?.from === "/"
         ? "/user-home"

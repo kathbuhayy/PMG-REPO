@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import "./User-account-settings.css";
 import { buildApiUrl } from "../config/api";
 import AppModal from "../components/AppModal";
+import LogoutConfirmModal from "../components/LogoutConfirmModal";
 
 function UserAccountSettings() {
   const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeItem, setActiveItem] = useState("notifications");
   const [noticeModal, setNoticeModal] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const menuItems = [
     { id: "notifications", label: "Notifications" },
@@ -62,6 +64,12 @@ function UserAccountSettings() {
   }, []);
 
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+
     localStorage.clear();
     sessionStorage.clear();
 
@@ -372,6 +380,12 @@ function UserAccountSettings() {
           if (afterClose) afterClose();
         }}
       />
+      {showLogoutConfirm && (
+        <LogoutConfirmModal
+          onCancel={() => setShowLogoutConfirm(false)}
+          onConfirm={confirmLogout}
+        />
+      )}
     </div>
   );
 }

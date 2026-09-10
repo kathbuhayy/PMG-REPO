@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaHeadset, FaPaperPlane } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 
@@ -65,6 +65,27 @@ function AdminSupportInbox({ chat }) {
   const fileInputRef = React.useRef(null);
   const activeConversation = chat.conversations.find((c) => c.id === chat.activeId);
 
+  // This tab is a fixed-height chat shell (conversations list + message
+  // thread each scroll internally) rather than a normal tall page like
+  // every other admin tab, so lock the outer page scroll while it's
+  // mounted - otherwise any slight overflow (a long unread message, an
+  // extra-tall row) makes the whole page scroll behind it too, on top
+  // of the internal scroll areas. Locks both <body> and <html>: body
+  // alone can leave the page's scrollbar still active if the browser
+  // treats <html> as the actual scrolling root (same fix needed for
+  // CheckoutModal's overlay earlier). Restored on unmount so other
+  // tabs' normal page scrolling is unaffected.
+  useEffect(() => {
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, []);
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) setSelectedImage(file);
@@ -99,7 +120,14 @@ function AdminSupportInbox({ chat }) {
   };
 
   return (
-    <div>
+    // 64px = .dashboard-content's own top+bottom padding (32px each) -
+    // the only fixed number this needs, since everything above the
+    // conversations/chat row (the header) sizes itself; a flex:1 row
+    // then gets exactly whatever's left, instead of guessing the
+    // header's rendered height and hardcoding that guess as well
+    // (which is what previously left a large gap of unused space
+    // below both panels).
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
       <div className="admin-page-header">
         <h1 className="admin-page-header-title">Support Inbox</h1>
         <p className="admin-page-header-desc">
@@ -107,7 +135,7 @@ function AdminSupportInbox({ chat }) {
         </p>
       </div>
 
-      <div style={{ display: "flex", gap: "16px", height: "calc(100vh - 320px)" }}>
+      <div style={{ display: "flex", gap: "16px", flex: 1, minHeight: 0 }}>
       <div className="data-table-card" style={{ marginTop: 0, width: "320px", flexShrink: 0, display: "flex", flexDirection: "column" }}>
         <div className="data-table-head">
           <h3><FaHeadset style={{ marginRight: "6px" }} />Conversations</h3>

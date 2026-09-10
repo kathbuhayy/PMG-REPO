@@ -121,8 +121,35 @@ const buildCartPayload = (product) => {
 export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState(initializeCart());
   const [serverCartReady, setServerCartReady] = useState(false);
-  const customer = getCustomerUser();
-  const userId = customer?.id ? Number(customer.id) : null;
+
+  // CartProvider wraps <BrowserRouter> in App.js, so client-side page
+  // navigation (e.g. after login, via navigate() with no full reload)
+  // never re-renders it on its own - a plain `const userId = ...` read
+  // straight from localStorage would keep returning whatever it saw on
+  // the last render that DID happen (typically null, from just after a
+  // logout's hard reload), so the cart would silently keep loading
+  // against the wrong/no user until something else forced a re-render
+  // (a manual page refresh, which is exactly what "fixes" it). Tracking
+  // it as state and refreshing it on a dedicated "userLoggedIn" event
+  // (dispatched right after login writes localStorage) makes this
+  // reactive instead of relying on an incidental re-render.
+  const [userId, setUserId] = useState(() => {
+    const customer = getCustomerUser();
+    return customer?.id ? Number(customer.id) : null;
+  });
+
+  useEffect(() => {
+    const refreshUserId = () => {
+      const customer = getCustomerUser();
+      setUserId(customer?.id ? Number(customer.id) : null);
+    };
+    window.addEventListener("userLoggedIn", refreshUserId);
+    window.addEventListener("storage", refreshUserId);
+    return () => {
+      window.removeEventListener("userLoggedIn", refreshUserId);
+      window.removeEventListener("storage", refreshUserId);
+    };
+  }, []);
 
   const persistLocal = (items) => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));

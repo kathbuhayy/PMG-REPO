@@ -858,8 +858,42 @@
       scale(1.06)
       translateY(-3px);
   }
-  
-  
+
+  .po-card-out-of-stock .po-img img {
+    filter: grayscale(100%);
+    opacity: 0.55;
+  }
+
+  .po-card-out-of-stock:hover .po-img img {
+    transform: none;
+  }
+
+  .po-sold-out-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+
+    background: rgba(0, 0, 0, 0.6);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+
+    pointer-events: none;
+  }
+
+
   /* =========================================================
      CARD BODY
      ========================================================= */

@@ -33,6 +33,7 @@ import {
   deriveLegacyShape,
   addLayer,
   removeLayer,
+  removeLayersBySource,
   updateLayer,
   moveLayer,
   applyToZones,
@@ -562,7 +563,7 @@ export default function TshirtCustomizerPanel({
   const handleGalleryFileChange = (e) => {
     const item = handleFileChange(e);
     if (item && activeZone) {
-      const layer = createImageLayer({ imageUrl: item.url });
+      const layer = createImageLayer({ imageUrl: item.url, galleryId: item.id });
       setZoneLayers((prev) => addLayer(prev, activeZone, layer));
       setSelectedLayerId(layer.id);
     }
@@ -572,7 +573,7 @@ export default function TshirtCustomizerPanel({
   const handleZoneFileChange = (zoneId, e) => {
     const item = handleFileChange(e);
     if (item) {
-      const layer = createImageLayer({ imageUrl: item.url });
+      const layer = createImageLayer({ imageUrl: item.url, galleryId: item.id });
       setZoneLayers((prev) => addLayer(prev, zoneId, layer));
       setActiveZone(zoneId);
       setSelectedLayerId(layer.id);
@@ -677,16 +678,64 @@ export default function TshirtCustomizerPanel({
   const handleGalleryClick = (item) => {
     setSelectedGalleryId(item.id);
     if (!activeZone) return;
-    const layer = createImageLayer({ imageUrl: item.url });
+    const layer = createImageLayer({ imageUrl: item.url, galleryId: item.id });
     setZoneLayers((prev) => addLayer(prev, activeZone, layer));
     setSelectedLayerId(layer.id);
   };
 
+  // The canvas "X" removes the image everywhere, not just from this
+  // zone: every image layer being cleared here also gets permanently
+  // deleted from Upload & Gallery, and (since the same image may be
+  // placed in other zones too) pruned from those zones as well.
   const handleClearZone = (zoneId) => {
-    setZoneLayers((prev) => ({ ...prev, [zoneId]: [] }));
-    setSelectedLayerId((prev) =>
-      (zoneLayers[zoneId] || []).some((l) => l.id === prev) ? null : prev,
-    );
+    const layersInZone = zoneLayers[zoneId] || [];
+
+    const galleryIdsToDelete = new Set();
+    layersInZone.forEach((l) => {
+      if (l.kind !== "image") return;
+      if (l.galleryId != null) {
+        galleryIdsToDelete.add(l.galleryId);
+        return;
+      }
+      // Fallback for layers placed before galleryId was tracked.
+      const match = gallery.find(
+        (g) =>
+          g.url === l.imageUrl ||
+          g.originalBlobUrl === l.imageUrl ||
+          g.originalImageUrl === l.imageUrl,
+      );
+      if (match) galleryIdsToDelete.add(match.id);
+    });
+
+    let nextZoneLayers = { ...zoneLayers, [zoneId]: [] };
+    let removedLayerIds = layersInZone.map((l) => l.id);
+
+    galleryIdsToDelete.forEach((galleryId) => {
+      const galleryItem = gallery.find((g) => g.id === galleryId);
+      const result = removeLayersBySource(nextZoneLayers, {
+        galleryId,
+        urls: galleryItem
+          ? [galleryItem.url, galleryItem.originalBlobUrl, galleryItem.originalImageUrl].filter(Boolean)
+          : undefined,
+      });
+      nextZoneLayers = result.zoneLayers;
+      removedLayerIds = removedLayerIds.concat(result.removedLayerIds);
+    });
+
+    if (galleryIdsToDelete.size > 0) {
+      setGallery((prev) => prev.filter((g) => !galleryIdsToDelete.has(g.id)));
+      setSelectedGalleryId((prev) => (galleryIdsToDelete.has(prev) ? null : prev));
+
+      const hasUser = localStorage.getItem("user") || localStorage.getItem("userId");
+      if (!hasUser) {
+        gallery
+          .filter((g) => galleryIdsToDelete.has(g.id))
+          .forEach((g) => removeGuestDesign(g.url));
+      }
+    }
+
+    setZoneLayers(nextZoneLayers);
+    setSelectedLayerId((prev) => (removedLayerIds.includes(prev) ? null : prev));
   };
 
   // ── Zone select ───────────────────────────────────────────────────
@@ -1296,6 +1345,29 @@ export default function TshirtCustomizerPanel({
                         if (selectedGalleryId === item.id) {
                           setSelectedGalleryId(null);
                         }
+
+                        // Deleting the source image also clears it from
+                        // every zone it's placed in on the Canvas - the
+                        // garment preview then updates on its own since
+                        // it's derived from zoneLayers. Matches by
+                        // galleryId, falling back to URL for layers
+                        // placed before galleryId was tracked.
+                        const { zoneLayers: prunedLayers, removedLayerIds } =
+                          removeLayersBySource(zoneLayers, {
+                            galleryId: item.id,
+                            urls: [
+                              item.url,
+                              item.originalBlobUrl,
+                              item.originalImageUrl,
+                            ].filter(Boolean),
+                          });
+                        if (removedLayerIds.length > 0) {
+                          setZoneLayers(prunedLayers);
+                          setSelectedLayerId((prev) =>
+                            removedLayerIds.includes(prev) ? null : prev,
+                          );
+                        }
+
                         const hasUser =
                           localStorage.getItem("user") ||
                           localStorage.getItem("userId");
@@ -1581,7 +1653,13 @@ export default function TshirtCustomizerPanel({
             <div className="tsc-sidebar-section">
               <div
                 className="tsc-color-section"
-                style={{ borderTop: "none", padding: 0 }}
+                style={{
+                  borderTop: "none",
+                  padding: 0,
+                  border: "none",
+                  borderRadius: 0,
+                  boxShadow: "none",
+                }}
               >
                 <div className="tsc-color-label">PRODUCT BASE COLOR</div>
                 <div className="tsc-color-row" style={{ marginTop: 8 }}>
