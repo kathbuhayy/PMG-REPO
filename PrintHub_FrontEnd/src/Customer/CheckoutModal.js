@@ -1,3 +1,4 @@
+//CheckoutModal.js
 import React, { useEffect, useState } from "react";
 import { FaTimes, FaSpinner, FaCheckCircle } from "react-icons/fa";
 import "./CheckoutModal.css";

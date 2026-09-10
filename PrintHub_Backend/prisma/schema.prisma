@@ -23,9 +23,11 @@ model User {
   gender             String?
   birthday           DateTime?
   position           String?
+  branchId           Int?            @map("branch_id")
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
   avatar_url         String?         @map("avatar_url")
+  branch             Branch?         @relation(fields: [branchId], references: [id])
   cartItems          CartItem[]
   supportAssignments Conversation[]  @relation("SupportAssignedStaff")
   conversations      Conversation[]
@@ -35,6 +37,8 @@ model User {
   ratings            Rating[]
   productReviews     ProductReview[]
   staffRoles         UserStaffRole[]
+
+  @@index([branchId])
 }
 
 model Notification {
@@ -162,45 +166,61 @@ model Product {
   safeMarginInches      Float?          @map("safe_margin_inches")
   materialUsageMap      Json?           @map("material_usage_map")
   setupFee              Float?          @map("setup_fee")
+  branchId              Int?            @map("branch_id")
+  branch                Branch?         @relation(fields: [branchId], references: [id])
   cartItems             CartItem[]
   orderItems            OrderItem[]
   reviews               ProductReview[]
+
+  @@index([branchId])
 }
 
 model InventorySubstrate {
   id              Int      @id @default(autoincrement())
-  materialName    String   @unique @map("material_name")
+  materialName    String   @map("material_name")
   stockMeters     Float    @map("stock_meters")
   safetyThreshold Float    @default(15.0) @map("safety_threshold")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerMeter    Float?   @map("cost_per_meter")
 
+  @@unique([materialName, branchId])
   @@index([materialName])
+  @@index([branchId])
 }
 
 model InventoryInk {
   id              Int      @id @default(autoincrement())
-  colorChannel    String   @unique @map("color_channel")
+  colorChannel    String   @map("color_channel")
   volumeMl        Float    @map("volume_ml")
   safetyThreshold Float    @default(15.0) @map("safety_threshold")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerMl       Float?   @map("cost_per_ml")
 
+  @@unique([colorChannel, branchId])
   @@index([colorChannel])
+  @@index([branchId])
 }
 
 model InventoryUnit {
   id              Int      @id @default(autoincrement())
-  itemName        String   @unique @map("item_name")
+  itemName        String   @map("item_name")
   stockUnits      Int      @map("stock_units")
   safetyThreshold Int      @default(15) @map("safety_threshold")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerUnit     Float?   @map("cost_per_unit")
 
+  @@unique([itemName, branchId])
   @@index([itemName])
+  @@index([branchId])
 }
 
 model PurchaseRequisition {
@@ -214,11 +234,14 @@ model PurchaseRequisition {
   triggeredByOrderId Int?              @map("triggered_by_order_id")
   documentText       String
   generatedBy        Int?              @map("generated_by")
+  branchId           Int?              @map("branch_id")
+  branch             Branch?           @relation(fields: [branchId], references: [id])
   createdAt          DateTime          @default(now()) @map("created_at")
   resolvedAt         DateTime?         @map("resolved_at")
 
   @@index([status])
   @@index([materialName])
+  @@index([branchId])
 }
 
 model Order {
@@ -300,12 +323,18 @@ model ProductReview {
 }
 
 model Branch {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  address   String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  orders    Order[]
+  id           Int                   @id @default(autoincrement())
+  name         String                @unique
+  address      String?
+  active       Boolean               @default(true)
+  createdAt    DateTime              @default(now()) @map("created_at")
+  orders       Order[]
+  users        User[]
+  products     Product[]
+  substrates   InventorySubstrate[]
+  inks         InventoryInk[]
+  units        InventoryUnit[]
+  requisitions PurchaseRequisition[]
 }
 
 model OrderItem {

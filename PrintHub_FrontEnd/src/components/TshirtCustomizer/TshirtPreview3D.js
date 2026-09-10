@@ -348,6 +348,13 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
 
     container.appendChild(renderer.domElement);
 
+    // Without this, the browser's own touch-scroll/pan gesture can
+    // compete with the pointer-based drag-on-model logic below - a
+    // single-finger touch gets ambiguously treated as "scroll the
+    // page" instead of reaching our pointerdown/pointermove handlers.
+    // No effect on desktop mouse input.
+    renderer.domElement.style.touchAction = "none";
+
     rendererRef.current = renderer;
 
     const scene = new THREE.Scene();

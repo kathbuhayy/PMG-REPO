@@ -7,7 +7,6 @@ import {
   FaClock,
   FaExclamationTriangle,
   FaTrash,
-  FaBox,
   FaCheck,
   FaEye,
   FaTimes,
@@ -303,7 +302,6 @@ function AdminOrders() {
   const [ordersQuery, setOrdersQuery] = useState("");
   const [ordersStatus, setOrdersStatus] = useState("all");
   const [ordersBranch, setOrdersBranch] = useState("all");
-  const [expandedOrderId, setExpandedOrderId] = useState(null);
   const [detailOrder, setDetailOrder] = useState(null);
   const [aiPreviewModal, setAiPreviewModal] = useState(null); // { imageUrl, productName }
   const [ai3DPreviewModal, setAi3DPreviewModal] = useState(null); // { imageUrl, productName }
@@ -472,12 +470,12 @@ function AdminOrders() {
 
     try {
       const res = await adminFetch(buildApiUrl(`/api/orders/${order.dbId}`), {
-        method: "DELETE",
+        method: "CANCELLED",
       });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data.message || "Failed to delete order");
+        throw new Error(data.message || "Failed to cancel order");
       }
 
       setOrders((prev) => prev.filter((o) => o.dbId !== order.dbId));
@@ -486,15 +484,15 @@ function AdminOrders() {
           ? `${data.totalPcsRestored} total pcs were restored.`
           : "stock was restored.";
       setNoticeModal({
-        title: "Order deleted",
-        message: `${order.id} was deleted and ${pcsText}`,
+        title: "Order Cancelled",
+        message: `${order.id} was cancelled and ${pcsText}`,
         tone: "success",
       });
     } catch (err) {
-      console.error("Error deleting order:", err);
+      console.error("Error cancelling order:", err);
       setNoticeModal({
-        title: "Could not delete order",
-        message: err.message || "Error deleting order",
+        title: "Could not cancel order",
+        message: err.message || "Error cancelling order",
         tone: "danger",
       });
     }
@@ -656,84 +654,6 @@ function AdminOrders() {
       });
     }
   };
-
-  // ✅ Update order status
-  const updateOrderStatus = async (order, newStatus) => {
-    try {
-      const res = await adminFetch(buildApiUrl(`/api/orders/${order.dbId}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update order status");
-
-      const data = await res.json().catch(() => ({}));
-      let stockMsg = "";
-
-      if (data.stockRestored > 0) {
-        stockMsg = ` (${data.stockRestored} total pcs restored to stock)`;
-      } else if (data.stockDeducted > 0) {
-        stockMsg = ` (${data.stockDeducted} total pcs deducted from stock)`;
-      }
-
-      // ✅ Update local state
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.dbId === order.dbId
-            ? {
-                ...o,
-                status: newStatus,
-                paymentStatus:
-                  newStatus === "cancelled"
-                    ? "cancelled"
-                    : data.order?.payment_status || o.paymentStatus,
-              }
-            : o,
-        ),
-      );
-
-      setDetailOrder((current) =>
-        current?.dbId === order.dbId
-          ? {
-              ...current,
-              status: newStatus,
-              paymentStatus:
-                newStatus === "cancelled"
-                  ? "cancelled"
-                  : data.order?.payment_status || current.paymentStatus,
-            }
-          : current,
-      );
-
-      const messages = {
-        processing: "marked as processing",
-        delivered: "marked as delivered",
-        completed: "marked as completed",
-        cancelled: "cancelled",
-      };
-
-      setNoticeModal({
-        title: "Order status updated",
-        message:
-          `Order ${order.id} was ` +
-          `${messages[newStatus] || "updated"}${stockMsg}.`,
-        tone: "success",
-      });
-    } catch (err) {
-      console.error("Error updating order status:", err);
-      setNoticeModal({
-        title: "Could not update order",
-        message: err.message || "Error updating order status",
-        tone: "danger",
-      });
-    }
-  };
-
-  // Handlers for different status transitions
-  const handleProcessOrder = (order) => updateOrderStatus(order, "processing");
-  const handleDeliverOrder = (order) => updateOrderStatus(order, "delivered");
-  const handleCompleteOrder = (order) => updateOrderStatus(order, "completed");
 
   // Download AI-generated image
   const handleDownloadAiImage = async (imageUrl, productName) => {
@@ -965,325 +885,42 @@ function AdminOrders() {
                     </span>
                   </td>
                   <td data-label="Date">{o.date}</td>
-                  <td data-label="Actions">
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "6px",
-                        flexWrap: "wrap",
-                        justifyContent: "left",
-                      }}
-                    >
-                      {/* View Details button */}
-                      <button
-                        type="button"
-                        className="dashaction-btn ghost"
-                        onClick={() => setDetailOrder(o)}
-                        title="View order details"
-                      >
-                        <FaEye size={11} />
-                        Details
-                      </button>
-                      {/* Items expand button */}
-                      <button
-                        type="button"
-                        className={`dashaction-btn ${expandedOrderId === o.dbId ? "blue" : "ghost"}`}
-                        onClick={() =>
-                          setExpandedOrderId(
-                            expandedOrderId === o.dbId ? null : o.dbId,
-                          )
-                        }
-                        title="View items"
-                      >
-                        {expandedOrderId === o.dbId
-                          ? "Hide Items"
-                          : `Items (${o.items.length})`}
-                      </button>
-                      {!o.proofApproved &&
-                        o.paymentStatus !== "paid" &&
-                        !["cancelled", "completed"].includes(o.status) && (
-                          <button
-                            type="button"
-                            className="dashaction-btn green"
-                            onClick={() => approveOrderDesign(o)}
-                            title="Approve design and allow payment"
-                          >
-                            <FaCheck size={11} />
-                            Approve
-                          </button>
-                        )}
-                      {o.proofApproved &&
-                        o.paymentStatus !== "paid" &&
-                        !["cancelled", "completed"].includes(o.status) && (
-                        <span
-                          title="Design approved; waiting for customer payment"
-                          className="dashpage-pill status-completed"
+                      <td data-label="Actions">
+                        <div
                           style={{
-                            fontSize: "11px",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "3px",
-                            padding: "6px 8px",
-                            borderRadius: "4px",
+                            display: "flex",
+                            gap: "6px",
+                            flexWrap: "wrap",
+                            justifyContent: "left",
                           }}
                         >
-                          <FaCheck size={11} />
-                          Approved
-                        </span>
-                      )}
-                      {/* Process button - pending or confirmed orders */}
-                      {(o.status === "pending" ||
-                        o.status === "confirmed") && (
-                        <button
-                          type="button"
-                          className="dashaction-btn blue"
-                          onClick={() => handleProcessOrder(o)}
-                          title="Mark as processing"
-                        >
-                          <FaClock size={11} />
-                          Process
-                        </button>
-                      )}
+                          {/* View Details */}
+                          <button
+                            type="button"
+                            className="dashaction-btn ghost"
+                            onClick={() => setDetailOrder(o)}
+                            title="View order details"
+                          >
+                            <FaEye size={11} />
+                            Details
+                          </button>
 
-                      {/* Deliver button - for processing orders */}
-                      {o.status === "processing" && (
-                        <button
-                          type="button"
-                          className="dashaction-btn green"
-                          onClick={() => handleDeliverOrder(o)}
-                          title="Mark as delivered"
-                        >
-                          <FaBox size={11} />
-                          Deliver
-                        </button>
-                      )}
-
-                      {/* Complete button - for delivered orders */}
-                      {o.status === "delivered" && (
-                        <button
-                          type="button"
-                          className="dashaction-btn green"
-                          onClick={() => handleCompleteOrder(o)}
-                          title="Mark as completed"
-                        >
-                          <FaCheck size={11} />
-                          Complete
-                        </button>
-                      )}
-
-                      {/* Delete button - not available for completed orders */}
-                      {o.status !== "completed" && (
-                        <button
-                          type="button"
-                          className="dashaction-btn red"
-                          onClick={() => handleDeleteOrder(o)}
-                          title="Delete order"
-                        >
-                          <FaTrash size={11} />
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-
-                {/* Expandable items row */}
-                {expandedOrderId === o.dbId && (
-                  <tr key={`${o.dbId}-items`}>
-                    <td
-                      colSpan="6"
-                      style={{
-                        padding: "0 12px 12px",
-                        background: "rgba(15, 23, 42, 0.4)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 8,
-                          paddingTop: 10,
-                        }}
-                      >
-                        {o.items.length === 0 && (
-                          <p style={{ margin: 0, fontSize: 13, color: "#cbd5e1" }}>
-                            No items.
-                          </p>
-                        )}
-                        {o.items.map((item) => {
-                          const design = item.customizations?.design;
-                          const productImg = item.product?.images?.[0];
-                          const productName =
-                            item.customizations?.product_title ||
-                            item.product?.name ||
-                            `Product #${item.productId}`;
-                          return (
-                            <div
-                              key={item.id}
-                              style={{
-                                display: "flex",
-                                alignItems: "flex-start",
-                                gap: 10,
-                                background: "#f8fafc",
-                                borderRadius: 8,
-                                padding: "10px 12px",
-                                border: "1px solid #e2e8f0",
-                              }}
+                          {/* Delete order - not available for completed orders */}
+                          {o.status !== "completed" && (
+                            <button
+                              type="button"
+                              className="dashaction-btn red"
+                              onClick={() => handleDeleteOrder(o)}
+                              title="Cancel order"
                             >
-                              {/* Product thumbnail */}
-                              {productImg && (
-                                <img
-                                  src={productImg}
-                                  alt={productName}
-                                  style={{
-                                    width: 52,
-                                    height: 52,
-                                    objectFit: "cover",
-                                    borderRadius: 6,
-                                    border: "1px solid #cbd5e1",
-                                    flexShrink: 0,
-                                  }}
-                                />
-                              )}
-                              {/* AI design thumbnail */}
-                              {design?.generatedImageUrl && (
-                                <div
-                                  style={{
-                                    position: "relative",
-                                    flexShrink: 0,
-                                    cursor: "pointer",
-                                  }}
-                                  onClick={() =>
-                                    setAiPreviewModal({
-                                      imageUrl: design.generatedImageUrl,
-                                      productName,
-                                      design,
-                                    })
-                                  }
-                                  title="Click to preview AI design"
-                                >
-                                  <img
-                                    src={design.generatedImageUrl}
-                                    alt="AI Design"
-                                    style={{
-                                      width: 52,
-                                      height: 52,
-                                      objectFit: "cover",
-                                      borderRadius: 6,
-                                      border: "2px solid #d4af37",
-                                    }}
-                                  />
-                                </div>
-                              )}
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ margin: 0, fontWeight: 600, fontSize: 13, color: "#0f172a" }}>
-                                  {productName}
-                                  {item.customizations?.isRushOrder && (
-                                    <span
-                                      style={{
-                                        marginLeft: 8,
-                                        fontSize: 10,
-                                        fontWeight: 700,
-                                        color: "#9333ea",
-                                        background: "rgba(147, 51, 234, 0.12)",
-                                        border: "1px solid rgba(147, 51, 234, 0.35)",
-                                        borderRadius: 999,
-                                        padding: "2px 8px",
-                                      }}
-                                    >
-                                      ⚡ RUSH +₱{Number(item.customizations.rushOrderFee || 0).toLocaleString()}
-                                    </span>
-                                  )}
-                                </p>
-                                {design?.prompt && (
-                                  <p
-                                    style={{
-                                      margin: "3px 0 0",
-                                      fontSize: 11,
-                                      color: "#475569",
-                                      fontStyle: "italic",
-                                    }}
-                                  >
-                                    "
-                                    {design.prompt.length > 100
-                                      ? design.prompt.slice(0, 100) + "…"
-                                      : design.prompt}
-                                    "
-                                  </p>
-                                )}
-                                {item.customizations?.sizeSurcharge > 0 && (
-                                  <p style={{ margin: "3px 0 0", fontSize: 11, color: "#475569" }}>
-                                    <strong>Size Surcharge:</strong> +₱
-                                    {Number(item.customizations.sizeSurcharge).toLocaleString()}
-                                  </p>
-                                )}
-                                <p
-                                  style={{
-                                    margin: "3px 0 0",
-                                    fontSize: 12,
-                                    color: "#475569",
-                                  }}
-                                >
-                                  Qty: {item.quantity}{" "}
-                                  {getPcsFromCustomizations(
-                                    item.customizations,
-                                  ) > 1
-                                    ? `(${
-                                        getPcsFromCustomizations(
-                                          item.customizations,
-                                        ) * item.quantity
-                                      } total pcs deducted)`
-                                    : "pc(s)"}
-                                </p>
-                                <button
-                                  type="button"
-                                  className="dashaction-btn blue"
-                                  style={{
-                                    marginTop: 8,
-                                    padding: "6px 10px",
-                                    fontSize: "11px",
-                                    gap: "4px",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    cursor: "pointer",
-                                    background: "#2563eb",
-                                    border: "none",
-                                    color: "#fff",
-                                    borderRadius: "4px",
-                                    fontWeight: "600",
-                                  }}
-                                  onClick={() =>
-                                    setAi3DPreviewModal({
-                                      imageUrl:
-                                        design?.generatedImageUrl || "",
-                                      productName,
-                                      design: design || {},
-                                    })
-                                  }
-                                >
-                                  <FaCube size={11} />
-                                  3D Preview
-                                </button>
-                              </div>
-                              <div
-                                style={{
-                                  whiteSpace: "nowrap",
-                                  fontWeight: 700,
-                                  fontSize: 13,
-                                  color: "#059669",
-                                  paddingTop: 2,
-                                }}
-                              >
-                                ₱{parseFloat(item.unit_price).toLocaleString()}{" "}
-                                × {item.quantity}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </td>
-                  </tr>
-                )}
+                              <FaTrash size={11} />
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                </tr>
+                
                   </React.Fragment>
                 ))}
               </React.Fragment>
@@ -2233,14 +1870,14 @@ function AdminOrders() {
 
       <AppModal
         open={Boolean(deleteOrderTarget)}
-        title="Delete this order?"
+        title="Cancel this order?"
         message={
           deleteOrderTarget
-            ? `Delete ${deleteOrderTarget.id}? This will restore item stock.`
+            ? `Cancel ${deleteOrderTarget.id}? This will restore item stock.`
             : ""
         }
         tone="danger"
-        confirmText="Delete Order"
+        confirmText="Cancel Order"
         cancelText="Cancel"
         onCancel={() => setDeleteOrderTarget(null)}
         onConfirm={confirmDeleteOrder}

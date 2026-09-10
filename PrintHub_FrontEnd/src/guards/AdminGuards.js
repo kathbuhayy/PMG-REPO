@@ -1,7 +1,14 @@
+//AdminGuards.js
 import React from "react";
 import { Navigate } from "react-router-dom";
 
-// Protected admin route that only allows admin and staff roles
+// ============================================================
+// PROTECTED ADMIN ROUTE
+// Allows:
+// 0 = admin
+// 1 = staff
+// 3 = branch_admin
+// ============================================================
 export function ProtectedAdminRoute({ children }) {
   const storedUser = (() => {
     try {
@@ -17,14 +24,22 @@ export function ProtectedAdminRoute({ children }) {
 
   const role = storedUser?.role || "user";
 
-  if (!storedUser || (role !== "admin" && role !== "staff")) {
+  // Admin, Staff, and Branch Admin can access the admin dashboard
+  if (
+    !storedUser ||
+    !["admin", "staff", "branch_admin"].includes(role)
+  ) {
     return <Navigate to="/" replace />;
   }
 
   return children;
 }
 
-// Redirects already logged-in admin users away from admin login and registration pages
+// ============================================================
+// ADMIN LOGIN / REGISTRATION GUARD
+// If already logged in as ANY admin-side role,
+// don't allow them to open the login/register pages.
+// ============================================================
 export function AdminLoginRegisterGuard({ children }) {
   const storedUser = (() => {
     try {
@@ -40,7 +55,11 @@ export function AdminLoginRegisterGuard({ children }) {
 
   const role = storedUser?.role || "user";
 
-  if (storedUser && role === "admin") {
+  // Admin, Staff, and Branch Admin are already logged in
+  if (
+    storedUser &&
+    ["admin", "staff", "branch_admin"].includes(role)
+  ) {
     return <Navigate to="/admin-dashboard" replace />;
   }
 

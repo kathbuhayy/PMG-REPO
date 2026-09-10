@@ -1,3 +1,4 @@
+//Admin-manageacc.js
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import "./Admin-manageacc.css";
 import {
@@ -28,6 +29,7 @@ function formatDateOnly(value) {
 
 function AdminManageAccounts({ scope = "all" }) {
   const [users, setUsers] = useState([]);
+  const [branches, setBranches] = useState([]);
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -66,6 +68,7 @@ function AdminManageAccounts({ scope = "all" }) {
     role: "customer",
     status: "active",
     password: "",
+    branchId: "",
   });
 
   // ✅ Staff sub-role management (Production job roles: PRINT_TECHNICIAN, etc.)
@@ -79,7 +82,7 @@ function AdminManageAccounts({ scope = "all" }) {
     "PROCUREMENT_OFFICER",
     "CUSTOMER_SUPPORT",
   ];
-  
+
   const [rolesModalUser, setRolesModalUser] = useState(null);
   const [userStaffRoles, setUserStaffRoles] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(false);
@@ -222,95 +225,157 @@ function AdminManageAccounts({ scope = "all" }) {
       showToast(err.message || "Error fetching users", "error");
     }
   }, []);
+  const fetchBranches = useCallback(async () => {
+    try {
+      const storedUser =
+        JSON.parse(localStorage.getItem("adminUser")) ||
+        JSON.parse(localStorage.getItem("user")) ||
+        null;
+
+      const currentRole = String(storedUser?.role || "").toLowerCase();
+
+      // Branch Admins are already assigned to one branch.
+      // They must not request the full branch list.
+      if (currentRole === "branch_admin") {
+        setBranches([]);
+        return;
+      }
+
+      // Only Super Admin needs the full branch list.
+      const res = await adminFetch(
+        buildApiUrl("/api/admin/branches")
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to fetch branches");
+      }
+
+      setBranches(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch branches:", err);
+      showToast(err.message || "Error fetching branches", "error");
+    }
+  }, []);
 
   const fetchArchivedUsers = useCallback(async () => {
-  try {
-    const res = await adminFetch(buildApiUrl("/api/admin/archived-users"));
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.message || "Failed to fetch archived users");
-    setArchivedUsers(data);
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || "Error fetching recycle bin", "error");
-  }
-}, []);
+    try {
+      const res = await adminFetch(buildApiUrl("/api/admin/archived-users"));
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to fetch archived users");
+      setArchivedUsers(data);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Error fetching recycle bin", "error");
+    }
+  }, []);
 
-const openRecycleBin = () => {
-  fetchArchivedUsers();
-  setShowRecycleBin(true);
-};
-const closeRecycleBin = () => setShowRecycleBin(false);
+  const openRecycleBin = () => {
+    fetchArchivedUsers();
+    setShowRecycleBin(true);
+  };
+  const closeRecycleBin = () => setShowRecycleBin(false);
 
-const filteredArchivedUsers = useMemo(() => {
-  const q = archivedSearch.trim().toLowerCase();
-  if (!q) return archivedUsers;
-  return archivedUsers.filter(
-    (u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-  );
-}, [archivedUsers, archivedSearch]);
+  const filteredArchivedUsers = useMemo(() => {
+    const q = archivedSearch.trim().toLowerCase();
+    if (!q) return archivedUsers;
+    return archivedUsers.filter(
+      (u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+    );
+  }, [archivedUsers, archivedSearch]);
 
-const restoreUser = async (u) => {
-  try {
-    const res = await adminFetch(buildApiUrl(`/api/admin/archived-users/${u.id}/restore`), {
-      method: "POST",
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.message || "Restore failed");
+  const restoreUser = async (u) => {
+    try {
+      const res = await adminFetch(buildApiUrl(`/api/admin/archived-users/${u.id}/restore`), {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Restore failed");
 
-    showToast(`${u.name} restored successfully!`, "success");
-    setConfirmRestoreUser(null);
-    await fetchArchivedUsers();
-    await fetchUsers();
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || "Error restoring user", "error");
-  }
-};
+      showToast(`${u.name} restored successfully!`, "success");
+      setConfirmRestoreUser(null);
+      await fetchArchivedUsers();
+      await fetchUsers();
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Error restoring user", "error");
+    }
+  };
 
-const permanentlyDeleteUser = async (u) => {
-  try {
-    const res = await adminFetch(buildApiUrl(`/api/admin/archived-users/${u.id}`), {
-      method: "DELETE",
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data?.message || "Delete failed");
+  const permanentlyDeleteUser = async (u) => {
+    try {
+      const res = await adminFetch(buildApiUrl(`/api/admin/archived-users/${u.id}`), {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Delete failed");
 
-    showToast(`${u.name} permanently deleted.`, "success");
-    setConfirmPermDeleteUser(null);
-    await fetchArchivedUsers();
-  } catch (err) {
-    console.error(err);
-    showToast(err.message || "Error deleting user", "error");
-  }
-};
+      showToast(`${u.name} permanently deleted.`, "success");
+      setConfirmPermDeleteUser(null);
+      await fetchArchivedUsers();
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Error deleting user", "error");
+    }
+  };
 
   // Fetch users from db on mount
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+    fetchBranches();
+  }, [fetchUsers, fetchBranches]);
 
   const stats = useMemo(() => {
     const scoped =
       scope === "customers"
         ? users.filter((u) => u.role === "customer")
         : scope === "staff"
-          ? users.filter((u) => u.role === "staff" || u.role === "admin")
+          ? users.filter(
+            (u) =>
+              u.role === "staff" ||
+              u.role === "admin" ||
+              u.role === "branch_admin"
+          )
           : users;
+
     const total = scoped.length;
     const active = scoped.filter((u) => u.status === "active").length;
-    const admins = scoped.filter((u) => u.role === "admin").length;
+    const superAdmins = scoped.filter((u) => u.role === "admin").length;
+    const branchAdmins = scoped.filter(
+      (u) => u.role === "branch_admin"
+    ).length;
     const suspended = scoped.filter((u) => u.status === "suspended").length;
     const inactive = scoped.filter((u) => u.status === "inactive").length;
-    return { total, active, admins, suspended, inactive };
+
+    return {
+      total,
+      active,
+      superAdmins,
+      branchAdmins,
+      suspended,
+      inactive,
+    };
   }, [users, scope]);
 
   // Restrict the working set to the page's scope before any other filtering.
   // "customers" tab never shows staff/admin; "staff" tab never shows customers.
-  const scopedUsers = useMemo(() => {
-    if (scope === "customers") return users.filter((u) => u.role === "customer");
-    if (scope === "staff") return users.filter((u) => u.role === "staff" || u.role === "admin");
-    return users;
-  }, [users, scope]);
+const scopedUsers = useMemo(() => {
+  if (scope === "customers") {
+    return users.filter((u) => u.role === "customer");
+  }
+
+  if (scope === "staff") {
+    return users.filter(
+      (u) =>
+        u.role === "staff" ||
+        u.role === "admin" ||
+        u.role === "branch_admin"
+    );
+  }
+
+  return users;
+}, [users, scope]);
 
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -333,10 +398,12 @@ const permanentlyDeleteUser = async (u) => {
     setForm({
       name: "",
       email: "",
-      role: "customer",
+      role: currentUser?.role === "branch_admin" ? "staff" : "customer",
       status: "active",
       password: "",
+      branchId: "",
     });
+
     setShowAddModal(true);
   };
   // ✅ check if row user is the currently logged-in admin
@@ -358,13 +425,16 @@ const permanentlyDeleteUser = async (u) => {
 
   const handleEdit = (user) => {
     setSelectedUser(user);
+
     setForm({
       name: user.name || "",
       email: user.email || "",
       role: (user.role || "customer").toLowerCase(),
       status: (user.status || "active").toLowerCase(),
       password: "",
+      branchId: user.branchId ? String(user.branchId) : "",
     });
+
     setShowEditModal(true);
   };
 
@@ -389,6 +459,18 @@ const permanentlyDeleteUser = async (u) => {
       showToast("Temporary password is required", "error");
       return;
     }
+    if (
+      (form.role === "branch_admin" || form.role === "staff") &&
+      !form.branchId &&
+      currentUser?.role !== "branch_admin"
+    ) {
+      showToast(
+        `Please select a branch for the ${form.role === "branch_admin" ? "Branch Admin" : "Staff"
+        }`,
+        "error"
+      );
+      return;
+    }
 
     try {
       const res = await adminFetch(buildApiUrl("/api/admin/users"), {
@@ -400,6 +482,7 @@ const permanentlyDeleteUser = async (u) => {
           role: form.role,
           status: form.status,
           password: form.password,
+          branchId: form.branchId || null,
         }),
       });
 
@@ -429,6 +512,7 @@ const permanentlyDeleteUser = async (u) => {
             email: form.email,
             role: form.role,
             status: form.status,
+            branchId: form.branchId || null,
           }),
         },
       );
@@ -460,6 +544,20 @@ const permanentlyDeleteUser = async (u) => {
     }
     if (!form.email.trim()) {
       showToast("Email is required", "error");
+      return;
+    }
+    if (
+      (form.role === "branch_admin" || form.role === "staff") &&
+      !form.branchId &&
+      currentUser?.role !== "branch_admin"
+    ) {
+      showToast(
+        `Please select a branch for the ${form.role === "branch_admin"
+          ? "Branch Admin"
+          : "Staff"
+        }`,
+        "error"
+      );
       return;
     }
 
@@ -568,10 +666,21 @@ const permanentlyDeleteUser = async (u) => {
         </div>
 
         {scope !== "customers" && (
-          <div className="manageacc-stat-card">
-            <div className="manageacc-stat-label">Administrators</div>
-            <div className="manageacc-stat-value purple">{stats.admins}</div>
-          </div>
+          <>
+            <div className="manageacc-stat-card">
+              <div className="manageacc-stat-label">General Admin</div>
+              <div className="manageacc-stat-value purple">
+                {stats.superAdmins}
+              </div>
+            </div>
+
+            <div className="manageacc-stat-card">
+              <div className="manageacc-stat-label">Branch Admin</div>
+              <div className="manageacc-stat-value purple">
+                {stats.branchAdmins}
+              </div>
+            </div>
+          </>
         )}
 
         {scope === "customers" && (
@@ -611,18 +720,20 @@ const permanentlyDeleteUser = async (u) => {
               onChange={(e) => setRoleFilter(e.target.value)}
             >
               <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
+              <option value="admin">General Admin</option>
+              <option value="branch_admin">Branch Admin</option>
               <option value="staff">Staff</option>
               <option value="customer">Customer</option>
             </select>
           )}
-        {scope === "staff" && (
+          {scope === "staff" && (
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
             >
               <option value="all">All</option>
-              <option value="admin">Admin</option>
+              <option value="admin">General Admin</option>
+              <option value="branch_admin">Branch Admin</option>
               <option value="staff">Staff</option>
             </select>
           )}
@@ -646,6 +757,9 @@ const permanentlyDeleteUser = async (u) => {
             <tr>
               <th>User</th>
               <th>Role</th>
+
+              {scope !== "customers" && <th>Branch</th>}
+
               <th>Status</th>
               <th>Last Login</th>
               <th>Join Date</th>
@@ -670,9 +784,21 @@ const permanentlyDeleteUser = async (u) => {
 
                 <td>
                   <span className={`manageacc-pill role-${u.role}`}>
-                    {u.role}
+                    {u.role === "admin"
+                      ? "General Admin"
+                      : u.role === "branch_admin"
+                        ? "Branch Admin"
+                        : u.role}
                   </span>
                 </td>
+
+                {scope !== "customers" && (
+                  <td>
+                    {u.role === "admin"
+                      ? "All Branches"
+                      : u.branchName || "Unassigned"}
+                  </td>
+                )}
 
                 <td>
                   <span className={`manageacc-pill status-${u.status}`}>
@@ -696,7 +822,7 @@ const permanentlyDeleteUser = async (u) => {
                     >
                       Edit
                     </button>
-                    {(u.role === "staff" || u.role === "admin") && (
+                    {u.role === "staff" && (
                       <button
                         type="button"
                         className="manageacc-btn-edit"
@@ -709,9 +835,8 @@ const permanentlyDeleteUser = async (u) => {
                     {(u.role || "").toLowerCase() !== "admin" && (
                       <button
                         type="button"
-                        className={`manageacc-btn-delete ${
-                          isSelf(u) ? "disabled" : ""
-                        }`}
+                        className={`manageacc-btn-delete ${isSelf(u) ? "disabled" : ""
+                          }`}
                         title={
                           isSelf(u)
                             ? "You can't delete your own account"
@@ -731,7 +856,10 @@ const permanentlyDeleteUser = async (u) => {
 
             {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan="6" className="manageacc-empty">
+                <td
+                  colSpan={scope !== "customers" ? 7 : 6}
+                  className="manageacc-empty"
+                >
                   No users found.
                 </td>
               </tr>
@@ -785,27 +913,58 @@ const permanentlyDeleteUser = async (u) => {
                   <label>Role</label>
                   <select
                     value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                    onChange={(e) => {
+                      const newRole = e.target.value;
+                      setForm({
+                        ...form,
+                        role: newRole,
+                        branchId:
+                          newRole === "staff" || newRole === "branch_admin"
+                            ? form.branchId
+                            : "",
+                      });
+                    }}
                   >
-                    <option value="admin">admin</option>
-                    <option value="staff">staff</option>
-                    <option value="customer">customer</option>
+                    {currentUser?.role === "branch_admin" ? (
+                      <option value="staff">Staff</option>
+                    ) : (
+                      <>
+                        <option value="admin">General Admin</option>
+                        <option value="staff">Staff</option>
+                        <option value="branch_admin">Branch Admin</option>
+                        <option value="customer">Customer</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
-                <div className="manageacc-field">
-                  <label>Status</label>
-                  <select
-                    value={form.status}
-                    onChange={(e) =>
-                      setForm({ ...form, status: e.target.value })
-                    }
-                  >
-                    <option value="active">active</option>
-                    <option value="inactive">inactive</option>
-                    <option value="suspended">suspended</option>
-                  </select>
-                </div>
+                {(form.role === "branch_admin" || form.role === "staff") &&
+                  currentUser?.role !== "branch_admin" && (
+                    <div className="manageacc-field">
+                      <label>Branch</label>
+
+                      <select
+                        value={form.branchId}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            branchId: e.target.value,
+                          })
+                        }
+                        required
+                      >
+                        <option value="">Select Branch</option>
+
+                        {branches
+                          .filter((branch) => branch.active)
+                          .map((branch) => (
+                            <option key={branch.id} value={branch.id}>
+                              {branch.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
 
                 <div className="manageacc-field manageacc-field-full">
                   <label>Temporary Password</label>
@@ -880,15 +1039,62 @@ const permanentlyDeleteUser = async (u) => {
 
                 <div className="manageacc-field">
                   <label>Role</label>
+
                   <select
                     value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                    onChange={(e) => {
+                      const newRole = e.target.value;
+
+                      setForm({
+                        ...form,
+                        role: newRole,
+                        branchId:
+                          newRole === "staff" || newRole === "branch_admin"
+                            ? form.branchId
+                            : "",
+                      });
+                    }}
                   >
-                    <option value="admin">admin</option>
-                    <option value="staff">staff</option>
-                    <option value="customer">customer</option>
+                    {currentUser?.role === "branch_admin" ? (
+                      <option value="staff">Staff</option>
+                    ) : (
+                      <>
+                        <option value="admin">GeneralAdmin</option>
+                        <option value="staff">Staff</option>
+                        <option value="branch_admin">Branch Admin</option>
+                        <option value="customer">Customer</option>
+                      </>
+                    )}
                   </select>
                 </div>
+
+                {(form.role === "branch_admin" || form.role === "staff") &&
+                  currentUser?.role !== "branch_admin" && (
+                  <div className="manageacc-field">
+                    <label>Branch</label>
+
+                    <select
+                      value={form.branchId}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          branchId: e.target.value,
+                        })
+                      }
+                      required
+                    >
+                      <option value="">Select Branch</option>
+
+                      {branches
+                        .filter((branch) => branch.active)
+                        .map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="manageacc-field">
                   <label>Status</label>

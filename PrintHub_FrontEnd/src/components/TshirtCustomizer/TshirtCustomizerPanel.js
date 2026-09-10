@@ -129,6 +129,17 @@ export default function TshirtCustomizerPanel({
     );
   }, [product?.print_zones, selectedSide, designType]);
 
+  // Mobile WebView passes ?embed=true (see CustomizerWebViewScreen.js).
+  // Computed once on mount - the URL doesn't change during a customizer
+  // session, and window.location.search isn't reactive anyway.
+  const isEmbedMode = useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("embed") === "true";
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Filter side options for Jersey to exclude sleeve/sublimation options
   const displaySides = useMemo(() => {
     if (!product?.sides) return [];
@@ -303,6 +314,11 @@ export default function TshirtCustomizerPanel({
   const [activeTab, setActiveTab] = useState(
     initialWip?.activeTab ?? "specs"
   );
+
+  // Mobile-only: which single canvas is showing, since the 2D Fabric
+  // editor and the 3D preview can't sit side-by-side on a phone screen.
+  // Irrelevant on desktop - isEmbedMode gates every place this is read.
+  const [mobileViewMode, setMobileViewMode] = useState("2d");
 
   const [aiPrompt, setAiPrompt] = useState(
     initialWip?.aiPrompt ?? ""
@@ -727,6 +743,23 @@ export default function TshirtCustomizerPanel({
   const previewSupportsMockupView =
     PreviewComponent?.$$typeof === Symbol.for("react.forward_ref");
   const [activeMockupView, setActiveMockupView] = useState("front");
+
+  // The mobile WebView's Front/Back/Left/Right pills live in native code
+  // (CustomizerWebViewScreen.js) with no DOM access into this page - the
+  // only way in is a global hook it can reach through injectJavaScript.
+  // Reuses the same setView() the desktop mockup-angle switcher calls.
+  useEffect(() => {
+    if (!isEmbedMode || !previewSupportsMockupView) return undefined;
+
+    window.__PMG_SET_VIEW__ = (view) => {
+      previewRef.current?.setView?.(view);
+      setActiveMockupView(view);
+    };
+
+    return () => {
+      delete window.__PMG_SET_VIEW__;
+    };
+  }, [isEmbedMode, previewSupportsMockupView]);
   const [mockupThumbnails, setMockupThumbnails] = useState(null);
   const [mockupThumbnailsLoading, setMockupThumbnailsLoading] = useState(false);
 
@@ -2088,9 +2121,43 @@ export default function TshirtCustomizerPanel({
 
         {/* ── 2. Main column - always the 3D preview + readiness/
               mockup rail ─────────────────────────────────────────── */}
-        <div className="tsc-right-preview">
+        <div
+          className="tsc-right-preview"
+          style={isEmbedMode ? { position: "relative" } : undefined}
+        >
+            {isEmbedMode && (
+              <button
+                type="button"
+                onClick={() =>
+                  setMobileViewMode((m) => (m === "2d" ? "3d" : "2d"))
+                }
+                style={{
+                  position: "absolute",
+                  top: 10,
+                  right: 10,
+                  zIndex: 20,
+                  padding: "8px 14px",
+                  borderRadius: 60,
+                  border: "none",
+                  background: "rgba(16,185,129,0.95)",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {mobileViewMode === "2d" ? "🧊 3D View" : "✎ Edit"}
+              </button>
+            )}
+
             <div className="tsc-preview-panel" style={{ display: "flex", gap: 16, flexDirection: "row" }}>
-              <div className="tsc-inline-zone-canvas" style={{ display: "flex", justifyContent: "center" }}>
+              <div
+                className="tsc-inline-zone-canvas"
+                style={{
+                  display: isEmbedMode && mobileViewMode !== "2d" ? "none" : "flex",
+                  justifyContent: "center",
+                  ...(isEmbedMode ? { width: "100%" } : {}),
+                }}
+              >
                 <FabricZoneCanvas
                   zones={zones}
                   zoneLayers={zoneLayers}
@@ -2107,7 +2174,13 @@ export default function TshirtCustomizerPanel({
                   safeMarginInches={product?.safeMarginInches}
                 />
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  display: isEmbedMode && mobileViewMode !== "3d" ? "none" : "block",
+                }}
+              >
                 <PreviewComponent
                   {...(previewSupportsMockupView ? { ref: previewRef } : {})}
                   modelPath={modelPath}

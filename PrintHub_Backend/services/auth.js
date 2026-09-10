@@ -1,14 +1,19 @@
+//auth.js
 // Converts string role name to its corresponding database integer code.
 const roleToDb = (role = "customer") => {
   if (role === "admin") return 0;
   if (role === "staff") return 1;
+  if (role === "branch_admin") return 3;
   return 2;
 };
 
 // Converts database integer code back to its string role name.
+// 3 = branch_admin: same admin-level access as role 0, but every module's
+// queries are scoped to the user's assigned branch (see services/branchScope.js).
 const roleFromDb = (num) => {
   if (num === 0) return "admin";
   if (num === 1) return "staff";
+  if (num === 3) return "branch_admin";
   return "customer";
 };
 
@@ -23,8 +28,6 @@ if (!JWT_SECRET) {
   );
 }
 
-/** Signs a JWT for a logged-in user. Payload stays minimal — id and role
- *  only — since anything else should be looked up fresh from the DB. */
 function signAuthToken(user) {
   return jwt.sign(
     { id: user.id, role: roleFromDb(user.role) },
@@ -33,7 +36,6 @@ function signAuthToken(user) {
   );
 }
 
-/** Verifies a JWT. Returns the decoded payload or throws. */
 function verifyAuthToken(token) {
   return jwt.verify(token, JWT_SECRET);
 }
