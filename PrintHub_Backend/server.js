@@ -148,6 +148,8 @@ const {
   notifyAdminsNewOrderForReview,
   notifyDesignApproval,
   notifyFinalPaymentDue,
+  notifyEstimatedFinishTime,
+  notifyProductionStageChange,
   notifyContactForm,
 } = require("./services/notification");
 
@@ -2248,6 +2250,7 @@ app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff",
         total: order.total,
         createdAt: order.createdAt,
         due_date: order.due_date,
+        estimatedFinishTime: order.estimatedFinishTime,
         items: order.items,
       })),
     });
@@ -2413,7 +2416,13 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
     const updatedOrder = await prisma.$transaction(async (tx) => {
       const order = await tx.order.update({
         where: { id: orderId },
-        data: { productionStatus },
+        data: {
+          productionStatus,
+          // Clear the printing ETA once the order moves past PRINTING_QUEUE
+          // so a stale time doesn't linger into Quality Check/Packaging.
+          ...(existing.productionStatus === "PRINTING_QUEUE" &&
+            productionStatus !== "PRINTING_QUEUE" && { estimatedFinishTime: null }),
+        },
       });
 
       if (productionStatus === "PRINTING_QUEUE") {
@@ -2493,6 +2502,37 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
       metadata: { orderId, previousStatus: existing.productionStatus, newStatus: productionStatus },
     });
 
+    // Notify the customer on every customer-visible production stage change.
+    // PENDING_FILE_CHECK -> AWAITING_PAYMENT is already covered by the
+    // design-approval notification, and COMPLETED has its own richer
+    // balance-due notification further below, so both are skipped here.
+    const PRODUCTION_STAGE_MESSAGES = {
+      PRINTING_QUEUE: "Your order has entered production and is now being printed.",
+      QUALITY_ASSURANCE: "Your order has finished printing and is now undergoing quality checks.",
+      PACKAGING_READY: "Your order passed quality check and is now being packaged.",
+    };
+    if (PRODUCTION_STAGE_MESSAGES[productionStatus] && updatedOrder.userId) {
+      await createNotification({
+        userId: updatedOrder.userId,
+        title: `Order #${orderId} update`,
+        body: PRODUCTION_STAGE_MESSAGES[productionStatus],
+        type: "order_status",
+        link: `/orders/${orderId}`,
+      });
+
+      const orderForEmail = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { user: true, items: { include: { product: true } } },
+      });
+      await notifyProductionStageChange(
+        orderForEmail,
+        productionStatus,
+        PRODUCTION_STAGE_MESSAGES[productionStatus]
+      ).catch((e) =>
+        console.warn("notifyProductionStageChange failed (non-fatal):", e.message)
+      );
+    }
+
     if (requisitions.length > 0) {
       await createNotificationForAdmins({
         title: `${requisitions.length} purchase requisition(s) generated`,
@@ -2524,6 +2564,23 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
             link: `/orders/${orderId}`,
           });
         }
+      } else if (updatedOrder.userId) {
+        // Fully paid — just tell them production is done.
+        await createNotification({
+          userId: updatedOrder.userId,
+          title: `Order #${orderId} production complete`,
+          body: "Your order has finished production and is ready.",
+          type: "order_status",
+          link: `/orders/${orderId}`,
+        });
+
+        const completedOrderForEmail = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: { user: true, items: { include: { product: true } } },
+        });
+        await notifyOrderStatus(completedOrderForEmail, "completed").catch((e) =>
+          console.warn("notifyOrderStatus (completed) failed (non-fatal):", e.message)
+        );
       }
     }
 
@@ -2539,6 +2596,62 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
       return res.status(404).json({ message: "Order not found" });
     }
     return res.status(500).json({ message: "Failed to update production status" });
+  }
+});
+
+// PUT /api/production/orders/:id/eta — staff/admin sets the estimated
+// finish time shown to the customer while an order is in PRINTING_QUEUE
+app.put("/api/production/orders/:id/eta", requireAuth(prisma), requireRole("staff", "admin", "branch_admin"), async (req, res) => {
+  const orderId = parseInt(req.params.id);
+  const { estimatedFinishTime } = req.body;
+
+  if (!orderId) {
+    return res.status(400).json({ message: "Invalid order id" });
+  }
+  if (typeof estimatedFinishTime !== "string" || !estimatedFinishTime.trim()) {
+    return res.status(400).json({ message: "estimatedFinishTime is required" });
+  }
+
+  try {
+    const existing = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!existing) return res.status(404).json({ message: "Order not found" });
+    if (!canActOnBranch(req.actor, existing.branchId)) return denyCrossBranch(res);
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { estimatedFinishTime: estimatedFinishTime.trim() },
+      include: { user: true, items: { include: { product: true } } },
+    });
+
+    if (updated.userId) {
+      await createNotification({
+        userId: updated.userId,
+        title: `Order #${orderId} — estimated finish time updated`,
+        body: `Your order is being printed. Estimated finish: ${updated.estimatedFinishTime}.`,
+        type: "order_status",
+        link: `/orders/${orderId}`,
+      });
+
+      await notifyEstimatedFinishTime(updated, updated.estimatedFinishTime).catch((e) =>
+        console.warn("notifyEstimatedFinishTime failed (non-fatal):", e.message)
+      );
+    }
+
+    await logActivity({
+      actor: req.actor,
+      action: "updated",
+      module: "orders",
+      description: `Set estimated finish time for order #${orderId} to "${updated.estimatedFinishTime}"`,
+      metadata: { orderId, estimatedFinishTime: updated.estimatedFinishTime },
+    });
+
+    return res.json({ message: "Estimated finish time saved", order: updated });
+  } catch (e) {
+    console.error("Set estimated finish time error:", e.message);
+    if (e.code === "P2025") {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    return res.status(500).json({ message: "Failed to save estimated finish time" });
   }
 });
 

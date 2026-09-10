@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
-import { FaExclamationTriangle, FaArrowRight, FaSearch, FaEye, FaCube, FaTimes } from "react-icons/fa";
+import { FaExclamationTriangle, FaArrowRight, FaSearch, FaEye, FaCube, FaTimes, FaDownload } from "react-icons/fa";
 import { createPortal } from "react-dom";
 import { render3DPreview } from "../utils/render3DPreview";
 
@@ -39,6 +39,57 @@ function StageQueuePage({ stage, title, description, useCardHeader = false }) {
   const [search, setSearch] = useState("");
   const [designPreviewOrder, setDesignPreviewOrder] = useState(null);
   const [ai3DPreviewModal, setAi3DPreviewModal] = useState(null);
+    const [printProgress, setPrintProgress] = useState({}); // { [orderId]: { started: bool, eta: string } }
+
+  const handleStartPrinting = (orderId) => {
+    setPrintProgress((prev) => ({
+      ...prev,
+      [orderId]: { ...(prev[orderId] || {}), started: true },
+    }));
+  };
+
+  const handleEtaChange = (orderId, value) => {
+    setPrintProgress((prev) => ({
+      ...prev,
+      [orderId]: { ...(prev[orderId] || {}), eta: value },
+    }));
+  };
+
+  const handleEtaBlur = async (orderId) => {
+    const eta = printProgress[orderId]?.eta;
+    if (!eta || !eta.trim()) return;
+    try {
+      await adminFetch(
+        buildApiUrl(`/api/production/orders/${orderId}/eta`),
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estimatedFinishTime: eta.trim() }),
+        }
+      );
+    } catch (err) {
+      console.error("Error saving estimated finish time:", err);
+    }
+  };
+
+  const handleDownloadDesign = async (imageUrl, productName) => {
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error("Failed to download image");
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${productName.replace(/\s+/g, "-")}-design.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error downloading design:", err);
+      showToast("Failed to download design image");
+    }
+  };
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -47,7 +98,22 @@ function StageQueuePage({ stage, title, description, useCardHeader = false }) {
       const res = await adminFetch(buildApiUrl("/api/admin/production-queue"));
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to load queue");
-      setQueue((data.queue || []).filter((o) => o.productionStatus === stage));
+      const filtered = (data.queue || []).filter((o) => o.productionStatus === stage);
+      setQueue(filtered);
+
+      // Seed printProgress from what's already saved on the order, but
+      // never overwrite an ETA the staff member is actively typing.
+      if (stage === "PRINTING_QUEUE") {
+        setPrintProgress((prev) => {
+          const next = { ...prev };
+          filtered.forEach((order) => {
+            if (order.estimatedFinishTime && !next[order.id]) {
+              next[order.id] = { started: true, eta: order.estimatedFinishTime };
+            }
+          });
+          return next;
+        });
+      }
     } catch (err) {
       setError(err.message || "Failed to load queue");
     } finally {
@@ -224,55 +290,144 @@ function StageQueuePage({ stage, title, description, useCardHeader = false }) {
                       </span>
                     </td>
                     <td>
-                      {(order.items || []).some((item) => item.customizations?.design) && (
-                        <button
-                          type="button"
-                          onClick={() => setDesignPreviewOrder(order)}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                            background: "#f1f5f9",
-                            color: "#0f172a",
-                            border: "1px solid #cbd5e1",
-                            padding: "6px 10px",
-                            borderRadius: 6,
-                            fontSize: 12,
-                            cursor: "pointer",
-                            marginRight: 8,
-                          }}
-                        >
-                          <FaEye size={11} /> View Design
-                        </button>
-                      )}
-                      {NEXT_STATUS[order.productionStatus] ? (
-                        <button
-                          type="button"
-                          onClick={() => advanceStatus(order)}
-                          disabled={busyOrderId === order.id}
-                          className="row-btn"
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            background: busyOrderId === order.id ? "#94a3b8" : "#10b981",
-                            color: "#fff",
-                            border: "none",
-                            padding: "6px 12px",
-                            borderRadius: "6px",
-                            fontSize: "12px",
-                            cursor: busyOrderId === order.id ? "default" : "pointer",
-                          }}
-                        >
-                          {busyOrderId === order.id
-                            ? "..."
-                            : order.productionStatus === "PENDING_FILE_CHECK"
-                              ? <>Approve <FaArrowRight size={10} /></>
-                              : <>Advance <FaArrowRight size={10} /></>}
-                        </button>
-                      ) : (
-                        "—"
-                      )}
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        {(order.items || []).some((item) => item.customizations?.design) && (
+                          <button
+                            type="button"
+                            onClick={() => setDesignPreviewOrder(order)}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              background: "#f1f5f9",
+                              color: "#0f172a",
+                              border: "1px solid #cbd5e1",
+                              padding: "6px 12px",
+                              borderRadius: 6,
+                              fontSize: 12,
+                              height: 32,
+                              boxSizing: "border-box",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <FaEye size={11} /> View Design
+                          </button>
+                        )}
+
+                        {stage === "PRINTING_QUEUE" ? (
+                          printProgress[order.id]?.started ? (
+                            <>
+                            <input
+                              type="text"
+                              placeholder="Est. finish time"
+                              value={printProgress[order.id]?.eta || ""}
+                              onChange={(e) => handleEtaChange(order.id, e.target.value)}
+                              onBlur={() => handleEtaBlur(order.id)}
+                              style={{
+                                border: "1px solid #d1d5db",
+                                borderRadius: 6,
+                                padding: "6px 10px",
+                                fontSize: 12,
+                                height: 32,
+                                boxSizing: "border-box",
+                                width: 130,
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await advanceStatus(order);
+                                setPrintProgress((prev) => {
+                                  const next = { ...prev };
+                                  delete next[order.id];
+                                  return next;
+                                });
+                              }}
+                              disabled={busyOrderId === order.id}
+                              className="row-btn"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                background: busyOrderId === order.id ? "#94a3b8" : "#10b981",
+                                color: "#fff",
+                                border: "none",
+                                padding: "6px 12px",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                height: 32,
+                                boxSizing: "border-box",
+                                whiteSpace: "nowrap",
+                                cursor: busyOrderId === order.id ? "default" : "pointer",
+                              }}
+                            >
+                              {busyOrderId === order.id ? "..." : <>Done Printing <FaArrowRight size={10} /></>}
+                            </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleStartPrinting(order.id)}
+                              className="row-btn"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                background: "#2563eb",
+                                color: "#fff",
+                                border: "none",
+                                padding: "6px 12px",
+                                borderRadius: "6px",
+                                fontSize: "12px",
+                                height: 32,
+                                boxSizing: "border-box",
+                                whiteSpace: "nowrap",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Process
+                            </button>
+                          )
+                        ) : NEXT_STATUS[order.productionStatus] ? (
+                          <button
+                            type="button"
+                            onClick={() => advanceStatus(order)}
+                            disabled={busyOrderId === order.id}
+                            className="row-btn"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              background: busyOrderId === order.id ? "#94a3b8" : "#10b981",
+                              color: "#fff",
+                              border: "none",
+                              padding: "6px 12px",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              height: 32,
+                              boxSizing: "border-box",
+                              whiteSpace: "nowrap",
+                              cursor: busyOrderId === order.id ? "default" : "pointer",
+                            }}
+                          >
+                            {busyOrderId === order.id
+                              ? "..."
+                              : order.productionStatus === "PENDING_FILE_CHECK"
+                                ? <>Approve <FaArrowRight size={10} /></>
+                                : <>Advance <FaArrowRight size={10} /></>}
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -365,6 +520,30 @@ function StageQueuePage({ stage, title, description, useCardHeader = false }) {
                           <FaCube size={11} />
                           3D Preview
                         </button>
+                        {design.generatedImageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDesign(design.generatedImageUrl, productName)}
+                            style={{
+                              marginTop: 8,
+                              marginLeft: 8,
+                              padding: "6px 10px",
+                              fontSize: 11,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              cursor: "pointer",
+                              background: "#10b981",
+                              border: "none",
+                              color: "#fff",
+                              borderRadius: 4,
+                              fontWeight: 600,
+                            }}
+                          >
+                            <FaDownload size={11} />
+                            Download Design
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
