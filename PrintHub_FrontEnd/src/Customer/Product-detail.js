@@ -1620,6 +1620,11 @@ function ProductDetail() {
     selectedMaterial,
   ]);
 
+  const availableStock =
+  selectedRawMaterialStock !== null
+    ? selectedRawMaterialStock
+    : Number(product?.stock || 0);
+
   const previewSurface =
     selectedSideLower.includes(
       "back",
@@ -2079,77 +2084,72 @@ function ProductDetail() {
       clearWip();
     };
 
-  const handleAddToCart =
-    () => {
-      if (
-        exceedsBulkThreshold
-      ) {
-        setShowBulkQuoteModal(
-          true,
-        );
-        return;
-      }
+const handleAddToCart = () => {
+  // Check bulk quantity first
+  if (exceedsBulkThreshold) {
+    setShowBulkQuoteModal(true);
+    return;
+  }
 
-      if (!selectedQty) {
-        setNoticeModal({
-          title:
-            "Complete your options",
-          message:
-            "Please select quantity before adding to cart.",
-          tone:
-            "info",
-        });
+  // Quantity must be selected
+  if (!selectedQty) {
+    setNoticeModal({
+      title: "Complete your options",
+      message:
+        "Please select quantity before adding to cart.",
+      tone: "info",
+    });
 
-        return;
-      }
+    return;
+  }
 
-      if (
-        product.stock ===
-        0
-      ) {
-        setNoticeModal({
-          title:
-            "Out of stock",
-          message:
-            "This item is currently out of stock and can't be added to your cart.",
-          tone:
-            "warning",
-        });
+  // Check the actual available stock
+  if (availableStock <= 0) {
+    setNoticeModal({
+      title: "Out of stock",
+      message:
+        selectedRawMaterialStock !== null
+          ? `${
+              selectedMaterial?.label || "This material"
+            } is currently out of stock.`
+          : "This item is currently out of stock and can't be added to your cart.",
+      tone: "warning",
+    });
 
-if (
-  availableStock <= 0 ||
-  selectedQuantityNumber > availableStock
-) {
-  setNoticeModal({
-    title: "Not enough stock",
-    message:
-      selectedRawMaterialStock !== null
-        ? `Only ${availableStock} unit(s) of ${selectedMaterial?.label || "this material"} are available.`
-        : `Only ${availableStock} unit(s) are available.`,
-    tone: "warning",
-  });
+    return;
+  }
 
-  return;
-}
+  // Prevent customer from ordering more than available stock
+  if (selectedQuantityNumber > availableStock) {
+    setNoticeModal({
+      title: "Not enough stock",
+      message:
+        selectedRawMaterialStock !== null
+          ? `Only ${availableStock} unit(s) of ${
+              selectedMaterial?.label || "this material"
+            } are available.`
+          : `Only ${availableStock} unit(s) are available.`,
+      tone: "warning",
+    });
 
-      const hasPrintZones =
-        product.print_zones
-          ?.length > 0;
+    return;
+  }
 
-      if (
-        hasPrintZones &&
-        !activeDesign
-      ) {
-        setShowNoDesignConfirmModal(
-          true,
-        );
+  // Check whether this product requires a design
+  const hasPrintZones =
+    product.print_zones?.length > 0;
 
-        return;
-      }
+  if (
+    hasPrintZones &&
+    !activeDesign
+  ) {
+    setShowNoDesignConfirmModal(true);
+    return;
+  }
 
-      attemptAddToCart();
-    };
-
+  // Everything is valid
+  attemptAddToCart();
+};
   if (productLoading) {
     return (
       <div>
