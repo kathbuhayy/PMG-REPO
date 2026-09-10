@@ -708,6 +708,26 @@ function AdminOrders() {
     }
   };
 
+  // Download an order item's uploaded/generated design (handles multi-zone designs too)
+  const handleDownloadItemDesign = async (item, productName) => {
+    const design = item.customizations?.design;
+    if (!design) return;
+
+    const zones = design.zones;
+    if (zones && Object.keys(zones).length > 0) {
+      const entries = Object.entries(zones).filter(([_, z]) => z?.imageUrl);
+      for (const [zoneId, zoneData] of entries) {
+        const zoneLabel = zoneId.replace(/_/g, " ").toUpperCase();
+        await handleDownloadAiImage(zoneData.imageUrl, `${productName}-${zoneLabel}`);
+      }
+      return;
+    }
+
+    if (design.generatedImageUrl) {
+      handleDownloadAiImage(design.generatedImageUrl, productName);
+    }
+  };
+
   if (loading) {
     return (
       <div className="dashpage dashpage-orders">
@@ -1537,6 +1557,26 @@ function AdminOrders() {
                           <FaCube size={11} />
                           3D Preview
                         </button>
+                        {design && (design.generatedImageUrl || (design.zones && Object.keys(design.zones).length > 0)) && (
+                          <button
+                            type="button"
+                            className="dashaction-btn green"
+                            style={{
+                              marginTop: 8,
+                              marginLeft: 8,
+                              padding: "6px 10px",
+                              fontSize: "11px",
+                              gap: "4px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              cursor: "pointer",
+                            }}
+                            onClick={() => handleDownloadItemDesign(item, productName)}
+                          >
+                            <FaDownload size={11} />
+                            Download Design
+                          </button>
+                        )}
                       </div>
                       <div
                         style={{

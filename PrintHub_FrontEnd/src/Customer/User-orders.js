@@ -1628,6 +1628,19 @@ function UserOrders() {
               order,
               true
             )}
+
+            {order.estimatedFinishTime && (
+              <p
+                style={{
+                  margin: "6px 0 0",
+                  fontSize: 12,
+                  color: "#475569",
+                  fontWeight: 600,
+                }}
+              >
+                Est. finish: {order.estimatedFinishTime}
+              </p>
+            )}
           </div>
 
           <div className="uo-compact-total">
@@ -1868,6 +1881,19 @@ function UserOrders() {
                   We'll let you know once
                   it's approved or if any
                   changes are needed.
+                </p>
+              </div>
+            )}
+
+            {order.estimatedFinishTime && (
+              <div className="uo-review-notice">
+                <strong>
+                  Estimated finish time: {order.estimatedFinishTime}
+                </strong>
+
+                <p>
+                  Your order is currently being printed. We'll update this
+                  once it's ready for the next step.
                 </p>
               </div>
             )}

@@ -69,6 +69,12 @@ export default function PrintHubChatbot() {
   const isOpenRef = useRef(isOpen);
   const modeRef = useRef(mode);
 
+  // --- Image upload (shared by AI + staff chat) ---
+  const [selectedImage, setSelectedImage] = useState(null); // File object
+  const [imagePreview, setImagePreview] = useState(null); // object URL for preview
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
   isOpenRef.current = isOpen;
   modeRef.current = mode;
 
@@ -79,6 +85,40 @@ export default function PrintHubChatbot() {
     localStorage.getItem("authToken") &&
     (localStorage.getItem("user") || localStorage.getItem("userId"))
   );
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedImage(file);
+    setImagePreview(URL.createObjectURL(file));
+    e.target.value = "";
+  };
+
+  const clearSelectedImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  const fileToBase64 = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+  const uploadImageToServer = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(buildApiUrl("/api/builder/upload"), {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) throw new Error("Image upload failed");
+    const data = await res.json();
+    return data.url;
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -97,12 +137,20 @@ export default function PrintHubChatbot() {
 
   const sendMessage = async (text) => {
     const userText = (text || input).trim();
-    if (!userText || isLoading) return;
+    if ((!userText && !selectedImage) || isLoading) return;
+
+    const imageForThisMessage = selectedImage;
+    const previewForThisMessage = imagePreview;
 
     setInput("");
     setShowSuggested(false);
+    setSelectedImage(null);
+    setImagePreview(null);
 
-    const newMessages = [...messages, { role: "user", content: userText }];
+    const newMessages = [
+      ...messages,
+      { role: "user", content: userText, imagePreview: previewForThisMessage },
+    ];
     setMessages(newMessages);
     setIsLoading(true);
 
@@ -112,10 +160,14 @@ export default function PrintHubChatbot() {
         parts: [{ text: m.content }],
       }));
 
+      const imageBase64 = imageForThisMessage
+        ? await fileToBase64(imageForThisMessage)
+        : null;
+
       const res = await fetch(buildApiUrl("/api/chat"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: contents }),
+        body: JSON.stringify({ messages: contents, image: imageBase64 }),
       });
 
       if (!res.ok) {
@@ -182,11 +234,25 @@ export default function PrintHubChatbot() {
     };
   };
 
-  const sendStaffMessage = () => {
+  const sendStaffMessage = async () => {
     const body = staffInput.trim();
-    if (!body || wsRef.current?.readyState !== WebSocket.OPEN) return;
-    wsRef.current.send(JSON.stringify({ type: "customer_message", body }));
+    if ((!body && !selectedImage) || wsRef.current?.readyState !== WebSocket.OPEN) return;
+
+    let imageUrl = null;
+    if (selectedImage) {
+      setUploading(true);
+      try {
+        imageUrl = await uploadImageToServer(selectedImage);
+      } catch (err) {
+        console.error("Staff chat image upload failed:", err);
+      } finally {
+        setUploading(false);
+      }
+    }
+
+    wsRef.current.send(JSON.stringify({ type: "customer_message", body, imageUrl }));
     setStaffInput("");
+    clearSelectedImage();
   };
 
   const chooseMode = (nextMode) => {
@@ -351,10 +417,14 @@ export default function PrintHubChatbot() {
                       </svg>
                     </span>
                   )}
-                  <div
-                    className={`phc-bubble phc-bubble--${m.role}`}
-                    dangerouslySetInnerHTML={{ __html: parseMarkdown(m.content) }}
-                  />
+                  <div className={`phc-bubble phc-bubble--${m.role}`}>
+                    {m.imagePreview && (
+                      <img src={m.imagePreview} alt="Attachment" className="phc-msg-image" />
+                    )}
+                    {m.content && (
+                      <span dangerouslySetInnerHTML={{ __html: parseMarkdown(m.content) }} />
+                    )}
+                  </div>
                 </div>
               ))}
 
@@ -401,6 +471,14 @@ export default function PrintHubChatbot() {
                       <div
                         className={`phc-bubble phc-bubble--${m.senderRole === "staff" ? "assistant" : "user"}`}
                       >
+                        {m.imageUrl && (
+                          <img
+                            src={m.imageUrl}
+                            alt="Attachment"
+                            className="phc-msg-image"
+                            onClick={() => window.open(m.imageUrl, "_blank")}
+                          />
+                        )}
                         {m.body}
                       </div>
                     </div>
@@ -415,34 +493,61 @@ export default function PrintHubChatbot() {
 
         {/* Input — only shown for AI and staff modes, not the choice screen */}
         {mode !== "choice" && (mode === "ai" || isLoggedIn) && (
-          <div className="phc-footer">
-            <input
-              ref={inputRef}
-              className="phc-input"
-              placeholder={
-                mode === "ai"
-                  ? "Ask me about printing services, pricing, delivery, etc..."
-                  : "Type your message..."
-              }
-              value={mode === "ai" ? input : staffInput}
-              onChange={(e) =>
-                mode === "ai" ? setInput(e.target.value) : setStaffInput(e.target.value)
-              }
-              onKeyDown={handleKey}
-              disabled={mode === "ai" ? isLoading : !staffConnected}
-            />
-            <button
-              className="phc-send"
-              onClick={() => (mode === "ai" ? sendMessage() : sendStaffMessage())}
-              disabled={
-                mode === "ai"
-                  ? isLoading || !input.trim()
-                  : !staffConnected || !staffInput.trim()
-              }
-            >
-              Send
-            </button>
-          </div>
+          <>
+            {imagePreview && (
+              <div className="phc-image-preview-bar">
+                <img src={imagePreview} alt="Selected" />
+                <button type="button" onClick={clearSelectedImage} className="phc-image-remove">
+                  ✕
+                </button>
+              </div>
+            )}
+            <div className="phc-footer">
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                style={{ display: "none" }}
+              />
+              <button
+                type="button"
+                className="phc-attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={mode === "ai" ? isLoading : !staffConnected || uploading}
+                aria-label="Attach image"
+              >
+                📎
+              </button>
+              <input
+                ref={inputRef}
+                className="phc-input"
+                placeholder={
+                  mode === "ai"
+                    ? "Ask me about printing services, pricing, delivery, etc..."
+                    : "Type your message..."
+                }
+                value={mode === "ai" ? input : staffInput}
+                onChange={(e) =>
+                  mode === "ai" ? setInput(e.target.value) : setStaffInput(e.target.value)
+                }
+                onKeyDown={handleKey}
+                disabled={mode === "ai" ? isLoading : !staffConnected}
+              />
+              <button
+                className="phc-send"
+                onClick={() => (mode === "ai" ? sendMessage() : sendStaffMessage())}
+                disabled={
+                  uploading ||
+                  (mode === "ai"
+                    ? isLoading || (!input.trim() && !selectedImage)
+                    : !staffConnected || (!staffInput.trim() && !selectedImage))
+                }
+              >
+                Send
+              </button>
+            </div>
+          </>
         )}
       </div>
     </>

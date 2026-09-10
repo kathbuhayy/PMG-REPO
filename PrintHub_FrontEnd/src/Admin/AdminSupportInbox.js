@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FaHeadset, FaPaperPlane } from "react-icons/fa";
+import { buildApiUrl } from "../config/api";
 
 function isSameDay(a, b) {
   const d1 = new Date(a);
@@ -59,6 +60,9 @@ function UnreadBadge({ count }) {
 
 function AdminSupportInbox({ chat }) {
   const [input, setInput] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef(null);
   const activeConversation = chat.conversations.find((c) => c.id === chat.activeId);
 
   // This tab is a fixed-height chat shell (conversations list + message
@@ -82,10 +86,37 @@ function AdminSupportInbox({ chat }) {
     };
   }, []);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    chat.sendMessage(input);
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) setSelectedImage(file);
+    e.target.value = "";
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() && !selectedImage) return;
+
+    let imageUrl = null;
+    if (selectedImage) {
+      setUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", selectedImage);
+        const res = await fetch(buildApiUrl("/api/builder/upload"), {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        imageUrl = data.url;
+      } catch (err) {
+        console.error("Image upload failed:", err);
+      } finally {
+        setUploading(false);
+      }
+    }
+
+    chat.sendMessage(input, imageUrl);
     setInput("");
+    setSelectedImage(null);
   };
 
   return (
@@ -139,7 +170,8 @@ function AdminSupportInbox({ chat }) {
                       )}
                     </div>
                     <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {conv.messages?.[0]?.body || "No messages yet"}
+                      {conv.messages?.[0]?.body ||
+                        (conv.messages?.[0]?.imageUrl ? "📷 Image" : "No messages yet")}
                     </p>
                     {conv.assignedStaff && (
                       <span style={{ fontSize: "11px", color: "#2563eb" }}>
@@ -212,11 +244,26 @@ function AdminSupportInbox({ chat }) {
                         style={{
                           background: msg.senderRole === "staff" ? "#2563eb" : "#f1f5f9",
                           color: msg.senderRole === "staff" ? "#fff" : "#0f172a",
-                          padding: "8px 12px",
+                          padding: msg.imageUrl ? "6px" : "8px 12px",
                           borderRadius: "12px",
                           fontSize: "13px",
                         }}
                       >
+                        {msg.imageUrl && (
+                          <img
+                            src={msg.imageUrl}
+                            alt="Attachment"
+                            style={{
+                              maxWidth: "220px",
+                              maxHeight: "220px",
+                              borderRadius: "8px",
+                              display: "block",
+                              marginBottom: msg.body ? "6px" : 0,
+                              cursor: "pointer",
+                            }}
+                            onClick={() => window.open(msg.imageUrl, "_blank")}
+                          />
+                        )}
                         {msg.body}
                       </div>
                       <span
