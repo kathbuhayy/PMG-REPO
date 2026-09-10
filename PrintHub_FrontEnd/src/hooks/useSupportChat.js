@@ -35,6 +35,19 @@ function useSupportChat({ enabled }) {
     }
   }, []);
 
+  const markAsRead = useCallback(async (conversationId) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
+    );
+    try {
+      await adminFetch(buildApiUrl(`/api/chat/conversations/${conversationId}/read`), {
+        method: "PATCH",
+      });
+    } catch (err) {
+      console.error("Failed to mark conversation as read:", err);
+    }
+  }, []);
+
   useEffect(() => {
     if (!enabled) return;
     const token = localStorage.getItem("authToken");
@@ -57,6 +70,7 @@ function useSupportChat({ enabled }) {
         fetchConversations();
         if (activeIdRef.current === data.conversationId) {
           setMessages((prev) => [...prev, data.message]);
+          markAsRead(data.conversationId);
         }
         setToast({ customerName: data.customerName, body: data.message.body });
         setTimeout(() => setToast(null), 5000);
@@ -66,6 +80,7 @@ function useSupportChat({ enabled }) {
         fetchConversations();
         if (activeIdRef.current === data.conversationId) {
           setMessages((prev) => [...prev, data.message]);
+          if (data.message.senderRole === "customer") markAsRead(data.conversationId);
         }
         if (data.message.senderRole === "customer") {
           setToast({ customerName: null, body: data.message.body });
@@ -82,7 +97,7 @@ function useSupportChat({ enabled }) {
     ws.onerror = () => setConnected(false);
 
     return () => ws.close();
-  }, [enabled, fetchConversations]);
+  }, [enabled, fetchConversations, markAsRead]);
 
   const openConversation = useCallback(async (conv) => {
     setActiveId(conv.id);
@@ -93,7 +108,8 @@ function useSupportChat({ enabled }) {
     } catch (err) {
       console.error("Failed to load message history:", err);
     }
-  }, []);
+    if (conv.unreadCount) markAsRead(conv.id);
+  }, [markAsRead]);
 
   const claimConversation = useCallback((conv) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -120,6 +136,7 @@ function useSupportChat({ enabled }) {
     openConversation,
     claimConversation,
     sendMessage,
+    markAsRead,
     toast,
     dismissToast,
   };

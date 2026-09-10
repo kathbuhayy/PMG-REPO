@@ -1,6 +1,31 @@
 const prisma = require("../db/prisma");
 const { roleFromDb } = require("./auth");
 
+/** Resolves a user id to a display name ("First Last", falling back to
+ *  email, then a "user #id" placeholder if the record is gone/missing).
+ *  Used to write real names into activity log descriptions instead of
+ *  raw ids like "user #18". Never throws. */
+async function resolveUserDisplayName(userId) {
+  if (!userId) return null;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { first_name: true, last_name: true, email: true },
+    });
+    if (!user) return `user #${userId}`;
+    const fullName = [user.first_name, user.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    return fullName || user.email || `user #${userId}`;
+  } catch (err) {
+    console.error("[ActivityLog] Failed to resolve user name:", err.message);
+    return `user #${userId}`;
+  }
+}
+
+/** Records an admin/staff action. Never throws — a logging failure
+ *  should never break the request it's attached to. */
 async function logActivity({ actor, action, module, description, metadata }) {
   try {
     await prisma.activityLog.create({
@@ -92,9 +117,10 @@ function requireRole(...allowedRoles) {
   };
 }
 
-module.exports = { 
-  logActivity, 
-  identifyActor, 
-  requireAuth, 
-  requireRole 
+module.exports = {
+  logActivity,
+  resolveUserDisplayName,
+  identifyActor,
+  requireAuth,
+  requireRole
 };
