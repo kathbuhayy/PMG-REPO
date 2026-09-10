@@ -35,7 +35,13 @@ import HoodieCustomizerPanel from "../components/HoodieCustomizer/HoodieCustomiz
 import SweatshirtCustomizerPanel from "../components/SweatshirtCustomizer/SweatshirtCustomizerPanel";
 import AppModal from "../components/AppModal";
 import LoginRequiredModal from "../components/LoginRequiredModal.js";
-import { saveGuestDesignDraft } from "../utils/guestCustomization";
+import {
+  saveGuestDesignDraft,
+  getGuestUsageCount,
+  getGuestUsageRemaining,
+  incrementGuestUsage,
+  GUEST_CUSTOMIZATION_LIMIT,
+} from "../utils/guestCustomization";
 import tshirtPrintAreas from "../assets/tshirt-print-areas.png";
 import ProductReviews from "./ProductReviews";
 
@@ -423,10 +429,8 @@ const setSessionValue = (id, key, value) => {
 function ProductDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
-
   const quoteRef = useRef(null);
   const reelRef = useRef(null);
-
   const { addToCart } = useCart();
 
   const [activeImageIdx, setActiveImageIdx] =
@@ -445,6 +449,11 @@ function ProductDetail() {
 
   const [showLoginModal, setShowLoginModal] =
     useState(false);
+
+    const [
+      showGuestTrialModal,
+      setShowGuestTrialModal,
+    ] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -477,6 +486,7 @@ function ProductDetail() {
       .finally(() =>
         setProductLoading(false),
       );
+      
   }, [id]);
 
   const [selectedImage, setSelectedImage] =
@@ -501,6 +511,7 @@ function ProductDetail() {
         product?.materials?.[0] || null,
       ),
     );
+    
 
   const [selectedSide, setSelectedSide] =
     useState(() =>
@@ -1147,6 +1158,29 @@ function ProductDetail() {
         return null;
       }
     }, []);
+
+    const handleStartDesigning = () => {
+      // Logged-in customers have no guest restriction.
+      if (storedUser) {
+        navigate(
+          `/product/${id}/customize`
+        );
+    
+        return;
+      }
+    
+      // Guest has already used all 3 trials.
+      if (
+        getGuestUsageCount() >=
+        GUEST_CUSTOMIZATION_LIMIT
+      ) {
+        setShowGuestTrialModal(true);
+        return;
+      }
+    
+      // Guest still has a trial available.
+      setShowGuestTrialModal(true);
+    };
 
   const [quoteForm,
     setQuoteForm] =
@@ -3486,15 +3520,13 @@ const handleAddToCart = () => {
                     </div>
 
                     <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          `/product/${id}/customize`,
-                        )
-                      }
-                    >
-                      {activeDesign ? "Edit Your Design" : "Start Designing"}
-                    </button>
+  type="button"
+  onClick={handleStartDesigning}
+>
+  {activeDesign
+    ? "Edit Your Design"
+    : "Start Designing"}
+</button>
 
                   </div>
                 )}
@@ -3874,6 +3906,119 @@ const handleAddToCart = () => {
         </div>
 
       </div>
+
+{/* ============================================================
+    GUEST CUSTOMIZATION TRIAL MODAL
+============================================================ */}
+
+<AppModal
+  open={showGuestTrialModal}
+
+  title={
+    getGuestUsageCount() >=
+    GUEST_CUSTOMIZATION_LIMIT
+      ? "Customization Limit Reached"
+      : "Free Customization Trial"
+  }
+
+  message={
+    getGuestUsageCount() >=
+    GUEST_CUSTOMIZATION_LIMIT
+      ? `You have used all ${GUEST_CUSTOMIZATION_LIMIT} free customization trials. Please log in or create an account to continue designing.`
+      : `You have ${getGuestUsageRemaining()} free customization ${
+          getGuestUsageRemaining() === 1
+            ? "trial"
+            : "trials"
+        } remaining as a guest.`
+  }
+
+  confirmText={
+    getGuestUsageCount() >=
+    GUEST_CUSTOMIZATION_LIMIT
+      ? "LOGIN"
+      : "CONTINUE DESIGNING"
+  }
+
+  cancelText={
+    getGuestUsageCount() >=
+    GUEST_CUSTOMIZATION_LIMIT
+      ? "CREATE ACCOUNT"
+      : "CANCEL"
+  }
+
+  tone={
+    getGuestUsageCount() >=
+    GUEST_CUSTOMIZATION_LIMIT
+      ? "warning"
+      : "info"
+  }
+
+  onConfirm={() => {
+    // ----------------------------------------------------------
+    // LIMIT ALREADY REACHED
+    // ----------------------------------------------------------
+
+    if (
+      getGuestUsageCount() >=
+      GUEST_CUSTOMIZATION_LIMIT
+    ) {
+      setShowGuestTrialModal(false);
+
+      navigate(
+        "/user-login",
+        {
+          state: {
+            from: `/product/${id}`,
+          },
+        }
+      );
+
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // USE ONE GUEST TRIAL
+    // ----------------------------------------------------------
+
+    incrementGuestUsage();
+
+    setShowGuestTrialModal(false);
+
+    navigate(
+      `/product/${id}/customize`
+    );
+  }}
+
+  onCancel={() => {
+    // ----------------------------------------------------------
+    // LIMIT REACHED → CREATE ACCOUNT
+    // ----------------------------------------------------------
+
+    if (
+      getGuestUsageCount() >=
+      GUEST_CUSTOMIZATION_LIMIT
+    ) {
+      setShowGuestTrialModal(false);
+
+      navigate(
+        "/user-register",
+        {
+          state: {
+            from: `/product/${id}`,
+          },
+        }
+      );
+
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // STILL HAS TRIALS → JUST CLOSE MODAL
+    // ----------------------------------------------------------
+
+    setShowGuestTrialModal(false);
+  }}
+/>
 
       <AppModal
         open={
