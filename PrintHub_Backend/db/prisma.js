@@ -1,6 +1,9 @@
 const { PrismaClient, Prisma } = require("@prisma/client");
 
-console.log("Prisma engine version info:", JSON.stringify(Prisma.prismaVersion));
+console.log(
+  "Prisma engine version info:",
+  JSON.stringify(Prisma.prismaVersion)
+);
 
 const prisma = new PrismaClient({
   log: [
@@ -12,5 +15,16 @@ const prisma = new PrismaClient({
 prisma.$on("error", (e) => {
   console.error("PRISMA RAW ERROR EVENT:", JSON.stringify(e));
 });
+
+// TEMPORARY DATABASE CONNECTION TEST
+(async () => {
+  try {
+    await prisma.$connect();
+    console.log("✅ PRISMA DATABASE CONNECTION SUCCESS");
+  } catch (error) {
+    console.error("❌ PRISMA DATABASE CONNECTION FAILED");
+    console.error(error);
+  }
+})();
 
 module.exports = prisma;
