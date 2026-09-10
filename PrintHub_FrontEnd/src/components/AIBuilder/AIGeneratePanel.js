@@ -4,8 +4,10 @@ import "./AIBuilder.css";
 
 /**
  * AIGeneratePanel renders the AI design generator section
- * inside customizer sidebars. It allows users to prompt
- * FLUX.1 to generate images.
+ * inside customizer sidebars.
+ *
+ * AI-generated designs are requested as isolated artwork
+ * with a transparent background, suitable for printing.
  */
 export default function AIGeneratePanel({
   activeZone,
@@ -38,8 +40,15 @@ export default function AIGeneratePanel({
     onLastPromptChange || setLocalLastPrompt;
 
   /**
-   * Triggers the AI generation handler and appends the resulting image
-   * to the customizer's gallery and active canvas zone.
+   * Generate an AI design.
+   *
+   * The user's prompt is preserved, while additional instructions
+   * tell the AI to create isolated artwork suitable for printing.
+   *
+   * IMPORTANT:
+   * These instructions alone do NOT technically create transparency.
+   * The backend must remove the generated background and return
+   * a PNG with an alpha channel.
    */
   const onSubmit = async () => {
     if (!prompt.trim()) {
@@ -49,28 +58,44 @@ export default function AIGeneratePanel({
 
     setGenError("");
 
-    // Add transparent-background instructions
-    // without changing the user's original prompt.
     const transparentPrompt = `${prompt.trim()}
 
 IMPORTANT:
 Create ONLY the requested main design or subject.
+The design must be an isolated printable artwork.
 Use a completely transparent background.
-Do NOT include any scenery, environment, room, landscape, sky, floor, background, backdrop, or surrounding objects.
-Do NOT add a white background or colored background.
-Do NOT place the design inside a rectangle, square, frame, or scene.
-The empty area around the design must remain transparent.
-Make the artwork clean, centered, and suitable for printing on a T-shirt.`;
+Do NOT include scenery, environment, room, landscape, sky, floor,
+backdrop, surrounding objects, or decorative background elements.
+Do NOT add a white, black, colored, gradient, or textured background.
+Do NOT place the design inside a rectangle, square, frame, poster,
+mockup, canvas, or scene.
+Keep the area surrounding the main subject completely empty.
+Create clean edges around the artwork.
+Center the main design.
+Make the artwork suitable for printing on a T-shirt.`;
 
-    const item = await handleGenerate(
-      transparentPrompt,
-      activeZone
-    );
+    try {
+      const item = await handleGenerate(
+        transparentPrompt,
+        activeZone
+      );
 
-    if (item && onGenerated) {
-      onGenerated(item);
-      setLastPrompt(prompt);
-      setPrompt("");
+      if (item && onGenerated) {
+        onGenerated(item);
+
+        // Keep the original user prompt as the previous prompt.
+        setLastPrompt(prompt);
+
+        // Clear the input after successful generation.
+        setPrompt("");
+      }
+    } catch (error) {
+      console.error("[AI Generate] Generation failed:", error);
+
+      setGenError(
+        error?.message ||
+          "Failed to generate the AI design. Please try again."
+      );
     }
   };
 
@@ -107,9 +132,7 @@ Make the artwork clean, centered, and suitable for printing on a T-shirt.`;
             "or a minimalist palm tree"
           }
           value={prompt}
-          onChange={(e) =>
-            setPrompt(e.target.value)
-          }
+          onChange={(e) => setPrompt(e.target.value)}
           disabled={generating}
         />
       </div>
@@ -141,9 +164,7 @@ Make the artwork clean, centered, and suitable for printing on a T-shirt.`;
         type="button"
         className="ai-gen-btn"
         onClick={onSubmit}
-        disabled={
-          generating || !prompt.trim()
-        }
+        disabled={generating || !prompt.trim()}
       >
         {generating ? (
           <>
@@ -157,7 +178,10 @@ Make the artwork clean, centered, and suitable for printing on a T-shirt.`;
             Generating...
           </>
         ) : (
-          "Generate Design"
+          <>
+            <FaMagic style={{ marginRight: "6px" }} />
+            Generate Design
+          </>
         )}
       </button>
 
