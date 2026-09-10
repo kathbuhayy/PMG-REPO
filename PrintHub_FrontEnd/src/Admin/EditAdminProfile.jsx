@@ -1,15 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Admin-profile.css";
-import { MdVisibility, MdVisibilityOff } from "react-icons/md";
-import {
-  FaPen,
-  FaCheckCircle,
-  FaTimes,
-  FaExclamationTriangle,
-} from "react-icons/fa";
+import { FaPen, FaCheckCircle, FaTimes } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import AlertModal from "../components/AlertModal";
+import ChangePasswordModal from "../components/ChangePasswordModal";
 import { adminFetch } from "../utils/adminFetch";
 
 // Allows letters, spaces, dot, dash
@@ -73,70 +68,12 @@ function EditAdminProfile() {
     setAlertOpen(true);
   };
 
-  // Change password modal state
-  const [showChangePassword, setShowChangePassword] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [changePassError, setChangePassError] = useState("");
+  // Change Password — same modal/flow as the customer User Profile page
+  // (see src/components/ChangePasswordModal.js), reused as-is so the two
+  // surfaces can never drift apart.
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [otpError, setOtpError] = useState("");
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [otpSending, setOtpSending] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
-
-  // Rate-limit "Change Password" / OTP requests to 3 attempts, then a 60s cooldown.
-  // The cooldown's expiration timestamp lives in sessionStorage so it survives
-  // navigating away from and back to this page.
-  const [otpClickCount, setOtpClickCount] = useState(0);
-  const [cooldownTime, setCooldownTime] = useState(0);
-  const [showRateLimitToast, setShowRateLimitToast] = useState(false);
-
-  useEffect(() => {
-    if (showRateLimitToast) {
-      const timer = setTimeout(() => {
-        setShowRateLimitToast(false);
-      }, 10000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [showRateLimitToast]);
-
-  // Restore an in-progress cooldown on mount, and keep it ticking down
-  // against the stored wall-clock expiry rather than a fresh in-memory timer.
-  useEffect(() => {
-    const checkCooldown = () => {
-      const savedEndTime = sessionStorage.getItem("otpCooldownEnd");
-      if (!savedEndTime) return;
-
-      const remaining = Math.ceil(
-        (parseInt(savedEndTime, 10) - Date.now()) / 1000,
-      );
-
-      if (remaining > 0) {
-        setCooldownTime(remaining);
-      } else {
-        sessionStorage.removeItem("otpCooldownEnd");
-        setCooldownTime(0);
-        setOtpClickCount(0);
-      }
-    };
-
-    checkCooldown();
-    const interval = setInterval(checkCooldown, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const [cpCriteria, setCpCriteria] = useState({
-    uppercase: false,
-    number: false,
-    special: false,
-    length: false,
-  });
+  const [adminUserId, setAdminUserId] = useState(null);
 
   // Load profile from DB
   useEffect(() => {
@@ -151,6 +88,8 @@ function EditAdminProfile() {
     }
 
     if (!user?.id) return;
+
+    setAdminUserId(user.id);
 
     adminFetch(buildApiUrl(`/api/user-profile/${user.id}`))
       .then(async (res) => {
@@ -360,253 +299,6 @@ function EditAdminProfile() {
     }
   };
 
-  // update criteria as user types new password
-  const handleCpNewPasswordChange = (e) => {
-    const value = e.target.value;
-    setNewPassword(value);
-
-    setCpCriteria({
-      uppercase: /[A-Z]/.test(value),
-      number: /\d/.test(value),
-      special: /[^A-Za-z0-9]/.test(value),
-      length: value.length >= 8 && value.length <= 12,
-    });
-  };
-
-  const cpPasswordValid = () =>
-    cpCriteria.uppercase &&
-    cpCriteria.number &&
-    cpCriteria.special &&
-    cpCriteria.length;
-
-  const renderCpCriteria = (text, ok) => (
-    <p className={`cp-criteria-item ${ok ? "ok" : ""}`} key={text}>
-      {ok ? "✅" : "❌"} {text}
-    </p>
-  );
-
-  // Step 1: request OTP, then open the OTP entry modal
-  const requestPasswordOtp = async () => {
-    setOtpError("");
-    setOtpCode("");
-    setOtpSending(true);
-
-    const stored = localStorage.getItem("user");
-    if (!stored) {
-      showAlert("No logged-in user found.");
-      setOtpSending(false);
-      return;
-    }
-
-    let user;
-    try {
-      user = JSON.parse(stored);
-    } catch {
-      showAlert("Invalid user session.");
-      setOtpSending(false);
-      return;
-    }
-
-    if (!user?.email) {
-      showAlert("User email missing.");
-      setOtpSending(false);
-      return;
-    }
-
-    try {
-      const res = await adminFetch(buildApiUrl("/api/password/request-otp"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Failed to send OTP");
-
-      setOtpSending(false);
-      setShowOtpModal(true);
-    } catch (err) {
-      setOtpSending(false);
-      showAlert(err.message || "Error sending OTP");
-    }
-  };
-
-  // Rate-limited entry point for the "Change Password" button
-  const handleChangePasswordClick = () => {
-    if (cooldownTime > 0) {
-      setShowRateLimitToast(true);
-      return;
-    }
-
-    const nextCount = otpClickCount + 1;
-    setOtpClickCount(nextCount);
-
-    if (nextCount >= 3) {
-      const expireTime = Date.now() + 60000;
-      sessionStorage.setItem("otpCooldownEnd", expireTime.toString());
-      setCooldownTime(60);
-      setShowRateLimitToast(true);
-      return;
-    }
-
-    requestPasswordOtp();
-  };
-
-  // Step 2: verify OTP, then open the actual Change Password modal
-  const verifyPasswordOtp = async (e) => {
-    e.preventDefault();
-    setOtpError("");
-
-    if (!otpCode.trim()) {
-      setOtpError("Please enter the code sent to your email.");
-      return;
-    }
-
-    const stored = localStorage.getItem("user");
-    if (!stored) {
-      setOtpError("No logged-in user found.");
-      return;
-    }
-
-    let user;
-    try {
-      user = JSON.parse(stored);
-    } catch {
-      setOtpError("Invalid user session.");
-      return;
-    }
-
-    setOtpLoading(true);
-    try {
-      const res = await adminFetch(buildApiUrl("/api/password/verify-otp"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, otp: otpCode.trim() }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || "Invalid or expired code");
-
-      setOtpLoading(false);
-      setShowOtpModal(false);
-      setOtpCode("");
-      openChangePassword();
-    } catch (err) {
-      setOtpLoading(false);
-      setOtpError(err.message || "Error verifying code");
-    }
-  };
-
-  const closeOtpModal = () => {
-    setShowOtpModal(false);
-    setOtpCode("");
-    setOtpError("");
-  };
-
-  const openChangePassword = () => {
-    setShowChangePassword(true);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmNewPassword("");
-    setChangePassError("");
-
-    setShowCurrentPassword(false);
-    setShowNewPassword(false);
-    setShowConfirmNewPassword(false);
-    setCpCriteria({
-      uppercase: false,
-      number: false,
-      special: false,
-      length: false,
-    });
-  };
-
-  const closeChangePassword = () => {
-    setShowChangePassword(false);
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmNewPassword("");
-    setChangePassError("");
-    setShowCurrentPassword(false);
-    setShowNewPassword(false);
-    setShowConfirmNewPassword(false);
-    setCpCriteria({
-      uppercase: false,
-      number: false,
-      special: false,
-      length: false,
-    });
-  };
-
-  // Submit change password
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-    setChangePassError("");
-
-    if (!currentPassword || !newPassword || !confirmNewPassword) {
-      setChangePassError("All fields are required.");
-      return;
-    }
-
-    if (!cpPasswordValid()) {
-      setChangePassError("New password does not meet the criteria.");
-      return;
-    }
-
-    if (newPassword.trim() !== confirmNewPassword.trim()) {
-      setChangePassError("New password and confirm password do not match.");
-      return;
-    }
-
-    if (newPassword === currentPassword) {
-      setChangePassError(
-        "New password must be different from current password.",
-      );
-      return;
-    }
-
-    const stored = localStorage.getItem("user");
-    if (!stored) {
-      setChangePassError("No logged-in user found.");
-      return;
-    }
-
-    let user;
-    try {
-      user = JSON.parse(stored);
-    } catch {
-      setChangePassError("Invalid user session.");
-      return;
-    }
-
-    if (!user?.id) {
-      setChangePassError("User ID missing.");
-      return;
-    }
-
-    try {
-      const res = await adminFetch(buildApiUrl(`/api/profile/${user.id}/password`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok)
-        throw new Error(data?.message || "Failed to change password");
-
-      closeChangePassword();
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 5000);
-    } catch (err) {
-      setChangePassError(err.message || "Error changing password");
-    }
-  };
-
   // Avatar upload state + handlers
   const [adminAvatarUploading, setAdminAvatarUploading] = useState(false);
   const [adminAvatarError, setAdminAvatarError] = useState("");
@@ -702,13 +394,6 @@ function EditAdminProfile() {
       e.target.value = "";
     }
   };
-
-  const isConfirmTooShort =
-    confirmNewPassword.length > 0 && confirmNewPassword.length < 6;
-  const isMismatch =
-    confirmNewPassword.length > 0 &&
-    newPassword.trim() !== confirmNewPassword.trim();
-  const hasConfirmError = isConfirmTooShort || isMismatch;
 
   return (
     <>
@@ -867,14 +552,9 @@ function EditAdminProfile() {
           <div className="profile-card-actions">
             <button
               className="secondary-action"
-              onClick={handleChangePasswordClick}
-              disabled={otpSending || cooldownTime > 0}
+              onClick={() => setShowChangePasswordModal(true)}
             >
-              {otpSending
-                ? "Sending code..."
-                : cooldownTime > 0
-                  ? `Try again in ${cooldownTime}s`
-                  : "Change Password"}
+              Change Password
             </button>
 
             <button className="secondary-action" onClick={handleCancel}>
@@ -886,190 +566,29 @@ function EditAdminProfile() {
             </button>
           </div>
 
-      {showOtpModal && (
-        <div className="cp-modal-overlay">
-          <div className="cp-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="cp-title">Verify It's You</h3>
-            <p className="cp-subtext">
-              We sent a 6-digit code to your email. Enter it below to continue.
-            </p>
-
-            <form onSubmit={verifyPasswordOtp}>
-              <div className="cp-form-row">
-                <label>OTP Code</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="Enter 6-digit code"
-                  data-no-realtime-validation="true"
-                  autoFocus
-                />
-              </div>
-
-              <div className="cp-actions">
-                <button type="button" className="cp-cancel" onClick={closeOtpModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="cp-save" disabled={otpLoading}>
-                  {otpLoading ? "Verifying..." : "Verify"}
-                </button>
-              </div>
-            </form>
-
-            {otpError && <p className="cp-error">{otpError}</p>}
-          </div>
-        </div>
-      )}
-
-      {showChangePassword && (
-        <div className="cp-modal-overlay">
-          <div className="cp-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="cp-title">Change Password</h3>
-            <p className="cp-subtext">Enter your current and new password</p>
-
-            <form onSubmit={handleChangePassword}>
-              <div className="cp-form-row">
-                <label>Current Password</label>
-                <div className="cp-input-wrapper">
-                  <input
-                    type={showCurrentPassword ? "text" : "password"}
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="Enter current password"
-                    data-no-realtime-validation="true"
-                  />
-                  <button
-                    type="button"
-                    className="cp-eye-btn"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  >
-                    {showCurrentPassword ? (
-                      <MdVisibility />
-                    ) : (
-                      <MdVisibilityOff />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="cp-form-row">
-                <label>New Password</label>
-                <div className="cp-input-wrapper">
-                  <input
-                    type={showNewPassword ? "text" : "password"}
-                    value={newPassword}
-                    onChange={handleCpNewPasswordChange}
-                    placeholder="Enter new password"
-                    data-no-realtime-validation="true"
-                  />
-                  <button
-                    type="button"
-                    className="cp-eye-btn"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                  >
-                    {showNewPassword ? <MdVisibility /> : <MdVisibilityOff />}
-                  </button>
-                </div>
-                <div className="cp-criteria">
-                  {renderCpCriteria("Uppercase letter", cpCriteria.uppercase)}
-                  {renderCpCriteria("Number", cpCriteria.number)}
-                  {renderCpCriteria("Special character", cpCriteria.special)}
-                  {renderCpCriteria("8-12 characters", cpCriteria.length)}
-                </div>
-              </div>
-
-              <div className="cp-form-row">
-                <label>Confirm New Password</label>
-                <div
-                  className={`cp-input-wrapper${hasConfirmError ? " cp-input-error" : ""
-                    }`}
-                >
-                  <input
-                    type={showConfirmNewPassword ? "text" : "password"}
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Confirm new password"
-                    data-no-realtime-validation="true"
-                  />
-                  <button
-                    type="button"
-                    className="cp-eye-btn"
-                    onClick={() =>
-                      setShowConfirmNewPassword(!showConfirmNewPassword)
-                    }
-                  >
-                    {showConfirmNewPassword ? (
-                      <MdVisibility />
-                    ) : (
-                      <MdVisibilityOff />
-                    )}
-                  </button>
-                </div>
-                {isConfirmTooShort && (
-                  <span className="field-error-text">
-                    Password must be at least 6 characters.
-                  </span>
-                )}
-                {isMismatch && (
-                  <span className="field-error-text">
-                    Passwords do not match.
-                  </span>
-                )}
-              </div>
-
-              <div className="cp-actions">
-                <button
-                  type="button"
-                  className="cp-cancel"
-                  onClick={closeChangePassword}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="cp-save"
-                  disabled={!cpPasswordValid()}
-                >
-                  Change Password
-                </button>
-              </div>
-            </form>
-
-            {changePassError && <p className="cp-error">{changePassError}</p>}
-          </div>
-        </div>
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          userId={adminUserId}
+          email={admin.email}
+          onClose={() => setShowChangePasswordModal(false)}
+          onSuccess={() => {
+            setShowChangePasswordModal(false);
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 5000);
+          }}
+        />
       )}
 
       {showToast && (
         <div className="password-toast">
           <FaCheckCircle className="password-toast-icon" />
           <span className="password-toast-text">
-            Password changed successfully!
+            Password updated successfully.
           </span>
           <button
             type="button"
             className="password-toast-close"
             onClick={() => setShowToast(false)}
-            aria-label="Dismiss notification"
-          >
-            <FaTimes />
-          </button>
-        </div>
-      )}
-
-      {showRateLimitToast && (
-        <div className="password-toast password-toast-warning">
-          <FaExclamationTriangle className="password-toast-icon" />
-          <span className="password-toast-text">
-            Too many attempts. Please wait before requesting a new OTP.
-          </span>
-          <button
-            type="button"
-            className="password-toast-close"
-            onClick={() => setShowRateLimitToast(false)}
             aria-label="Dismiss notification"
           >
             <FaTimes />

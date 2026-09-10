@@ -1,8 +1,23 @@
+/* PMG brand green — same values as Product-detail.css's --pmg-green,
+   scoped locally to this page's own class prefix per this codebase's
+   convention (see also --ucart-green, --uh-green). */
+:root {
+  --ucp-green: #57e000;
+  --ucp-green-dark: #31b900;
+  --ucp-green-soft: #efffe8;
+}
+
 /* --- GLOBAL SIZING --- */
 .ucp-adminlike-page {
   min-height: 100vh;
   background-color: #f8fafc;
-  padding: 40px 24px 80px;
+  /* The shared navbar renders transparent/absolutely-positioned on
+     this page (its own component, not modified here), so it does
+     not push page content down on its own. Extra top padding clears
+     its ~72px height so the profile card isn't hidden underneath it.
+     Extra bottom padding keeps the floating chat bubble (fixed,
+     bottom:28px, ~58px tall) clear of the last card/buttons too. */
+  padding: 112px 24px 140px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -15,11 +30,24 @@
   grid-template-columns: 1.2fr 1fr;
   gap: 32px;
   margin-inline: auto;
-  align-items: start;
+  /* Both columns opt out of the grid's default row stretch (see their
+     own align-self) so each card sizes to its own content instead of
+     being force-stretched to match whichever column is taller. */
 }
 
 .ucp-left-column {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Opt out of the grid row's default stretch so this column's
+     card sizes to its own content instead of being force-stretched
+     to match the (often taller) sticky right column, which left a
+     large blank gap at the bottom of the profile card. */
+  align-self: start;
+}
+
+.ucp-left-column .ucp-profile-card {
+  flex: 1;
 }
 
 .ucp-right-column {
@@ -27,6 +55,11 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  /* Keeps Quick Stats + Account Hub in view while the longer form
+     scrolls, instead of leaving a large empty gap below them. */
+  position: sticky;
+  top: 24px;
+  align-self: start;
 }
 
 /* --- BACK BUTTON --- */
@@ -61,7 +94,7 @@
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 32px;
+  padding: 24px;
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.05),
     0 2px 4px -1px rgba(0, 0, 0, 0.025);
@@ -72,10 +105,10 @@
 .ucp-profile-top {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding-bottom: 24px;
+  gap: 20px;
+  padding-bottom: 18px;
   border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .ucp-profile-avatar-wrapper {
@@ -202,16 +235,19 @@
   border: 1px solid #f1f5f9;
   border-radius: 8px;
   padding: 16px;
+  min-height: 84px;
   text-align: center;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
 }
 
 .ucp-stat-value {
   font-size: 24px;
   font-weight: 800;
-  color: #0ea5e9;
+  color: var(--ucp-green-dark);
 }
 
 .ucp-stat-label {
@@ -229,8 +265,11 @@
 
 .ucp-hub-item {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   padding: 16px;
+  min-height: 128px;
   background-color: #f8fafc;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -239,15 +278,25 @@
 }
 
 .ucp-hub-item:hover {
-  border-color: #0ea5e9;
-  background-color: #f0f9ff;
+  border-color: var(--ucp-green);
+  background-color: var(--ucp-green-soft);
 }
 
 .ucp-hub-icon {
-  font-size: 20px;
-  color: #0ea5e9;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--ucp-green-dark);
+  background-color: var(--ucp-green-soft);
+  border-radius: 8px;
   display: flex;
   align-items: center;
+  justify-content: center;
+}
+
+.ucp-hub-content {
+  width: 100%;
 }
 
 .ucp-hub-content h4 {
@@ -272,7 +321,8 @@
 
 .ucp-detail-row {
   display: flex;
-  padding: 16px 0;
+  align-items: center;
+  padding: 12px 0;
   border-bottom: 1px solid #f1f5f9;
 }
 
@@ -297,7 +347,7 @@
 .ucp-profile-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 24px;
 }
 
@@ -306,6 +356,41 @@
   grid-template-columns: 160px 1fr;
   gap: 16px;
   align-items: center;
+}
+
+/* --- ADDRESS GROUP --- */
+.ucp-form-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ucp-form-section-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background-color: #e2e8f0;
+}
+
+/* Pairs two shorter fields (e.g. Region + Province) side by side.
+   Labels move above their inputs so each half-width column stays
+   readable instead of squeezing a 160px label into half the row. */
+.ucp-form-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.ucp-form-pair .ucp-form-row {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 6px;
 }
 
 .ucp-form-row label {
@@ -331,8 +416,8 @@
 .ucp-form-row input:focus,
 .ucp-form-row select:focus,
 .ucp-form-row textarea:focus {
-  border-color: #0ea5e9;
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  border-color: var(--ucp-green);
+  box-shadow: 0 0 0 3px rgba(87, 224, 0, 0.2);
 }
 
 .ucp-form-row-textarea {
@@ -375,8 +460,8 @@
   height: 44px;
   border: none;
   border-radius: 8px;
-  background-color: #0ea5e9;
-  color: #ffffff;
+  background-color: var(--ucp-green);
+  color: #122000;
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
@@ -384,7 +469,8 @@
 }
 
 .ucp-save-button:hover {
-  background-color: #0284c7;
+  background-color: var(--ucp-green-dark);
+  color: #ffffff;
 }
 
 /* --- MESSAGES & TOASTS --- */
@@ -513,11 +599,26 @@
     grid-template-columns: 1fr;
     gap: 24px;
   }
+
+  /* Right column stacks below the form on smaller screens, so
+     sticking it in place no longer makes sense. */
+  .ucp-right-column {
+    position: static;
+  }
 }
 
 @media (max-width: 768px) {
   .ucp-profile-card {
-    padding: 24px;
+    padding: 20px;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Paired address fields (Region+Province, City+Barangay) collapse
+     back to full-width, single-column rows. */
+  .ucp-form-pair {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 }
 
@@ -537,6 +638,10 @@
     gap: 8px;
   }
 
+  .ucp-form-pair .ucp-form-row {
+    gap: 6px;
+  }
+
   .ucp-detail-row {
     flex-direction: column;
     gap: 4px;
@@ -548,5 +653,9 @@
 
   .ucp-hub-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ucp-hub-item {
+    min-height: 0;
   }
 }

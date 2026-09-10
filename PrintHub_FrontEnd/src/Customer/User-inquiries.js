@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./User-inquiries.css";
 import "./User-orders.css";
-import { FaArrowLeft, FaFileInvoiceDollar } from "react-icons/fa";
+import { FaArrowLeft, FaFileInvoiceDollar, FaComments } from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 
 // Helper to render design preview
@@ -145,10 +145,18 @@ function UserInquiries() {
           >
             <FaArrowLeft /> Back
           </button>
-          <h1 className="uo-title">My Inquiries</h1>
-          <p className="uo-subtitle">
-            Track and manage your custom quote requests and feedback.
-          </p>
+          <div className="uo-header-row">
+            <div>
+              <h1 className="uo-title">My Inquiries</h1>
+              <p className="uo-subtitle">
+                Track and manage your custom quote requests and feedback.
+              </p>
+            </div>
+
+            <div className="uo-header-icon">
+              <FaComments />
+            </div>
+          </div>
         </div>
 
         {loading && (
@@ -208,7 +216,7 @@ function UserInquiries() {
                     <div className="ui-card-right">
                       <span
                         className="ui-status-pill"
-                        style={{ background: meta.color }}
+                        style={{ background: `${meta.color}1a`, color: meta.color }}
                       >
                         {meta.label}
                       </span>

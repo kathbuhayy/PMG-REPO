@@ -2,7 +2,18 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./User-orders.css";
 import "./User-inquiries.css";
-import { FaArrowLeft } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaTimes,
+  FaCheckCircle,
+  FaClock,
+  FaCopy,
+  FaDownload,
+  FaBoxOpen,
+  FaEnvelope,
+  FaCreditCard,
+  FaMapMarkerAlt,
+} from "react-icons/fa";
 import { buildApiUrl } from "../config/api";
 import { Capacitor } from "@capacitor/core";
 import AppModal from "../components/AppModal";
@@ -85,6 +96,7 @@ function UserOrders() {
   const [payingId, setPayingId] = useState(null);
 
   const [receipt, setReceipt] = useState(null);
+  const [receiptCopied, setReceiptCopied] = useState(false);
 
   const [complaintOrder, setComplaintOrder] = useState(null);
   const [complaintReason, setComplaintReason] = useState("");
@@ -705,7 +717,9 @@ function UserOrders() {
         );
       }
 
+      setReceiptCopied(false);
       setReceipt(data);
+      return true;
     } catch (err) {
       setNoticeModal({
         title: "Receipt unavailable",
@@ -714,6 +728,17 @@ function UserOrders() {
           "Could not load e-receipt.",
         tone: "danger",
       });
+      return false;
+    }
+  };
+
+  // Opens the receipt (same view as "E-Receipt") and immediately prints
+  // it, so this shortcut produces the exact same invoice as Payment
+  // Logs & Invoices' Download Invoice instead of a separate backend PDF.
+  const handleDownloadInvoice = async (orderId) => {
+    const loaded = await handleViewReceipt(orderId);
+    if (loaded) {
+      requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
     }
   };
 
@@ -1019,6 +1044,39 @@ function UserOrders() {
       style: "currency",
       currency: "PHP",
     }).format(Number(price || 0));
+
+  const formatReceiptDate = (isoString) => {
+    if (!isoString) return "";
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const getReceiptStatusInfo = (paymentStatus) => {
+    if (paymentStatus === "paid") {
+      return { label: "Paid", className: "paid", icon: <FaCheckCircle /> };
+    }
+    if (paymentStatus === "partially_paid") {
+      return { label: "Partially Paid", className: "partial", icon: <FaClock /> };
+    }
+    return { label: "Unpaid", className: "unpaid", icon: <FaClock /> };
+  };
+
+  const copyReceiptNo = async (receiptNo) => {
+    try {
+      await navigator.clipboard.writeText(receiptNo);
+      setReceiptCopied(true);
+      setTimeout(() => setReceiptCopied(false), 1800);
+    } catch (err) {
+      // Clipboard unavailable — no-op.
+    }
+  };
 
   const getStatusLabel = (order) => {
     if (
@@ -1427,12 +1485,7 @@ function UserOrders() {
           type="button"
           className="uo-receipt-btn light"
           onClick={() =>
-            window.open(
-              buildApiUrl(
-                `/api/orders/${order.id}/invoice`
-              ),
-              "_blank"
-            )
+            handleDownloadInvoice(order.id)
           }
         >
           Download Invoice
@@ -1953,14 +2006,22 @@ function UserOrders() {
             Back to Dashboard
           </button>
 
-          <h1 className="uo-title">
-            My Orders
-          </h1>
+          <div className="uo-header-row">
+            <div>
+              <h1 className="uo-title">
+                My Orders
+              </h1>
 
-          <p className="uo-subtitle">
-            Track and manage your custom
-            printing orders and approvals.
-          </p>
+              <p className="uo-subtitle">
+                Track and manage your custom
+                printing orders and approvals.
+              </p>
+            </div>
+
+            <div className="uo-header-icon">
+              <FaBoxOpen />
+            </div>
+          </div>
         </div>
 
         {/* FILTER / SEARCH TOOLBAR */}
@@ -2115,7 +2176,7 @@ function UserOrders() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="uo-modal-card">
+          <div className="uo-modal-card uo-receipt-card">
 
             <button
               type="button"
@@ -2125,116 +2186,171 @@ function UserOrders() {
               }
               aria-label="Close receipt"
             >
-              x
+              <FaTimes />
             </button>
 
-            <h2>
-              E-Receipt
-            </h2>
+            {/* Mirrors Payment Logs & Invoices' invoice panel design
+                (.upay-invoice-* in User-payments.css) so the printed
+                invoice looks identical whether opened from My Orders
+                or from Payment Logs & Invoices. */}
+            <div className="uo-receipt-top">
+              <div className="uo-receipt-heading">
+                <div
+                  className={`uo-receipt-status-icon ${getReceiptStatusInfo(receipt.paymentStatus).className
+                    }`}
+                >
+                  {getReceiptStatusInfo(receipt.paymentStatus).icon}
+                </div>
 
-            <div className="uo-receipt-meta">
-              <span>
-                {receipt.receiptNo}
-              </span>
+                <div>
+                  <h2>
+                    Receipt: {receipt.receiptNo}
+                    <FaCopy
+                      className="uo-receipt-copy-icon"
+                      onClick={() => copyReceiptNo(receipt.receiptNo)}
+                      title={receiptCopied ? "Copied!" : "Copy receipt number"}
+                    />
+                  </h2>
 
-              <span>
-                {receipt.paymentStatus.toUpperCase()}
+                  <p>
+                    Order #{receipt.orderId}
+                    {" • "}
+                    {formatReceiptDate(receipt.paidAt || receipt.issuedAt)}
+                  </p>
+                </div>
+              </div>
+
+              <span
+                className={`uo-receipt-status-badge ${getReceiptStatusInfo(receipt.paymentStatus).className
+                  }`}
+              >
+                {getReceiptStatusInfo(receipt.paymentStatus).label.toUpperCase()}
               </span>
             </div>
 
-            <p>
-              <strong>
-                Customer:
-              </strong>{" "}
-              {receipt.customerName}
-            </p>
+            <div className="uo-receipt-actions">
+              <button
+                type="button"
+                onClick={() => window.print()}
+              >
+                <FaDownload /> Download Invoice
+              </button>
+            </div>
 
-            <p>
-              <strong>
-                Payment Reference:
-              </strong>{" "}
-              {receipt.paymentReference ||
-                "Pending confirmation"}
-            </p>
+            <div className="uo-receipt-detail-grid">
+              <div className="uo-receipt-detail-box">
+                <div className="uo-receipt-detail-title">
+                  <FaEnvelope />
+                  <span>Customer Details</span>
+                </div>
 
-            <div className="uo-receipt-items">
-              {(receipt.items || []).map((item) => {
-                const breakdownParts = [];
-                if (item.setupFee != null) {
-                  breakdownParts.push(`Setup ${formatCurrency(item.setupFee)}`);
-                }
-                if (item.materialCost && item.materialCost.length > 0) {
-                  const materialTotal = item.materialCost.reduce(
-                    (sum, m) => sum + (m.lineCost || 0),
-                    0
-                  );
-                  breakdownParts.push(`Material ${formatCurrency(materialTotal)}`);
-                }
-                if (
-                  item.quantityDiscountFactor != null &&
-                  item.quantityDiscountFactor < 1
-                ) {
-                  const pct = Math.round((1 - item.quantityDiscountFactor) * 100);
-                  breakdownParts.push(`Bulk discount -${pct}%`);
-                }
+                <strong>{receipt.customerName || "Customer"}</strong>
+                <p>{receipt.customerEmail || "No email available"}</p>
+              </div>
 
-                return (
-                  <div key={item.id} className="uo-receipt-item">
-                    <div className="uo-receipt-item-main">
-                      <span>
-                        {item.productName} x {item.quantity}
-                      </span>
+              <div className="uo-receipt-detail-box">
+                <div className="uo-receipt-detail-title">
+                  <FaCreditCard />
+                  <span>Payment Details</span>
+                </div>
 
-                      <strong>{formatCurrency(item.totalPrice)}</strong>
+                <strong>Method: {receipt.paymentMethod || "Online payment"}</strong>
+                <p>Ref: {receipt.paymentReference || "Pending confirmation"}</p>
+              </div>
+            </div>
+
+            {receipt.shippingAddress && (
+              <div className="uo-receipt-shipping-box">
+                <div className="uo-receipt-section-heading">
+                  <FaMapMarkerAlt />
+                  <span>Shipping Address</span>
+                </div>
+
+                <strong>{receipt.shippingAddress}</strong>
+              </div>
+            )}
+
+            <div className="uo-receipt-items-section">
+              <div className="uo-receipt-section-heading">
+                <FaBoxOpen />
+                <span>Items</span>
+              </div>
+
+              <div className="uo-receipt-items-table-head">
+                <span>Item</span>
+                <span>Qty</span>
+                <span>Price</span>
+                <span>Total</span>
+              </div>
+
+              <div className="uo-receipt-items-table">
+                {(receipt.items || []).map((item) => (
+                  <div key={item.id} className="uo-receipt-item-row">
+                    <div className="uo-receipt-item-product">
+                      <div className="uo-receipt-product-placeholder">
+                        <FaBoxOpen />
+                      </div>
+
+                      <div>
+                        <strong>{item.productName}</strong>
+                        {item.customizationLabel && (
+                          <small>{item.customizationLabel}</small>
+                        )}
+                      </div>
                     </div>
 
-                    {breakdownParts.length > 0 && (
-                      <div className="uo-receipt-item-breakdown">
-                        {breakdownParts.join("  ·  ")}
-                      </div>
-                    )}
+                    <span>{item.quantity}</span>
+                    <span>{formatCurrency(item.unitPrice)}</span>
+                    <strong>{formatCurrency(item.totalPrice)}</strong>
                   </div>
-                );
-              })}
-            </div>
+                ))}
 
-            <div className="uo-receipt-total">
-              <span>
-                Total
-              </span>
-
-              <strong>
-                {formatCurrency(
-                  receipt.total
+                {(receipt.items || []).length === 0 && (
+                  <div className="uo-receipt-no-items">
+                    No item details available.
+                  </div>
                 )}
-              </strong>
+              </div>
             </div>
 
-            <div className="uo-mock-email">
-              <strong>
-                Mock email
-                notification
-              </strong>
+            <div className="uo-receipt-summary">
+              <div>
+                <span>Subtotal</span>
+                <strong>{formatCurrency(receipt.subtotal)}</strong>
+              </div>
 
-              <p>
-                To:{" "}
-                {receipt.mockEmail
-                  ?.to ||
-                  receipt.customerEmail}
-              </p>
+              <div>
+                <span>Shipping Fee</span>
+                <strong>{formatCurrency(receipt.shippingCost)}</strong>
+              </div>
 
-              <p>
-                Subject:{" "}
-                {receipt.mockEmail
-                  ?.subject ||
-                  "Payment update"}
-              </p>
+              <div className="grand-total">
+                <span>Total Paid</span>
+                <strong>{formatCurrency(receipt.total)}</strong>
+              </div>
+            </div>
 
-              <p>
-                {receipt.mockEmail
-                  ?.body ||
-                  "Payment details are available in this receipt."}
-              </p>
+            <div className="uo-receipt-email-notice">
+              <FaEnvelope />
+
+              <div>
+                <strong>Mock email notification</strong>
+
+                <p>
+                  <b>To:</b>{" "}
+                  {receipt.mockEmail?.to || receipt.customerEmail}
+                </p>
+
+                <p>
+                  <b>Subject:</b>{" "}
+                  {receipt.mockEmail?.subject || "Payment update"}
+                </p>
+
+                <p>
+                  {receipt.mockEmail?.body ||
+                    "Payment details are available in this receipt."}
+                </p>
+              </div>
             </div>
           </div>
         </div>

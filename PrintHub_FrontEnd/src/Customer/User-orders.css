@@ -27,13 +27,13 @@
      ========================================================= */
   
   .uo-top {
-    width: min(1030px, 100%);
+    width: min(1250px, 100%);
     margin: 0 auto 24px;
     display: flex;
     flex-direction: column;
     gap: 9px;
   }
-  
+
   .uo-back {
     align-self: flex-start;
     display: inline-flex;
@@ -50,26 +50,46 @@
       color 0.2s ease,
       transform 0.2s ease;
   }
-  
+
   .uo-back:hover {
     color: #4faa00;
     transform: translateX(-2px);
   }
-  
+
+  .uo-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .uo-header-icon {
+    width: 74px;
+    height: 74px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #effbea;
+    color: #4cbd18;
+    font-size: 31px;
+  }
+
   .uo-title {
     margin: 4px 0 0;
-    color: #10271f;
-    font-size: 34px;
-    line-height: 1.1;
+    color: #111827;
+    font-size: 31px;
+    line-height: 1.15;
     font-weight: 800;
-    letter-spacing: -0.025em;
+    letter-spacing: -1px;
   }
-  
+
   .uo-subtitle {
-    margin: 0;
-    color: #74857e;
+    margin: 7px 0 0;
+    color: #667892;
     font-size: 14px;
-    line-height: 1.6;
+    line-height: 1.5;
   }
   
   /* =========================================================
@@ -203,13 +223,13 @@
   
   .uo-search {
     width: 220px;
-    height: 40px;
+    height: 36px;
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 0 12px;
-    border: 1px solid #d5e2d1;
-    border-radius: 9px;
+    border: 1px solid #d9e1e8;
+    border-radius: 7px;
     background: #ffffff;
     color: #82918b;
     transition:
@@ -334,12 +354,12 @@
   .uo-order-card {
     overflow: hidden;
     background: #ffffff;
-    border: 1px solid #dce9d8;
-    border-radius: 16px;
+    border: 1px solid #e5e9ee;
+    border-radius: 12px;
     box-shadow:
-      0 8px 25px rgba(22, 54, 38, 0.055);
+      0 3px 12px rgba(15, 23, 42, 0.035);
   }
-  
+
   .uo-order-card.featured {
     border-color: #d4e7ce;
   }
@@ -1292,77 +1312,365 @@
   }
   
   /* =========================================================
-     RECEIPT
+     RECEIPT — mirrors Payment Logs & Invoices' invoice panel
+     (.upay-invoice-* in User-payments.css, the shared base) so
+     the printed invoice looks identical from either page.
      ========================================================= */
-  
-  .uo-receipt-meta,
-  .uo-receipt-total {
+
+  .uo-receipt-card {
+    max-width: 480px;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .uo-receipt-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 18px 54px 13px 19px;
+    border-bottom: 1px solid #edf1f4;
+  }
+
+  .uo-receipt-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .uo-receipt-status-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 13px;
+    background: #e7f8df;
+    color: #43b91a;
+  }
+
+  .uo-receipt-status-icon.partial {
+    background: #fff4d8;
+    color: #f2a000;
+  }
+
+  .uo-receipt-status-icon.unpaid {
+    background: #f1f2f4;
+    color: #7c8790;
+  }
+
+  .uo-receipt-heading h2 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #182033;
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  .uo-receipt-copy-icon {
+    color: #94a3ad;
+    font-size: 11px;
+    cursor: pointer;
+    transition: color 0.15s ease;
+  }
+
+  .uo-receipt-copy-icon:hover {
+    color: #43b91a;
+  }
+
+  .uo-receipt-heading p {
+    margin: 4px 0 0;
+    color: #788798;
+    font-size: 9px;
+  }
+
+  .uo-receipt-status-badge {
+    flex-shrink: 0;
+    padding: 6px 8px;
+    border-radius: 5px;
+    background: #dcf8d8;
+    color: #2ca50d;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+  }
+
+  .uo-receipt-status-badge.partial {
+    background: #fff2c9;
+    color: #d98700;
+  }
+
+  .uo-receipt-status-badge.unpaid {
+    background: #f1f2f4;
+    color: #5c666e;
+  }
+
+  .uo-receipt-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+    padding: 13px 19px;
+  }
+
+  .uo-receipt-actions button {
+    height: 29px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 1px solid #dbe2e8;
+    border-radius: 5px;
+    background: #ffffff;
+    color: #465669;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+  }
+
+  .uo-receipt-actions button:hover {
+    background: #f7faf8;
+    border-color: #b8c8d2;
+  }
+
+  .uo-receipt-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 16px 19px;
+    border-top: 1px solid #f0f3f5;
+  }
+
+  .uo-receipt-detail-box {
+    min-width: 0;
+  }
+
+  .uo-receipt-detail-title,
+  .uo-receipt-section-heading {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+    color: #5b6977;
+  }
+
+  .uo-receipt-detail-title svg,
+  .uo-receipt-section-heading svg {
+    color: #3ebd13;
+    font-size: 11px;
+  }
+
+  .uo-receipt-detail-title span,
+  .uo-receipt-section-heading span {
+    color: #8b98a5;
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .uo-receipt-detail-box > strong {
+    display: block;
+    color: #344457;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.4;
+  }
+
+  .uo-receipt-detail-box p {
+    margin: 3px 0 0;
+    color: #7d8a98;
+    font-size: 10px;
+    word-break: break-word;
+  }
+
+  .uo-receipt-shipping-box {
+    padding: 13px 19px;
+    background: #fafcfb;
+    border-top: 1px solid #eef2ef;
+    border-bottom: 1px solid #eef2ef;
+  }
+
+  .uo-receipt-shipping-box strong {
+    display: block;
+    color: #344f44;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .uo-receipt-items-section {
+    padding: 15px 19px 12px;
+  }
+
+  .uo-receipt-items-table-head {
+    display: grid;
+    grid-template-columns: 1fr 32px 62px 62px;
+    gap: 8px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid #e8edf0;
+    color: #94a0ad;
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .uo-receipt-items-table-head span:not(:first-child) {
+    text-align: right;
+  }
+
+  .uo-receipt-items-table {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .uo-receipt-item-row {
+    display: grid;
+    grid-template-columns: 1fr 32px 62px 62px;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f3f5;
+    color: #47586a;
+    font-size: 9px;
+  }
+
+  .uo-receipt-item-row > span,
+  .uo-receipt-item-row > strong {
+    text-align: right;
+  }
+
+  .uo-receipt-item-row > strong {
+    color: #263647;
+    font-size: 10px;
+  }
+
+  .uo-receipt-item-product {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .uo-receipt-product-placeholder {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #dce7dc;
+    border-radius: 6px;
+    background: #f2f9ef;
+    color: #52b72b;
+    font-size: 13px;
+  }
+
+  .uo-receipt-item-product > div:last-child {
+    min-width: 0;
+  }
+
+  .uo-receipt-item-product strong {
+    display: block;
+    color: #1e2b38;
+    font-size: 10px;
+    font-weight: 800;
+  }
+
+  .uo-receipt-item-product small {
+    display: block;
+    margin-top: 2px;
+    color: #84909d;
+    font-size: 8px;
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .uo-receipt-no-items {
+    padding: 18px 0;
+    text-align: center;
+    color: #8996a3;
+    font-size: 10px;
+  }
+
+  .uo-receipt-summary {
+    padding: 13px 19px;
+    background: #f8fafb;
+    border-top: 1px solid #edf1f4;
+    border-bottom: 1px solid #edf1f4;
+  }
+
+  .uo-receipt-summary > div {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    color: #53665e;
-    font-size: 14px;
-    font-weight: 600;
+    padding: 4px 0;
+    color: #758291;
+    font-size: 10px;
   }
-  
-  .uo-receipt-items {
-    margin: 16px 0;
-    padding: 8px 0;
-    border-top: 1px solid #dce9d8;
-    border-bottom: 1px solid #dce9d8;
+
+  .uo-receipt-summary > div strong {
+    color: #435365;
+    font-size: 10px;
   }
-  
-  .uo-receipt-items div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 6px 0;
+
+  .uo-receipt-summary .grand-total {
+    margin-top: 5px;
+    padding-top: 9px;
+    border-top: 1px solid #dce3e8;
+  }
+
+  .uo-receipt-summary .grand-total span {
+    color: #182033;
     font-size: 13px;
+    font-weight: 800;
   }
-  
-  .uo-receipt-items .uo-receipt-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 6px 0;
-}
 
-.uo-receipt-items .uo-receipt-item-main {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0;
-}
+  .uo-receipt-summary .grand-total strong {
+    color: #43b90e;
+    font-size: 17px;
+    font-weight: 800;
+  }
 
-.uo-receipt-items .uo-receipt-item-breakdown {
-  display: block;
-  padding: 2px 0 0;
-  font-size: 11px;
-  color: #94a3b8;
-}
-  
-  .uo-mock-email {
-    margin-top: 16px;
+  .uo-receipt-email-notice {
+    margin: 14px 19px 19px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
     padding: 12px;
-    border: 1px solid #dce9d8;
-    border-radius: 8px;
-    background: #f4f9f1;
-    color: #53665e;
+    border: 1px solid #ccd8ff;
+    border-radius: 9px;
+    background: #f7f9ff;
+    color: #52627a;
+  }
+
+  .uo-receipt-email-notice > svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: #4b64b9;
     font-size: 12px;
-    text-align: left;
   }
-  
-  .uo-mock-email strong {
+
+  .uo-receipt-email-notice strong {
     display: block;
-    margin-bottom: 4px;
-    color: #17352a;
+    color: #4054a2;
+    font-size: 10px;
+    font-weight: 800;
+    margin-bottom: 5px;
   }
-  
-  .uo-mock-email p {
-    margin: 2px 0;
+
+  .uo-receipt-email-notice p {
+    margin: 3px 0;
+    color: #65758c;
+    font-size: 9px;
+    line-height: 1.45;
   }
-  
+
   /* =========================================================
      RESPONSIVE
      ========================================================= */
@@ -1500,7 +1808,26 @@
     .uo-timeline-step {
       font-size: 9px;
     }
-  
+
+    .uo-receipt-items-table-head,
+    .uo-receipt-item-row {
+      grid-template-columns: 1fr 28px 55px 58px;
+      gap: 5px;
+    }
+
+    .uo-receipt-item-row {
+      font-size: 8px;
+    }
+
+    .uo-receipt-item-product strong {
+      font-size: 9px;
+    }
+
+    .uo-receipt-product-placeholder {
+      width: 30px;
+      height: 30px;
+    }
+
     .uo-section {
       padding: 17px 14px;
     }
@@ -1608,59 +1935,25 @@
 
 
 /* ---------------------------------------------------------
-   PAGE HEADER
-   --------------------------------------------------------- */
-
-.uo-top {
-  width: min(950px, 100%);
-  margin-bottom: 19px;
-}
-
-.uo-back {
-  font-size: 12px;
-  gap: 6px;
-}
-
-.uo-title {
-  font-size: 27px;
-}
-
-.uo-subtitle {
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-
-/* ---------------------------------------------------------
    ORDERS / INQUIRIES / PAYMENTS NAV
    --------------------------------------------------------- */
 
 .uo-resource-nav {
-  width: min(950px, 100%);
-  min-height: 43px;
+  width: min(1250px, 100%);
+  min-height: 56px;
 
   margin-bottom: 22px;
 
-  border-radius: 9px;
+  padding: 8px;
+
+  border-radius: 13px;
 }
 
 .uo-resource-tab {
-  min-height: 42px;
-  padding: 6px 13px;
+  min-height: 40px;
+  padding: 8px 16px;
 
-  font-size: 12px;
-  gap: 8px;
-}
-
-.uo-resource-icon {
-  width: 26px;
-  height: 26px;
-
-  flex-basis: 26px;
-
-  border-radius: 7px;
-
-  font-size: 11px;
+  font-size: 14px;
 }
 
 
@@ -1669,7 +1962,7 @@
    --------------------------------------------------------- */
 
 .uo-toolbar {
-  width: min(950px, 100%);
+  width: min(1250px, 100%);
   margin-bottom: 16px;
   gap: 13px;
 }
@@ -1727,7 +2020,7 @@
    --------------------------------------------------------- */
 
 .uo-orders {
-  width: min(950px, 100%);
+  width: min(1250px, 100%);
   gap: 10px;
 }
 
@@ -2288,4 +2581,52 @@
   border-color: #b8dcae;
   background: #f1f8ed;
   color: #2f5c1a;
+}
+
+/* =========================================================
+   PRINT / INVOICE EXPORT (matches the @media print block in
+   User-payments.css so Download Invoice produces the same
+   printed layout from My Orders as from Payment Logs & Invoices)
+   ========================================================= */
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .uo-receipt-card,
+  .uo-receipt-card * {
+    visibility: visible;
+  }
+
+  .uo-modal {
+    position: static;
+    display: block;
+    background: none;
+    backdrop-filter: none;
+    padding: 0;
+  }
+
+  .uo-receipt-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 800px;
+    max-height: none;
+    overflow: visible;
+    margin: 0;
+    border: none;
+    box-shadow: none;
+  }
+
+  .uo-modal-close,
+  .uo-receipt-actions {
+    display: none;
+  }
+
+  .uo-page {
+    background: #ffffff;
+    padding: 0;
+  }
 }
