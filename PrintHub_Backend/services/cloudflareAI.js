@@ -2,16 +2,25 @@
  * PMG AI Image Generation - Cloudflare Workers AI
  *
  * Uses Cloudflare Workers AI FLUX.1 Schnell
+ * + IMG.LY Background Removal
  *
  * IMPORTANT:
  * CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
  * must be configured in the backend .env
  */
 
-const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
-const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
+const { removeBackground } = require(
+  "@imgly/background-removal-node"
+);
 
-const MODEL = "@cf/black-forest-labs/flux-1-schnell";
+const CLOUDFLARE_API_TOKEN =
+  process.env.CLOUDFLARE_API_TOKEN;
+
+const CLOUDFLARE_ACCOUNT_ID =
+  process.env.CLOUDFLARE_ACCOUNT_ID;
+
+const MODEL =
+  "@cf/black-forest-labs/flux-1-schnell";
 
 async function generateWithCloudflare({
   prompt,
@@ -54,7 +63,8 @@ async function generateWithCloudflare({
   });
 
   if (!response.ok) {
-    let message = `Cloudflare AI error: ${response.status}`;
+    let message =
+      `Cloudflare AI error: ${response.status}`;
 
     try {
       const errorData = await response.json();
@@ -90,7 +100,8 @@ async function generateWithCloudflare({
     throw new Error(message);
   }
 
-  const base64Image = data?.result?.image;
+  const base64Image =
+    data?.result?.image;
 
   if (!base64Image) {
     console.error(
@@ -104,18 +115,133 @@ async function generateWithCloudflare({
   }
 
   /*
-   * Cloudflare FLUX returns the generated image as Base64.
-   *
-   * Convert it to a data URL so the existing frontend
-   * can continue using the imageUrl field.
+   * --------------------------------------------------
+   * STEP 1: Convert Cloudflare Base64 into a Buffer
+   * --------------------------------------------------
    */
+
+  let imageBuffer;
+
+  try {
+    const cleanBase64 =
+      base64Image.startsWith("data:")
+        ? base64Image.split(",")[1]
+        : base64Image;
+
+    imageBuffer =
+      Buffer.from(cleanBase64, "base64");
+
+    console.log(
+      "[PMG AI] Cloudflare image converted to Buffer"
+    );
+  } catch (error) {
+    console.error(
+      "[PMG AI] Failed to decode Cloudflare image:",
+      error
+    );
+
+    throw new Error(
+      "Failed to decode generated AI image"
+    );
+  }
+
+  /*
+   * --------------------------------------------------
+   * STEP 2: Remove the background
+   * --------------------------------------------------
+   *
+   * The Buffer is converted into a typed Blob.
+   * This is important because IMG.LY needs to know
+   * the input image MIME type.
+   */
+
+  let transparentBlob;
+
+  try {
+    console.log(
+      "[PMG AI] Removing image background..."
+    );
+
+    const inputBlob = new Blob(
+      [imageBuffer],
+      {
+        type: "image/jpeg",
+      }
+    );
+
+    transparentBlob =
+      await removeBackground(
+        inputBlob,
+        {
+          output: {
+            format: "image/png",
+          },
+        }
+      );
+
+    console.log(
+      "[PMG AI] Background removed successfully"
+    );
+  } catch (error) {
+    console.error(
+      "[PMG AI] Background removal failed:",
+      error
+    );
+
+    throw new Error(
+      "AI image generated, but background removal failed"
+    );
+  }
+
+  /*
+   * --------------------------------------------------
+   * STEP 3: Convert transparent PNG Blob to Buffer
+   * --------------------------------------------------
+   */
+
+  let transparentBuffer;
+
+  try {
+    const arrayBuffer =
+      await transparentBlob.arrayBuffer();
+
+    transparentBuffer =
+      Buffer.from(arrayBuffer);
+
+    console.log(
+      "[PMG AI] Transparent PNG converted to Buffer"
+    );
+  } catch (error) {
+    console.error(
+      "[PMG AI] Failed to convert transparent image:",
+      error
+    );
+
+    throw new Error(
+      "Failed to process transparent AI image"
+    );
+  }
+
+  /*
+   * --------------------------------------------------
+   * STEP 4: Convert PNG Buffer to Base64
+   * --------------------------------------------------
+   */
+
+  const transparentBase64 =
+    transparentBuffer.toString("base64");
+
+  /*
+   * --------------------------------------------------
+   * STEP 5: Return transparent PNG
+   * --------------------------------------------------
+   */
+
   const imageUrl =
-    base64Image.startsWith("data:")
-      ? base64Image
-      : `data:image/jpeg;base64,${base64Image}`;
+    `data:image/png;base64,${transparentBase64}`;
 
   console.log(
-    "[PMG AI] Cloudflare image generated successfully"
+    "[PMG AI] Transparent PNG generated successfully"
   );
 
   return {
@@ -123,8 +249,8 @@ async function generateWithCloudflare({
     width: 1024,
     height: 1024,
     seed: null,
-    contentType: "image/jpeg",
-    backgroundRemoved: false,
+    contentType: "image/png",
+    backgroundRemoved: true,
     generationModel: MODEL,
   };
 }
