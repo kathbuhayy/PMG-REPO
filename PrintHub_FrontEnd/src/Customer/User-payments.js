@@ -314,8 +314,7 @@ Amount: ${formatCurrency(selected.total)}`;
           className="uo-resource-tab"
           onClick={() => navigate("/user-orders")}
         >
-          <FaShoppingBag />
-          <span>Orders</span>
+          Orders
         </button>
 
         <button
@@ -323,8 +322,7 @@ Amount: ${formatCurrency(selected.total)}`;
           className="uo-resource-tab"
           onClick={() => navigate("/user-inquiries")}
         >
-          <FaEnvelope />
-          <span>Inquiries</span>
+          Inquiries
         </button>
 
         <button
@@ -332,8 +330,7 @@ Amount: ${formatCurrency(selected.total)}`;
           className="uo-resource-tab active"
           onClick={() => navigate("/user-payments")}
         >
-          <FaCreditCard />
-          <span>Payments</span>
+          Payments
         </button>
       </div>
 
@@ -529,15 +526,6 @@ Amount: ${formatCurrency(selected.total)}`;
               }
             />
           </div>
-
-          <button
-            type="button"
-            className="upay-export-btn"
-            onClick={handleDownload}
-          >
-            <FaDownload />
-            Export
-          </button>
         </section>
       )}
 

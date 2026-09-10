@@ -15,9 +15,6 @@
   display: flex;
   align-items: center;
 
-  padding: 0 40px 0 35px;
-  gap: 20px;
-
   /*
     Normal navbar for other pages.
   */
@@ -40,6 +37,25 @@
     "Segoe UI",
     Roboto,
     sans-serif;
+}
+
+/* =========================================================
+   NAV INNER — max-width container so links/icons stay
+   readable and don't stretch edge-to-edge on wide screens.
+========================================================= */
+
+.uh-nav-inner {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+
+  box-sizing: border-box;
+
+  display: flex;
+  align-items: center;
+
+  padding: 0 40px;
+  gap: 20px;
 }
 
 
@@ -867,7 +883,9 @@
 @media (max-width: 1180px) {
   .uh-nav {
     min-height: 68px;
+  }
 
+  .uh-nav-inner {
     padding:
       0 25px;
   }
@@ -902,7 +920,9 @@
 @media (max-width: 768px) {
   .uh-nav {
     min-height: 58px;
+  }
 
+  .uh-nav-inner {
     padding:
       5px 12px;
 
@@ -1062,7 +1082,7 @@
 ========================================================= */
 
 @media (max-width: 420px) {
-  .uh-nav {
+  .uh-nav-inner {
     padding:
       5px 9px;
   }

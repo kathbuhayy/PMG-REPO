@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import {
   FaShoppingBag,
@@ -21,6 +22,7 @@ function UserCustomizeProfile() {
 
   const [form, setForm] = useState({
     name: "",
+    email: "",
     birthday: "",
     gender: "",
     phone: "+63",
@@ -36,6 +38,7 @@ function UserCustomizeProfile() {
 
   const [initialForm, setInitialForm] = useState({
     name: "",
+    email: "",
     birthday: "",
     gender: "",
     phone: "+63",
@@ -128,6 +131,7 @@ function UserCustomizeProfile() {
 
         const loaded = {
           name: data.name || "",
+          email: data.email || "",
           birthday: data.birthday || "",
           gender: data.gender || "",
           phone: data.phone || "+63",
@@ -561,82 +565,88 @@ function UserCustomizeProfile() {
                     />
                   </div>
 
-                  <div className="ucp-form-row">
-                    <label>Region</label>
-                    <select
-                      value={form.region}
-                      onChange={(e) => handleRegionChange(e.target.value)}
-                    >
-                      <option value="">Select Region...</option>
-                      {profileAddr.regions.map((r) => (
-                        <option key={r.code} value={r.name}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="ucp-form-section-divider">Address</div>
+
+                  <div className="ucp-form-pair">
+                    <div className="ucp-form-row">
+                      <label>Region</label>
+                      <select
+                        value={form.region}
+                        onChange={(e) => handleRegionChange(e.target.value)}
+                      >
+                        <option value="">Select Region...</option>
+                        {profileAddr.regions.map((r) => (
+                          <option key={r.code} value={r.name}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="ucp-form-row">
+                      <label>Province</label>
+                      <select
+                        value={form.province}
+                        onChange={(e) => handleProvinceChange(e.target.value)}
+                        disabled={
+                          !form.region ||
+                          profileAddr.provinces.length === 0
+                        }
+                      >
+                        {profileAddr.provinces.length === 0 ? (
+                          <option value="N/A">N/A (No provinces)</option>
+                        ) : (
+                          <>
+                            <option value="">Select Province...</option>
+                            {profileAddr.provinces.map((p) => (
+                              <option key={p.code} value={p.name}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </select>
+                    </div>
                   </div>
 
-                  <div className="ucp-form-row">
-                    <label>Province</label>
-                    <select
-                      value={form.province}
-                      onChange={(e) => handleProvinceChange(e.target.value)}
-                      disabled={
-                        !form.region ||
-                        profileAddr.provinces.length === 0
-                      }
-                    >
-                      {profileAddr.provinces.length === 0 ? (
-                        <option value="N/A">N/A (No provinces)</option>
-                      ) : (
-                        <>
-                          <option value="">Select Province...</option>
-                          {profileAddr.provinces.map((p) => (
-                            <option key={p.code} value={p.name}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </>
-                      )}
-                    </select>
-                  </div>
+                  <div className="ucp-form-pair">
+                    <div className="ucp-form-row">
+                      <label>City / Municipality</label>
+                      <select
+                        value={form.city}
+                        onChange={(e) => handleCityChange(e.target.value)}
+                        disabled={
+                          !form.region ||
+                          (profileAddr.provinces.length > 0 &&
+                            !form.province)
+                        }
+                      >
+                        <option value="">Select City...</option>
+                        {profileAddr.cities.map((c) => (
+                          <option key={c.code} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                  <div className="ucp-form-row">
-                    <label>City / Municipality</label>
-                    <select
-                      value={form.city}
-                      onChange={(e) => handleCityChange(e.target.value)}
-                      disabled={
-                        !form.region ||
-                        (profileAddr.provinces.length > 0 &&
-                          !form.province)
-                      }
-                    >
-                      <option value="">Select City...</option>
-                      {profileAddr.cities.map((c) => (
-                        <option key={c.code} value={c.name}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="ucp-form-row">
-                    <label>Barangay</label>
-                    <select
-                      value={form.barangay}
-                      onChange={(e) =>
-                        setForm({ ...form, barangay: e.target.value })
-                      }
-                      disabled={!form.city}
-                    >
-                      <option value="">Select Barangay...</option>
-                      {profileAddr.barangays.map((b) => (
-                        <option key={b.code} value={b.name}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="ucp-form-row">
+                      <label>Barangay</label>
+                      <select
+                        value={form.barangay}
+                        onChange={(e) =>
+                          setForm({ ...form, barangay: e.target.value })
+                        }
+                        disabled={!form.city}
+                      >
+                        <option value="">Select Barangay...</option>
+                        {profileAddr.barangays.map((b) => (
+                          <option key={b.code} value={b.name}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="ucp-form-row">
@@ -649,6 +659,7 @@ function UserCustomizeProfile() {
                       placeholder="House No., Street name, etc."
                     />
                   </div>
+
                 </div>
 
                 <div className="ucp-profile-actions">
@@ -762,17 +773,22 @@ function UserCustomizeProfile() {
         </div>
       </div>
 
-      {toast.show && (
-        <div
-          className={`ucp-toast ${
-            toast.type === "error"
-              ? "ucp-toast-error"
-              : "ucp-toast-success"
-          }`}
-        >
-          {toast.message}
-        </div>
-      )}
+      {toast.show &&
+        createPortal(
+          // Rendered into <body> so this fixed-position toast is never
+          // trapped by this page's fade-in-up entrance animation (a
+          // non-"none" transform on an ancestor turns "fixed" into
+          // "positioned relative to that ancestor", pushing the toast
+          // far outside the visible viewport instead of bottom-right).
+          <div
+            className={`ucp-toast ${
+              toast.type === "error" ? "ucp-toast-error" : "ucp-toast-success"
+            }`}
+          >
+            {toast.message}
+          </div>,
+          document.body
+        )}
 
       {showDiscardModal && (
         <div
@@ -806,6 +822,7 @@ function UserCustomizeProfile() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
