@@ -303,14 +303,6 @@ export default function About() {
 
             </p>
 
-
-            <button
-              type="button"
-              className="about-read-more"
-            >
-              Read More
-            </button>
-
           </div>
 
 

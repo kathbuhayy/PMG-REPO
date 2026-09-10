@@ -1,3 +1,4 @@
+// server.js
 require("dotenv").config();
 
 const express = require("express");
@@ -21,6 +22,15 @@ const {
   requireRole
 } = require("./services/activityLog");
 const { scheduleActivityLogCleanup } = require("./services/activityLogCleanup");
+
+const {
+  isBranchAdmin,
+  strictBranchWhere,
+  sharedOrOwnBranchWhere,
+  canActOnBranch,
+  denyCrossBranch,
+  resolveCreateBranchId,
+} = require("./services/branchScope");
 
 const {
   generateModelFromText,
@@ -792,7 +802,10 @@ app.delete("/api/admin/archived-users/:id", async (req, res) => {
 // admin manage user
 app.get("/api/admin/users", async (req, res) => {
   try {
-    const rows = await prisma.user.findMany();
+    const rows = await prisma.user.findMany({
+      where: strictBranchWhere(req.actor),
+      include: { branch: true },
+    });
     const mapped = rows.map((u) => ({
       id: u.id,
       name: `${u.first_name} ${u.last_name}`,
@@ -801,6 +814,8 @@ app.get("/api/admin/users", async (req, res) => {
       status: u.status || "active",
       lastLogin: u.last_login,
       joinDate: u.join_date,
+      branchId: u.branchId,
+      branchName: u.branch?.name || null,
     }));
     res.json(mapped);
   } catch (e) {
@@ -809,7 +824,15 @@ app.get("/api/admin/users", async (req, res) => {
   }
 });
 app.post("/api/admin/users", (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, branchId } = req.body;
+
+  if (isBranchAdmin(req.actor) && role !== "staff") {
+    return denyCrossBranch(res);
+  }
+  const resolvedBranchId = resolveCreateBranchId(req.actor, branchId);
+  if (role === "branch_admin" && !resolvedBranchId) {
+    return res.status(400).json({ message: "branch_admin accounts require a branchId" });
+  }
 
   const parts = name.split(" ");
   const first = parts[0];
@@ -827,6 +850,7 @@ app.post("/api/admin/users", (req, res) => {
           email,
           password: hash,
           role: roleToDb(role),
+          branchId: resolvedBranchId,
         },
       });
 
@@ -835,7 +859,7 @@ app.post("/api/admin/users", (req, res) => {
         action: "created",
         module: "users",
         description: `Created account "${created.first_name} ${created.last_name}" (${created.email})`,
-        metadata: { userId: created.id },
+        metadata: { userId: created.id, branchId: created.branchId },
       });
 
       return res.json({ message: "User created" });
@@ -846,22 +870,34 @@ app.post("/api/admin/users", (req, res) => {
   });
 });
 
-app.put("/api/admin/users/:id", (req, res) => {
-  const { name, email, role, status } = req.body;
+app.put("/api/admin/users/:id", async (req, res) => {
+  const { name, email, role, status, branchId } = req.body;
+  const targetId = parseInt(req.params.id);
+
+  if (isBranchAdmin(req.actor)) {
+    const existingUser = await prisma.user.findUnique({ where: { id: targetId } });
+    if (!existingUser || !canActOnBranch(req.actor, existingUser.branchId)) {
+      return denyCrossBranch(res);
+    }
+    if (role && role !== "staff") return denyCrossBranch(res);
+  }
+
   const parts = name.split(" ");
   const first = parts[0];
   const last = parts.slice(1).join(" ");
+  const data = {
+    first_name: first,
+    last_name: last,
+    email,
+    role: roleToDb(role),
+    status,
+  };
+  if (!isBranchAdmin(req.actor) && branchId !== undefined) {
+    data.branchId = branchId === null ? null : parseInt(branchId, 10);
+  }
+
   prisma.user
-    .update({
-      where: { id: parseInt(req.params.id) },
-      data: {
-        first_name: first,
-        last_name: last,
-        email,
-        role: roleToDb(role),
-        status,
-      },
-    })
+    .update({ where: { id: targetId }, data })
     .then(async (updated) => {
       await logActivity({
         actor: req.actor,
@@ -883,6 +919,7 @@ app.delete("/api/admin/users/:id", async (req, res) => {
   try {
     const u = await prisma.user.findUnique({ where: { id: userId } });
     if (!u) return res.status(404).json({ message: "User not found" });
+    if (!canActOnBranch(req.actor, u.branchId)) return denyCrossBranch(res);
 
     await prisma.$transaction([
       prisma.archivedUser.create({
@@ -1276,15 +1313,22 @@ app.post("/api/orders", async (req, res) => {
     // Validate submitted unitPrice against the same live-pricing formula
     // used by /estimate-price, so a customer can't submit an arbitrarily
     // low price by tampering with the frontend calculation.
+    // Materials can have the same name across different branches (each
+    // branch tracks its own separate stock). Prices are meant to be the
+    // same everywhere, but ordering deterministically (lowest cost wins
+    // on a name collision) keeps this safe even if that ever drifts.
     const [substratesForCheck, inksForCheck, unitsForCheck] = await Promise.all([
       prisma.inventorySubstrate.findMany({
         select: { materialName: true, costPerMeter: true },
+        orderBy: { costPerMeter: "asc" },
       }),
       prisma.inventoryInk.findMany({
         select: { colorChannel: true, costPerMl: true },
+        orderBy: { costPerMl: "asc" },
       }),
       prisma.inventoryUnit.findMany({
         select: { itemName: true, costPerUnit: true },
+        orderBy: { costPerUnit: "asc" },
       }),
     ]);
     const materialCostsForCheck = {};
@@ -2083,16 +2127,16 @@ app.get("/api/admin/products", async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 100;
     const skip = (page - 1) * limit;
 
+    const where = { deleted_at: null };
+
     const products = await prisma.product.findMany({
-      where: { deleted_at: null },
+      where,
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
     });
 
-    const total = await prisma.product.count({
-      where: { deleted_at: null },
-    });
+    const total = await prisma.product.count({ where });
 
     res.json({
       products,
@@ -2112,7 +2156,7 @@ app.get("/api/admin/products", async (req, res) => {
 app.get("/api/admin/orders", async (req, res) => {
   try {
     const orders = await prisma.order.findMany({
-      where: { deleted_at: null },
+      where: { deleted_at: null, ...strictBranchWhere(req.actor) },
       include: {
         items: {
           include: {
@@ -2131,11 +2175,12 @@ app.get("/api/admin/orders", async (req, res) => {
   }
 });
 
-app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff", "admin", "branch_admin"), async (req, res) => {
   try {
     const where = {
       deleted_at: null,
       status: { notIn: ["cancelled", "return_requested"] },
+      ...strictBranchWhere(req.actor),
     };
 
     let scopedToStatuses = null;
@@ -2198,9 +2243,13 @@ app.get("/api/me/staff-roles", requireAuth(prisma), async (req, res) => {
 
 
 // GET /api/admin/users/:id/staff-roles — list a user's active sub-roles
-app.get("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+app.get("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("admin", "branch_admin"), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
+    if (isBranchAdmin(req.actor)) {
+      const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+      if (!targetUser || !canActOnBranch(req.actor, targetUser.branchId)) return denyCrossBranch(res);
+    }
     const roles = await prisma.userStaffRole.findMany({
       where: { userId, unassignedAt: null },
       select: { role: true },
@@ -2213,11 +2262,15 @@ app.get("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("ad
 });
 
 // POST /api/admin/users/:id/staff-roles — grant a sub-role
-app.post("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+app.post("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("admin", "branch_admin"), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     const { role } = req.body;
     if (!role) return res.status(400).json({ message: "role is required" });
+    if (isBranchAdmin(req.actor)) {
+      const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+      if (!targetUser || !canActOnBranch(req.actor, targetUser.branchId)) return denyCrossBranch(res);
+    }
 
     // Re-activate if it was previously revoked, otherwise create fresh
     const existing = await prisma.userStaffRole.findFirst({ where: { userId, role } });
@@ -2247,10 +2300,14 @@ app.post("/api/admin/users/:id/staff-roles", requireAuth(prisma), requireRole("a
 });
 
 // DELETE /api/admin/users/:id/staff-roles/:role — revoke a sub-role
-app.delete("/api/admin/users/:id/staff-roles/:role", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+app.delete("/api/admin/users/:id/staff-roles/:role", requireAuth(prisma), requireRole("admin", "branch_admin"), async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     const { role } = req.params;
+    if (isBranchAdmin(req.actor)) {
+      const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+      if (!targetUser || !canActOnBranch(req.actor, targetUser.branchId)) return denyCrossBranch(res);
+    }
 
     await prisma.userStaffRole.updateMany({
       where: { userId, role, unassignedAt: null },
@@ -2274,7 +2331,7 @@ app.delete("/api/admin/users/:id/staff-roles/:role", requireAuth(prisma), requir
 });
 
 // PUT /api/production/orders/:id/status — advance an order's production status
-app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("staff", "admin", "branch_admin"), async (req, res) => {
   const orderId = parseInt(req.params.id);
   const { productionStatus } = req.body;
 
@@ -2297,6 +2354,7 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
   try {
     const existing = await prisma.order.findUnique({ where: { id: orderId } });
     if (!existing) return res.status(404).json({ message: "Order not found" });
+    if (!canActOnBranch(req.actor, existing.branchId)) return denyCrossBranch(res);
 
     if (productionStatus === "PRINTING_QUEUE") {
       if (!existing.proofApproved) {
@@ -2544,11 +2602,11 @@ app.patch("/api/chat/conversations/:id/close", requireAuth(prisma), requireRole(
 });
 
 // GET /api/production/requisitions — list purchase requisitions (admin/staff)
-app.get("/api/production/requisitions", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+app.get("/api/production/requisitions", requireAuth(prisma), requireRole("staff", "admin", "branch_admin"), async (req, res) => {
   try {
     const { status } = req.query;
     const requisitions = await prisma.purchaseRequisition.findMany({
-      where: status ? { status } : {},
+      where: { ...(status ? { status } : {}), ...strictBranchWhere(req.actor) },
       orderBy: { createdAt: "desc" },
     });
     return res.json({ requisitions });
@@ -2559,7 +2617,7 @@ app.get("/api/production/requisitions", requireAuth(prisma), requireRole("staff"
 });
 
 // PATCH /api/production/requisitions/:id — update requisition status (e.g. mark ORDERED/RECEIVED)
-app.patch("/api/production/requisitions/:id", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+app.patch("/api/production/requisitions/:id", requireAuth(prisma), requireRole("staff", "admin", "branch_admin"), async (req, res) => {
   const requisitionId = parseInt(req.params.id);
   const { status } = req.body;
 
@@ -2569,6 +2627,10 @@ app.patch("/api/production/requisitions/:id", requireAuth(prisma), requireRole("
   }
 
   try {
+    if (isBranchAdmin(req.actor)) {
+      const existingReq = await prisma.purchaseRequisition.findUnique({ where: { id: requisitionId } });
+      if (!existingReq || !canActOnBranch(req.actor, existingReq.branchId)) return denyCrossBranch(res);
+    }
     const updated = await prisma.purchaseRequisition.update({
       where: { id: requisitionId },
       data: {
@@ -2581,17 +2643,17 @@ app.patch("/api/production/requisitions/:id", requireAuth(prisma), requireRole("
     if (status === "RECEIVED") {
       if (updated.materialType === "substrate") {
         await prisma.inventorySubstrate.updateMany({
-          where: { materialName: updated.materialName },
+          where: { materialName: updated.materialName, branchId: updated.branchId },
           data: { stockMeters: { increment: updated.requestedAmount } },
         });
             } else if (updated.materialType === "ink") {
         await prisma.inventoryInk.updateMany({
-          where: { colorChannel: updated.materialName },
+          where: { colorChannel: updated.materialName, branchId: updated.branchId },
           data: { volumeMl: { increment: updated.requestedAmount } },
         });
       } else if (updated.materialType === "unit") {
         await prisma.inventoryUnit.updateMany({
-          where: { itemName: updated.materialName },
+          where: { itemName: updated.materialName, branchId: updated.branchId },
           data: { stockUnits: { increment: Math.round(updated.requestedAmount) } },
         });
       }
@@ -2614,12 +2676,13 @@ app.patch("/api/production/requisitions/:id", requireAuth(prisma), requireRole("
 });
 
 // GET /api/production/requisitions/:id/document — plain-text restock sheet for printing/emailing
-app.get("/api/production/requisitions/:id/document", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+app.get("/api/production/requisitions/:id/document", requireAuth(prisma), requireRole("staff", "admin", "branch_admin"), async (req, res) => {
   try {
     const requisition = await prisma.purchaseRequisition.findUnique({
       where: { id: parseInt(req.params.id) },
     });
     if (!requisition) return res.status(404).json({ message: "Requisition not found" });
+    if (!canActOnBranch(req.actor, requisition.branchId)) return denyCrossBranch(res);
 
     res.set("Content-Type", "text/plain");
     return res.send(requisition.documentText);
@@ -2669,6 +2732,71 @@ app.get("/api/branches", async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Failed to fetch branches" });
+  }
+});
+
+// GET /api/admin/branches — full list including inactive ones, admin only
+app.get("/api/admin/branches", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+  try {
+    const branches = await prisma.branch.findMany({ orderBy: { name: "asc" } });
+    res.json(branches);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: "Failed to fetch branches" });
+  }
+});
+
+// POST /api/branches — create a new branch (super admin only)
+app.post("/api/branches", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+  const { name, address } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ message: "Branch name is required" });
+  }
+  try {
+    const branch = await prisma.branch.create({
+      data: { name: name.trim(), address: address || null },
+    });
+    await logActivity({
+      actor: req.actor,
+      action: "created",
+      module: "branches",
+      description: `Created branch "${branch.name}"`,
+      metadata: { branchId: branch.id },
+    });
+    res.status(201).json({ message: "Branch created", branch });
+  } catch (e) {
+    console.error(e);
+    if (e.code === "P2002") {
+      return res.status(400).json({ message: "A branch with this name already exists" });
+    }
+    res.status(500).json({ message: "Failed to create branch" });
+  }
+});
+
+// PUT /api/branches/:id — edit name/address, or toggle active
+app.put("/api/branches/:id", requireAuth(prisma), requireRole("admin"), async (req, res) => {
+  const { name, address, active } = req.body;
+  try {
+    const branch = await prisma.branch.update({
+      where: { id: parseInt(req.params.id) },
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(address !== undefined && { address }),
+        ...(active !== undefined && { active }),
+      },
+    });
+    await logActivity({
+      actor: req.actor,
+      action: "updated",
+      module: "branches",
+      description: `Updated branch "${branch.name}"`,
+      metadata: { branchId: branch.id },
+    });
+    res.json({ message: "Branch updated", branch });
+  } catch (e) {
+    console.error(e);
+    if (e.code === "P2025") return res.status(404).json({ message: "Branch not found" });
+    res.status(500).json({ message: "Failed to update branch" });
   }
 });
 
@@ -2733,6 +2861,7 @@ app.get("/api/admin/reports/sales", async (req, res) => {
     const where = {
       deleted_at: null,
       ...(Object.keys(createdAt).length ? { createdAt } : {}),
+      ...strictBranchWhere(req.actor),
     };
 
     const orders = await prisma.order.findMany({
@@ -2828,7 +2957,7 @@ app.get("/api/admin/reports/sales", async (req, res) => {
 
 // GET /api/admin/dashboard/sales-overview — real daily revenue trend + monthly
 // summary for the dashboard's Sales Overview card
-app.get("/api/admin/dashboard/sales-overview", requireAuth(prisma), requireRole("staff", "admin"), async (req, res) => {
+app.get("/api/admin/dashboard/sales-overview", requireAuth(prisma), requireRole("staff", "admin", "branch_admin"), async (req, res) => {
   try {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -2839,6 +2968,7 @@ app.get("/api/admin/dashboard/sales-overview", requireAuth(prisma), requireRole(
         deleted_at: null,
         payment_status: "paid",
         createdAt: { gte: monthStart, lte: monthEnd },
+        ...strictBranchWhere(req.actor),
       },
       select: { total: true, createdAt: true, userId: true },
     });
@@ -2887,6 +3017,7 @@ app.get("/api/admin/payments", async (req, res) => {
     const where = {
       deleted_at: null,
       ...(status ? { payment_status: status } : {}),
+      ...strictBranchWhere(req.actor),
     };
 
     const orders = await prisma.order.findMany({
@@ -2929,10 +3060,11 @@ app.get("/api/admin/payments", async (req, res) => {
 // GET /api/admin/inventory — current stock levels for all substrate/ink materials
 app.get("/api/admin/inventory", async (req, res) => {
   try {
-        const [substrates, inks, units] = await Promise.all([
-      prisma.inventorySubstrate.findMany({ orderBy: { materialName: "asc" } }),
-      prisma.inventoryInk.findMany({ orderBy: { colorChannel: "asc" } }),
-      prisma.inventoryUnit.findMany({ orderBy: { itemName: "asc" } }),
+    const branchWhere = strictBranchWhere(req.actor);
+    const [substrates, inks, units] = await Promise.all([
+      prisma.inventorySubstrate.findMany({ where: branchWhere, orderBy: { materialName: "asc" } }),
+      prisma.inventoryInk.findMany({ where: branchWhere, orderBy: { colorChannel: "asc" } }),
+      prisma.inventoryUnit.findMany({ where: branchWhere, orderBy: { itemName: "asc" } }),
     ]);
 
     const materials = [
@@ -2984,10 +3116,11 @@ app.get("/api/admin/inventory", async (req, res) => {
 // POST /api/admin/inventory — add a new tracked material
 app.post("/api/admin/inventory", async (req, res) => {
   try {
-    const { type, name, stock, safetyThreshold } = req.body;
+    const { type, name, stock, safetyThreshold, branchId } = req.body;
     if (!type || !name || stock === undefined) {
       return res.status(400).json({ message: "type, name, and stock are required" });
     }
+    const resolvedBranchId = resolveCreateBranchId(req.actor, branchId);
 
     let created;
     if (type === "substrate") {
@@ -2995,6 +3128,7 @@ app.post("/api/admin/inventory", async (req, res) => {
         data: {
           materialName: name,
           stockMeters: parseFloat(stock),
+          branchId: resolvedBranchId,
           ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
         },
       });
@@ -3003,6 +3137,7 @@ app.post("/api/admin/inventory", async (req, res) => {
         data: {
           colorChannel: name,
           volumeMl: parseFloat(stock),
+          branchId: resolvedBranchId,
           ...(safetyThreshold !== undefined && { safetyThreshold: parseFloat(safetyThreshold) }),
         },
       });
@@ -3011,6 +3146,7 @@ app.post("/api/admin/inventory", async (req, res) => {
         data: {
           itemName: name,
           stockUnits: parseInt(stock),
+          branchId: resolvedBranchId,
           ...(safetyThreshold !== undefined && { safetyThreshold: parseInt(safetyThreshold) }),
         },
       });
@@ -3048,6 +3184,18 @@ app.put("/api/admin/inventory/:type/:id", async (req, res) => {
 
     if (addStock !== undefined && parseFloat(addStock) < 0) {
       return res.status(400).json({ message: "Stock can only be added, not removed." });
+    }
+
+    if (isBranchAdmin(req.actor)) {
+      const modelMap = {
+        substrate: prisma.inventorySubstrate,
+        ink: prisma.inventoryInk,
+        unit: prisma.inventoryUnit,
+      };
+      const model = modelMap[type];
+      if (!model) return res.status(400).json({ message: "type must be 'substrate', 'ink', or 'unit'" });
+      const existingItem = await model.findUnique({ where: { id: parseInt(id) } });
+      if (!existingItem || !canActOnBranch(req.actor, existingItem.branchId)) return denyCrossBranch(res);
     }
 
     let updated;
@@ -3567,12 +3715,15 @@ app.post("/api/products/:id/estimate-price", async (req, res) => {
     const [substrates, inks, units] = await Promise.all([
       prisma.inventorySubstrate.findMany({
         select: { materialName: true, costPerMeter: true },
+        orderBy: { costPerMeter: "asc" },
       }),
       prisma.inventoryInk.findMany({
         select: { colorChannel: true, costPerMl: true },
+        orderBy: { costPerMl: "asc" },
       }),
       prisma.inventoryUnit.findMany({
         select: { itemName: true, costPerUnit: true },
+        orderBy: { costPerUnit: "asc" },
       }),
     ]);
 
@@ -3609,20 +3760,20 @@ app.get("/api/admin/low-stock", async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const skip = (page - 1) * limit;
 
+    const where = {
+      active: true,
+      deleted_at: null,
+      stock: { lte: threshold },
+    };
+
     const products = await prisma.product.findMany({
-      where: {
-        active: true,
-        deleted_at: null,
-        stock: { lte: threshold },
-      },
+      where,
       orderBy: { stock: "asc" },
       skip,
       take: limit,
     });
 
-    const total = await prisma.product.count({
-      where: { active: true, deleted_at: null, stock: { lte: threshold } },
-    });
+    const total = await prisma.product.count({ where });
 
     const outOfStockCount = await prisma.product.count({
       where: { active: true, deleted_at: null, stock: 0 },
@@ -4057,6 +4208,7 @@ app.put("/api/orders/:id", async (req, res) => {
     if (!existing) {
       return res.status(404).json({ message: "Order not found" });
     }
+    if (!canActOnBranch(req.actor, existing.branchId)) return denyCrossBranch(res);
 
     let totalPcsUpdated = 0;
     let stockChanged = false;
@@ -4278,8 +4430,13 @@ app.post("/api/orders/:id/approve-design", async (req, res) => {
 // MARK order as delivered
 app.patch("/api/orders/:id/deliver", async (req, res) => {
   try {
+    const orderId = parseInt(req.params.id);
+    if (isBranchAdmin(req.actor)) {
+      const existingOrder = await prisma.order.findUnique({ where: { id: orderId } });
+      if (!existingOrder || !canActOnBranch(req.actor, existingOrder.branchId)) return denyCrossBranch(res);
+    }
     const order = await prisma.order.update({
-      where: { id: parseInt(req.params.id) },
+      where: { id: orderId },
       data: {
         status: "delivered",
         delivered_at: new Date(),
@@ -4321,6 +4478,7 @@ app.delete("/api/orders/:id", async (req, res) => {
     if (!orderToDelete) {
       return res.status(404).json({ message: "Order not found" });
     }
+    if (!canActOnBranch(req.actor, orderToDelete.branchId)) return denyCrossBranch(res);
 
     let totalPcsRestored = 0;
     for (const item of orderToDelete.items) {
@@ -4509,7 +4667,7 @@ async function isStaffOrAdmin(req) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return false;
   const role = roleFromDb(user.role);
-  return role === "admin" || role === "staff";
+  return role === "admin" || role === "staff" || role === "branch_admin";
 }
 
 // GET /api/templates?category=tshirt — browse active templates, optionally
@@ -4629,6 +4787,10 @@ app.put("/api/orders/:id/design-review", async (req, res) => {
       return res.status(400).json({
         message: `status must be one of: ${DESIGN_REVIEW_STATUSES.join(", ")}`,
       });
+    }
+    if (isBranchAdmin(req.actor)) {
+      const existingOrder = await prisma.order.findUnique({ where: { id: orderId } });
+      if (!existingOrder || !canActOnBranch(req.actor, existingOrder.branchId)) return denyCrossBranch(res);
     }
 
     const reviewerId = getUserId(req);
@@ -5419,6 +5581,7 @@ app.put("/api/admin/orders/:id/refund", async (req, res) => {
     if (!order || order.deleted_at) {
       return res.status(404).json({ message: "Order not found" });
     }
+    if (!canActOnBranch(req.actor, order.branchId)) return denyCrossBranch(res);
     if (order.refundStatus !== "requested") {
       return res
         .status(400)
@@ -5560,7 +5723,7 @@ app.post("/api/orders/:id/rating", async (req, res) => {
 app.post("/api/order-items/:id/review", async (req, res) => {
   try {
     const orderItemId = parseInt(req.params.id, 10);
-    const { userId, stars, comment } = req.body;
+    const { userId, stars, comment, images, videos } = req.body;
 
     const starsInt = parseInt(stars, 10);
     if (!Number.isInteger(starsInt) || starsInt < 1 || starsInt > 5) {
@@ -5586,15 +5749,20 @@ app.post("/api/order-items/:id/review", async (req, res) => {
       });
     }
 
+    const reviewImages = Array.isArray(images) ? images.filter((u) => typeof u === "string") : [];
+    const reviewVideos = Array.isArray(videos) ? videos.filter((u) => typeof u === "string") : [];
+
     const review = await prisma.productReview.upsert({
       where: { orderItemId },
-      update: { stars: starsInt, comment: comment || null },
+      update: { stars: starsInt, comment: comment || null, images: reviewImages, videos: reviewVideos },
       create: {
         orderItemId,
         productId: orderItem.productId,
         userId: orderItem.order.userId,
         stars: starsInt,
         comment: comment || null,
+        images: reviewImages,
+        videos: reviewVideos,
       },
     });
 
@@ -5603,6 +5771,80 @@ app.post("/api/order-items/:id/review", async (req, res) => {
     console.error("POST /api/order-items/:id/review failed:", err);
     res.status(500).json({ message: "Failed to save review." });
   }
+});
+
+const REVIEW_MAX_IMAGE_SIZE = 3 * 1024 * 1024;   // 3 MB per image
+const REVIEW_MAX_VIDEO_SIZE = 25 * 1024 * 1024;  // 25 MB per video
+const REVIEW_MAX_FILES = 5; // total images + videos combined per review
+
+const REVIEW_ALLOWED_IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const REVIEW_ALLOWED_VIDEO_MIME = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+
+const reviewUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: REVIEW_MAX_VIDEO_SIZE }, // multer only supports one ceiling; per-type check happens below
+  fileFilter: (_req, file, cb) => {
+    if (REVIEW_ALLOWED_IMAGE_MIME.has(file.mimetype) || REVIEW_ALLOWED_VIDEO_MIME.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only JPEG, PNG, WebP, GIF images or MP4, WebM, MOV videos are allowed"));
+    }
+  },
+});
+
+app.post(
+  "/api/reviews/upload",
+  reviewUpload.array("files", REVIEW_MAX_FILES),
+  async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No files provided" });
+    }
+
+    // Enforce per-type size limits (multer only gave us one shared ceiling)
+    for (const file of req.files) {
+      const isImage = REVIEW_ALLOWED_IMAGE_MIME.has(file.mimetype);
+      const isVideo = REVIEW_ALLOWED_VIDEO_MIME.has(file.mimetype);
+      if (isImage && file.size > REVIEW_MAX_IMAGE_SIZE) {
+        return res.status(400).json({ message: `Image "${file.originalname}" exceeds 3 MB limit` });
+      }
+      if (isVideo && file.size > REVIEW_MAX_VIDEO_SIZE) {
+        return res.status(400).json({ message: `Video "${file.originalname}" exceeds 25 MB limit` });
+      }
+    }
+
+    try {
+      const imageUrls = [];
+      const videoUrls = [];
+
+      for (const file of req.files) {
+        const isVideo = REVIEW_ALLOWED_VIDEO_MIME.has(file.mimetype);
+        const ext = file.mimetype.split("/")[1] || (isVideo ? "mp4" : "jpg");
+        const path = `reviews/${isVideo ? "videos" : "images"}/${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
+
+        const { error } = await supabase.storage
+          .from("printhub_s3")
+          .upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
+        if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+        const { data: urlData } = supabase.storage.from("printhub_s3").getPublicUrl(path);
+        if (isVideo) videoUrls.push(urlData.publicUrl);
+        else imageUrls.push(urlData.publicUrl);
+      }
+
+      return res.status(201).json({ imageUrls, videoUrls });
+    } catch (e) {
+      console.error("Review media upload error:", e.message);
+      return res.status(500).json({ message: e.message || "Upload failed" });
+    }
+  },
+);
+
+// Multer error handler for review upload
+app.use((err, req, res, next) => {
+  if ((err instanceof multer.MulterError || err) && req.path === "/api/reviews/upload") {
+    return res.status(400).json({ message: err.message });
+  }
+  next(err);
 });
 
 // GET /api/products/:id/reviews — public, paginated reviews + average
@@ -5637,6 +5879,8 @@ app.get("/api/products/:id/reviews", async (req, res) => {
         id: r.id,
         stars: r.stars,
         comment: r.comment,
+        images: r.images || [],
+        videos: r.videos || [],
         createdAt: r.createdAt,
         customerName: r.user
           ? `${r.user.first_name || "Customer"}${
@@ -5649,6 +5893,40 @@ app.get("/api/products/:id/reviews", async (req, res) => {
   } catch (err) {
     console.error("GET /api/products/:id/reviews failed:", err);
     res.status(500).json({ message: "Failed to fetch reviews." });
+  }
+});
+
+app.get("/api/products/:id/reviewable-order-items", async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.query.userId, 10);
+    if (!userId) return res.json({ items: [] });
+
+    const items = await prisma.orderItem.findMany({
+      where: {
+        productId,
+        productReview: null,
+        order: {
+          userId,
+          payment_status: "paid",
+          status: { in: ["delivered", "completed"] },
+        },
+      },
+      include: { order: { select: { id: true, createdAt: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json({
+      items: items.map((it) => ({
+        id: it.id,
+        orderId: it.orderId,
+        quantity: it.quantity,
+        createdAt: it.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error("GET /api/products/:id/reviewable-order-items failed:", err);
+    res.status(500).json({ message: "Failed to fetch reviewable items." });
   }
 });
 

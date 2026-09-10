@@ -1559,3 +1559,758 @@
   border-color: #e1e5e8;
   color: #a0a9b2;
 }
+/* =========================================================
+   PAYMENTS PAGE — MATCH ORDERS PAGE LAYOUT
+   ========================================================= */
+
+/* PAGE */
+.uo-page {
+  width: 100%;
+  min-height: 100vh;
+  padding: 36px 42px 90px;
+  box-sizing: border-box;
+}
+
+/* =========================================================
+ TOP TAB NAVIGATION
+ Make Payments use the same wide tab bar as Orders
+ ========================================================= */
+
+.uo-resource-nav {
+  width: min(1250px, 100%);
+  max-width: 1250px;
+  margin: 0 auto 34px;
+
+  display: flex;
+  align-items: center;
+
+  background: #e5ebf2;
+  padding: 4px;
+  border-radius: 9px;
+}
+
+.uo-resource-tab {
+  flex: 1;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  border: none;
+  border-radius: 7px;
+
+  background: transparent;
+  color: #53647a;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.uo-resource-tab.active {
+  background: #ffffff;
+  color: #182033;
+
+  box-shadow:
+      0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
+/* =========================================================
+ PAYMENT PAGE HEADER
+ Match the Orders page spacing
+ ========================================================= */
+
+.upay-page-header {
+  width: min(1250px, 100%);
+  max-width: 1250px;
+  margin: 0 auto 28px;
+}
+
+/* Back button */
+.upay-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  border: none;
+  background: transparent;
+
+  color: #53647a;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  padding: 5px 0;
+  margin-bottom: 17px;
+
+  cursor: pointer;
+}
+
+.upay-back:hover {
+  color: #172b25;
+}
+
+/* Header text */
+.upay-header-row {
+  display: block;
+}
+
+/* Payment title */
+.upay-header-row h1 {
+  margin: 0;
+
+  color: #172b25;
+
+  font-size: 31px;
+  line-height: 1.15;
+
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+/* Subtitle */
+.upay-header-row p {
+  margin: 7px 0 0;
+
+  color: #71847d;
+
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+ REMOVE MONEY / INVOICE ICON ON RIGHT
+ ========================================================= */
+
+.upay-header-icon {
+  display: none !important;
+}
+
+/* =========================================================
+ REMOVE SUMMARY CARDS
+ These are what create the extra white space
+ ========================================================= */
+
+.upay-summary-grid {
+  display: none !important;
+}
+
+/* =========================================================
+ FILTER / SEARCH TOOLBAR
+ Make it visually similar to Orders toolbar
+ ========================================================= */
+
+.upay-filter-card {
+  width: min(1250px, 100%);
+  max-width: 1250px;
+
+  min-height: auto;
+
+  margin: 0 auto 18px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  background: transparent;
+
+  border: none;
+  border-radius: 0;
+
+  padding: 0;
+
+  box-shadow: none;
+}
+
+/* Status filters */
+.upay-filter-group {
+  flex-shrink: 0;
+}
+
+.upay-filter-label,
+.upay-date-filter {
+  display: none;
+}
+
+.upay-filter-tabs {
+  display: flex;
+
+  border: none;
+  border-radius: 0;
+
+  overflow: visible;
+
+  gap: 8px;
+}
+
+.upay-filter-tabs button {
+  height: 42px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 0 17px;
+
+  border: 1px solid #d5e1d5;
+  border-radius: 22px;
+
+  background: #ffffff;
+
+  color: #667970;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+      background 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+}
+
+.upay-filter-tabs button:hover {
+  border-color: #75c95d;
+  color: #42a918;
+}
+
+.upay-filter-tabs button.active {
+  background: #4cbd18;
+  border-color: #4cbd18;
+
+  color: #ffffff;
+
+  box-shadow:
+      0 5px 12px rgba(76, 189, 24, 0.14);
+}
+
+.upay-filter-tabs b {
+  min-width: 20px;
+  height: 20px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: #edf2ed;
+  color: #738279;
+
+  font-size: 10px;
+}
+
+.upay-filter-tabs button.active b {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* Search */
+.upay-search-wrapper {
+  margin-left: auto;
+
+  flex: 0 1 250px;
+
+  min-width: 220px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 0 13px;
+
+  border: 1px solid #d5e1d5;
+  border-radius: 9px;
+
+  background: #ffffff;
+
+  color: #899a93;
+}
+
+.upay-search-wrapper input {
+  flex: 1;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+
+  color: #34483f;
+
+  font-size: 12px;
+  font-family: inherit;
+}
+
+/* Export */
+.upay-export-btn {
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 0 17px;
+
+  border: 1px solid #d5e1d5;
+  border-radius: 9px;
+
+  background: #ffffff;
+
+  color: #53665e;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+/* =========================================================
+ EMPTY / LOADING / ERROR AREA
+ Match Orders empty card
+ ========================================================= */
+
+.upay-state-card {
+  width: min(1250px, 100%);
+  max-width: 1250px;
+
+  min-height: 340px;
+
+  margin: 0 auto;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  background: #ffffff;
+
+  border: 1px solid #dce8d9;
+  border-radius: 18px;
+
+  color: #7d9088;
+
+  text-align: center;
+
+  box-shadow:
+      0 10px 28px rgba(50, 100, 55, 0.035);
+}
+
+.upay-state-card > svg {
+  color: #4abd18;
+
+  font-size: 34px;
+
+  margin-bottom: 12px;
+}
+
+.upay-state-card h3 {
+  margin: 0 0 7px;
+
+  color: #33483f;
+
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.upay-state-card p {
+  margin: 0;
+
+  color: #82938c;
+
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+ PAYMENT WORKSPACE
+ Keep content inside same 1250px layout
+ ========================================================= */
+
+.upay-workspace {
+  width: min(1250px, 100%);
+  max-width: 1250px;
+
+  margin: 0 auto;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(420px, 1fr);
+
+  gap: 12px;
+
+  align-items: start;
+}
+
+/* =========================================================
+ REMOVE EXTRA WHITE SPACE FROM LIST FOOTER
+ ========================================================= */
+
+.upay-list-footer {
+  padding: 8px 6px;
+
+  font-size: 10px;
+}
+
+/* =========================================================
+ TABLET
+ ========================================================= */
+
+@media (max-width: 1100px) {
+
+  .uo-page {
+      padding: 28px 24px 70px;
+  }
+
+  .upay-filter-card {
+      flex-wrap: wrap;
+      align-items: center;
+  }
+
+  .upay-search-wrapper {
+      margin-left: auto;
+      min-width: 220px;
+  }
+
+  .upay-workspace {
+      grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+ MOBILE
+ ========================================================= */
+
+@media (max-width: 800px) {
+
+  .uo-page {
+      padding: 22px 16px 60px;
+  }
+
+  .uo-resource-nav {
+      width: 100%;
+      margin-bottom: 28px;
+  }
+
+  .uo-resource-tab {
+      font-size: 12px;
+      gap: 5px;
+  }
+
+  .upay-page-header {
+      margin-bottom: 22px;
+  }
+
+  .upay-header-row h1 {
+      font-size: 26px;
+      letter-spacing: -0.6px;
+  }
+
+  .upay-header-row p {
+      font-size: 12px;
+  }
+
+  .upay-filter-card {
+      width: 100%;
+
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+
+      gap: 10px;
+  }
+
+  .upay-filter-group {
+      width: 100%;
+  }
+
+  .upay-filter-tabs {
+      width: 100%;
+      gap: 5px;
+  }
+
+  .upay-filter-tabs button {
+      flex: 1;
+
+      height: 40px;
+
+      padding: 0 7px;
+
+      font-size: 10px;
+  }
+
+  .upay-search-wrapper {
+      width: 100%;
+      max-width: none;
+      margin-left: 0;
+  }
+
+  .upay-export-btn {
+      width: 100%;
+  }
+
+  .upay-state-card {
+      min-height: 300px;
+
+      border-radius: 14px;
+  }
+
+  .upay-workspace {
+      grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+ SMALL PHONE
+ ========================================================= */
+
+@media (max-width: 520px) {
+
+  .uo-page {
+      padding: 18px 12px 45px;
+  }
+
+  .uo-resource-nav {
+      margin-bottom: 24px;
+  }
+
+  .uo-resource-tab {
+      height: 40px;
+      font-size: 10px;
+  }
+
+  .upay-header-row h1 {
+      font-size: 23px;
+  }
+
+  .upay-header-row p {
+      font-size: 11px;
+  }
+
+  .upay-filter-tabs {
+      gap: 4px;
+  }
+
+  .upay-filter-tabs button {
+      height: 38px;
+      font-size: 9px;
+      padding: 0 5px;
+  }
+
+  .upay-filter-tabs b {
+      min-width: 17px;
+      height: 17px;
+      font-size: 9px;
+  }
+
+  .upay-state-card {
+      min-height: 260px;
+      padding: 25px 15px;
+  }
+
+  .upay-state-card h3 {
+      font-size: 15px;
+  }
+
+  .upay-state-card p {
+      font-size: 11px;
+  }
+}
+/* =========================================================
+   PAYMENTS — MATCH ORDERS PAGE SIZING
+   ========================================================= */
+
+   .upay-page-header {
+    width: min(1250px, 100%);
+    margin: 0 auto 22px;
+}
+
+/* Back */
+.upay-back {
+    font-size: 13px;
+    margin-bottom: 14px;
+    padding: 4px 0;
+}
+
+/* Title */
+.upay-header-row h1 {
+    font-size: 30px !important;
+    line-height: 1.15;
+    letter-spacing: -0.8px;
+    margin: 0;
+}
+
+/* Subtitle */
+.upay-header-row p {
+    font-size: 13px;
+    margin-top: 6px;
+    line-height: 1.45;
+}
+
+/* Remove right-side money icon */
+.upay-header-icon {
+    display: none !important;
+}
+
+/* =========================================================
+   FILTER BUTTONS — SAME SIZE AS ORDERS
+   ========================================================= */
+
+.upay-filter-card {
+    width: min(1250px, 100%);
+    margin: 0 auto 18px;
+
+    padding: 0;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.upay-filter-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.upay-filter-tabs button {
+    height: 40px;
+
+    padding: 0 15px;
+
+    border-radius: 20px;
+
+    font-size: 12px;
+    font-weight: 700;
+
+    gap: 6px;
+}
+
+.upay-filter-tabs b {
+    min-width: 19px;
+    height: 19px;
+
+    font-size: 10px;
+}
+
+/* Search */
+.upay-search-wrapper {
+    height: 40px;
+    margin-left: auto;
+
+    min-width: 220px;
+    max-width: 250px;
+
+    padding: 0 12px;
+
+    border-radius: 9px;
+}
+
+/* Export */
+.upay-export-btn {
+    height: 40px;
+    padding: 0 15px;
+
+    font-size: 11px;
+}
+
+/* =========================================================
+   REMOVE SUMMARY SECTION / EXTRA SPACE
+   ========================================================= */
+
+.upay-summary-grid {
+    display: none !important;
+}
+
+/* =========================================================
+   PAYMENT CONTENT
+   ========================================================= */
+
+.upay-workspace {
+    width: min(1250px, 100%);
+    margin: 0 auto;
+
+    gap: 14px;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 800px) {
+
+    .upay-header-row h1 {
+        font-size: 26px !important;
+    }
+
+    .upay-header-row p {
+        font-size: 12px;
+    }
+
+    .upay-filter-card {
+        gap: 9px;
+    }
+
+    .upay-filter-tabs {
+        gap: 5px;
+    }
+
+    .upay-filter-tabs button {
+        height: 39px;
+        padding: 0 9px;
+        font-size: 10px;
+    }
+
+    .upay-search-wrapper {
+        max-width: none;
+        width: 100%;
+    }
+}
+
+@media (max-width: 520px) {
+
+    .upay-header-row h1 {
+        font-size: 23px !important;
+    }
+
+    .upay-header-row p {
+        font-size: 11px;
+    }
+
+    .upay-filter-tabs button {
+        height: 37px;
+        padding: 0 6px;
+        font-size: 9px;
+    }
+
+    .upay-filter-tabs b {
+        min-width: 17px;
+        height: 17px;
+        font-size: 9px;
+    }
+}
+/* =========================================================
+   PAYMENTS — MATCH ORDERS / INQUIRIES LEFT SPACING
+   ========================================================= */
+
+   .uo-page {
+    padding-left: 48px !important;
+    padding-right: 48px !important;
+}
+
+.upay-page-header,
+.upay-filter-card,
+.upay-workspace {
+    width: min(1250px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+}

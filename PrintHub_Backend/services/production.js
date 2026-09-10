@@ -156,11 +156,12 @@ async function decrementMaterialsForOrder(tx, orderId) {
     }),
     tx.order.findUnique({
       where: { id: Number(orderId) },
-      select: { printWidthInches: true, printHeightInches: true },
+      select: { printWidthInches: true, printHeightInches: true, branchId: true },
     }),
   ]);
 
   const results = [];
+  const branchId = order?.branchId ?? null;
 
   // Computes a scale factor relative to the product's reference print size.
   // Falls back to 1 (flat per-unit rate, unchanged behavior) whenever the
@@ -196,11 +197,11 @@ async function decrementMaterialsForOrder(tx, orderId) {
       if (entry.type === "substrate") {
         const amount = entry.usagePerUnit * areaScale * designScale * item.quantity;
         const updated = await tx.inventorySubstrate.updateMany({
-          where: { materialName: entry.name },
+          where: { materialName: entry.name, branchId },
           data: { stockMeters: { decrement: amount } },
         });
-        const current = await tx.inventorySubstrate.findUnique({
-          where: { materialName: entry.name },
+        const current = await tx.inventorySubstrate.findFirst({
+          where: { materialName: entry.name, branchId },
         });
         results.push({
           type: "substrate",
@@ -227,11 +228,11 @@ async function decrementMaterialsForOrder(tx, orderId) {
       } else if (entry.type === "ink") {
         const amount = entry.usagePerUnit * areaScale * designScale * item.quantity;
         const updated = await tx.inventoryInk.updateMany({
-          where: { colorChannel: entry.name },
+          where: { colorChannel: entry.name, branchId },
           data: { volumeMl: { decrement: amount } },
         });
-        const current = await tx.inventoryInk.findUnique({
-          where: { colorChannel: entry.name },
+        const current = await tx.inventoryInk.findFirst({
+          where: { colorChannel: entry.name, branchId },
         });
         results.push({
           type: "ink",
@@ -258,11 +259,11 @@ async function decrementMaterialsForOrder(tx, orderId) {
       } else if (entry.type === "unit") {
         const amount = entry.usagePerUnit * item.quantity;
         const updated = await tx.inventoryUnit.updateMany({
-          where: { itemName: entry.name },
+          where: { itemName: entry.name, branchId },
           data: { stockUnits: { decrement: amount } },
         });
-        const current = await tx.inventoryUnit.findUnique({
-          where: { itemName: entry.name },
+        const current = await tx.inventoryUnit.findFirst({
+          where: { itemName: entry.name, branchId },
         });
         results.push({
           type: "unit",
@@ -342,7 +343,10 @@ function formatRequisitionDocument(alert, orderId) {
  */
 async function createRequisitionsFromAlerts(tx, alerts, orderId, generatedBy) {
   const created = [];
-    for (const alert of alerts) {
+  const order = await tx.order.findUnique({ where: { id: orderId }, select: { branchId: true } });
+  const branchId = order?.branchId ?? null;
+
+  for (const alert of alerts) {
     const label = alert.materialName || alert.colorChannel;
     const { doc, requestedAmount } = formatRequisitionDocument(alert, orderId);
 
@@ -357,6 +361,7 @@ async function createRequisitionsFromAlerts(tx, alerts, orderId, generatedBy) {
         triggeredByOrderId: orderId,
         documentText: doc,
         generatedBy: generatedBy ?? null,
+        branchId,
       },
     });
 

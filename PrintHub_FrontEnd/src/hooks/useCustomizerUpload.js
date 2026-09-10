@@ -74,9 +74,8 @@ export function useCustomizerUpload(
     const file = e.target.files?.[0];
     if (!file) return null;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError("File must be 5MB or smaller.");
-      return null;
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("File must be 10MB or smaller.");
     }
 
     const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -85,16 +84,17 @@ export function useCustomizerUpload(
       return null;
     }
 
-    setUploadError("");
-    const url = URL.createObjectURL(file);
-    const id = `upload-${Date.now()}`;
-    const item = {
-      id,
-      url,
-      originalBlobUrl: url,
-      label: file.name.slice(0, 30),
-      file,
-    };
+const url = URL.createObjectURL(file);
+const id = `upload-${Date.now()}`;
+
+const item = {
+  id,
+  url,
+  originalBlobUrl: url,
+  originalImageUrl: null,
+  label: file.name.slice(0, 30),
+  file,
+};
 
     setGallery((prev) => [...prev, item]);
     setSelectedGalleryId(id);
@@ -103,32 +103,67 @@ export function useCustomizerUpload(
     // Small files get a base64 data: URL locally; anything too big for
     // that (previously just silently stuck as blob: forever) gets
     // uploaded to storage right away so it still has a durable URL.
-    if (file.size <= 1.5 * 1024 * 1024) {
-      convertFileToBase64(file, (base64Url) => {
-        setGallery((prev) =>
-          prev.map((g) => (g.id === id ? { ...g, url: base64Url } : g)),
-        );
-      });
-    } else {
-      const userId = getUserId();
-      const formData = new FormData();
-      formData.append("file", file);
-      fetch(buildApiUrl("/api/builder/upload"), {
-        method: "POST",
-        headers: userId ? { "X-User-Id": String(userId) } : {},
-        body: formData,
-      })
-        .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
-        .then(({ ok, data }) => {
-          if (!ok || !data.url) return;
-          setGallery((prev) =>
-            prev.map((g) => (g.id === id ? { ...g, url: data.url } : g)),
-          );
-        })
-        .catch((err) => {
-          console.error("Background upload for large file failed:", err);
-        });
+// Keep Base64 for small files so the customizer can preview them.
+if (file.size <= 1.5 * 1024 * 1024) {
+  convertFileToBase64(file, (base64Url) => {
+    setGallery((prev) =>
+      prev.map((g) =>
+        g.id === id
+          ? { ...g, url: base64Url }
+          : g
+      )
+    );
+  });
+}
+
+// ALWAYS upload the original file to storage.
+// This gives us a permanent URL for production staff to download.
+const userId = getUserId();
+const formData = new FormData();
+formData.append("file", file);
+
+fetch(buildApiUrl("/api/builder/upload"), {
+  method: "POST",
+  headers: userId
+    ? { "X-User-Id": String(userId) }
+    : {},
+  body: formData,
+})
+  .then((res) =>
+    res.json().then((data) => ({
+      ok: res.ok,
+      data,
+    }))
+  )
+  .then(({ ok, data }) => {
+    if (!ok || !data.url) {
+      throw new Error(
+        data.message || "Original image upload failed."
+      );
     }
+
+    setGallery((prev) =>
+      prev.map((g) =>
+        g.id === id
+          ? {
+              ...g,
+              originalImageUrl: data.url,
+            }
+          : g
+      )
+    );
+  })
+  .catch((err) => {
+    console.error(
+      "Original customer image upload failed:",
+      err
+    );
+
+    setUploadError(
+      err.message ||
+        "Failed to upload the original customer image."
+    );
+  });
 
     // Sub-Module 5.1/5.2 — check resolution in the background, non-blocking.
     // Result is looked up by gallery item id via resolutionResults.

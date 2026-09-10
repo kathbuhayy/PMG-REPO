@@ -163,6 +163,13 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
   zoneTexts = {},
   zoneLayers = {},
   zones = [],
+  // When true, flips the live 3D display horizontally (Edit mode) so
+  // the design reads mirrored while placing/dragging it. This is a
+  // display-only transform on the model, not baked into the texture -
+  // Preview mode's angle views and captureSnapshot/captureAllViews
+  // should be called with this prop false so exported mockups stay
+  // correctly (non-mirrored) oriented.
+  mirrorDesign = false,
   onZoneDesignChange,
   onTextChange,
   onZoneSelect,
@@ -219,6 +226,9 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
 
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
+
+  const mirrorDesignRef = useRef(mirrorDesign);
+  mirrorDesignRef.current = mirrorDesign;
 
   const updateZoneTextures = useCallback(async () => {
     const model = modelRef.current;
@@ -347,6 +357,13 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
     renderer.setSize(w0, h0);
 
     container.appendChild(renderer.domElement);
+
+    // Without this, the browser's own touch-scroll/pan gesture can
+    // compete with the pointer-based drag-on-model logic below - a
+    // single-finger touch gets ambiguously treated as "scroll the
+    // page" instead of reaching our pointerdown/pointermove handlers.
+    // No effect on desktop mouse input.
+    renderer.domElement.style.touchAction = "none";
 
     rendererRef.current = renderer;
 
@@ -788,6 +805,11 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
         modelRef.current = model;
 
         model.rotation.y = 0;
+        // Display-only mirror: flips how the model (and whatever
+        // texture is painted on it) reads on screen without touching
+        // any UV/vertex data, so raycasting and the baked texture
+        // stay correct - only the on-screen orientation flips.
+        model.scale.x = mirrorDesignRef.current ? -1 : 1;
 
         scene.add(model);
 
@@ -1008,6 +1030,12 @@ const TshirtPreview3D = forwardRef(function TshirtPreview3D({
       updateZoneTextures();
     }
   }, [shirtColor, zoneColors, updateZoneTextures]);
+
+  useEffect(() => {
+    if (modelRef.current) {
+      modelRef.current.scale.x = mirrorDesign ? -1 : 1;
+    }
+  }, [mirrorDesign]);
 
   useEffect(() => {
     if (ready) {

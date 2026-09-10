@@ -433,7 +433,7 @@ Amount: ${formatCurrency(selected.total)}`;
       {/* =====================================================
           FILTER BAR
           ===================================================== */}
-      {!loading && !error && logs.length > 0 && (
+      {!loading && !error && (
         <section className="upay-filter-card">
           <div className="upay-filter-group">
             <span className="upay-filter-label">

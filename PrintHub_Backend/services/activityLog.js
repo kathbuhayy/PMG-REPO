@@ -45,8 +45,6 @@ async function logActivity({ actor, action, module, description, metadata }) {
   }
 }
 
-/** Middleware: reads X-User-Id header, attaches req.actor = {id,name,email,role}.
- *  Silently no-ops if the header is missing — it never blocks the request. */
 function identifyActor(prismaClient) {
   return async (req, res, next) => {
     const raw = req.headers["x-user-id"];
@@ -61,6 +59,7 @@ function identifyActor(prismaClient) {
           name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email,
           email: user.email,
           role: roleFromDb(user.role),
+          branchId: user.branchId ?? null,
         };
       }
     } catch (err) {
@@ -72,11 +71,6 @@ function identifyActor(prismaClient) {
 
 const { verifyAuthToken } = require("./auth");
 
-/** Middleware: verifies a Bearer JWT from the Authorization header and
- *  sets req.actor from the DB record matching the token's verified id.
- *  Unlike identifyActor, this is NOT spoofable — the id comes from a
- *  cryptographically signed token, not a client-supplied header.
- *  Rejects the request with 401 if the token is missing or invalid. */
 function requireAuth(prismaClient) {
   return async (req, res, next) => {
     const authHeader = req.headers["authorization"] || "";
@@ -103,6 +97,7 @@ function requireAuth(prismaClient) {
         name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email,
         email: user.email,
         role: roleFromDb(user.role),
+        branchId: user.branchId ?? null,
       };
       next();
     } catch (err) {
@@ -111,8 +106,6 @@ function requireAuth(prismaClient) {
   };
 }
 
-/** Middleware factory: use after requireAuth to restrict a route to
- *  specific core roles, e.g. requireRole("admin") or requireRole("staff","admin"). */
 function requireRole(...allowedRoles) {
   return (req, res, next) => {
     if (!req.actor || !allowedRoles.includes(req.actor.role)) {

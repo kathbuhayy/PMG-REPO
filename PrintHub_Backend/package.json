@@ -16,8 +16,10 @@
   "license": "ISC",
   "dependencies": {
     "@capacitor/app": "^8.1.0",
+    "@imgly/background-removal": "^1.7.0",
     "@imgly/background-removal-node": "^1.4.5",
-    "@prisma/client": "^5.22.0",
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^6.19.0",
     "@supabase/supabase-js": "^2.103.1",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
@@ -28,12 +30,12 @@
     "node-cron": "^4.6.0",
     "nodemailer": "^7.0.13",
     "pdfkit": "^0.19.1",
-    "pg": "^8.11.0",
+    "pg": "^8.23.0",
     "resend": "^6.25.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "prisma": "^6.19.0"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

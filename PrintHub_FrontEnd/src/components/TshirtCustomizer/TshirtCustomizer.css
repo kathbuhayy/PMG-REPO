@@ -2510,3 +2510,158 @@
 .tsc-section-title-icon {
   color: #10b981;
 }
+/* =========================================================
+   MOBILE CUSTOMIZER LAYOUT
+   Keeps desktop layout unchanged
+   ========================================================= */
+
+@media (max-width: 768px) {
+  /* Main customizer becomes a normal mobile column */
+  .tsc-3col-layout,
+  .tsc-4col-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    gap: 12px !important;
+    padding: 0 8px 90px !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  /* 3D PREVIEW FIRST */
+  .tsc-right-preview {
+    order: 1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .tsc-right-preview .tsc-preview-panel {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: visible !important;
+  }
+
+  /* Actual Three.js area */
+  .tsc-right-preview .tsc-preview-3d {
+    width: 100% !important;
+    height: 320px !important;
+    min-height: 320px !important;
+    max-height: 320px !important;
+    flex: none !important;
+    overflow: hidden !important;
+    border-radius: 14px !important;
+  }
+
+  /* Zone/canvas comes AFTER 3D */
+  .tsc-center-placeholders,
+  .tsc-zone-grid-container {
+    order: 2 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Controls/sidebar comes after the previews */
+  .tsc-left-docked,
+  .tsc-sidebar {
+    order: 3 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Make zone cards fit narrow phones */
+  .tsc-zone-grid {
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 10px !important;
+  }
+
+  .tsc-zone-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .tsc-zone-card {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Mobile-friendly canvas */
+  .tsc-canvas-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 10px !important;
+    overflow: hidden !important;
+  }
+
+  /* Horizontal customizer tabs */
+  .tsc-vertical-tabs,
+  .tsc-sidebar-tabs {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tsc-vtab-btn,
+  .tsc-sidebar-tab-btn {
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
+    min-width: max-content !important;
+  }
+
+  /* Bottom action buttons fit phone width */
+  .tsc-bottom-action-bar {
+    width: 100% !important;
+    display: flex !important;
+    gap: 8px !important;
+  }
+
+  .tsc-use-btn,
+  .tsc-clear-btn {
+    min-height: 46px !important;
+  }
+}
+
+/* Smaller phones */
+@media (max-width: 430px) {
+  .tsc-3col-layout,
+  .tsc-4col-layout {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  .tsc-right-preview .tsc-preview-3d {
+    height: 290px !important;
+    min-height: 290px !important;
+    max-height: 290px !important;
+  }
+
+  .tsc-canvas-wrap {
+    padding: 8px !important;
+  }
+
+  .tsc-zone-grid {
+    gap: 8px !important;
+  }
+}

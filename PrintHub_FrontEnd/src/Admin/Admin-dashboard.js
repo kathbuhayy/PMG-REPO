@@ -21,6 +21,7 @@ import AdminPayments from "./AdminPayments";
 import AdminSupportInbox from "./AdminSupportInbox";
 import StageQueuePage from "./StageQueuePage";
 import AdminInventory from "./AdminInventory";
+import AdminBranches from "./AdminBranches";
 import useSupportChat from "../hooks/useSupportChat";
 import { buildApiUrl } from "../config/api";
 import { adminFetch } from "../utils/adminFetch";
@@ -565,7 +566,7 @@ function AdminDashboard() {
 
   // ✅ ROLE-BASED ACCESS CONTROL: Only admins can access admin pages
   useEffect(() => {
-    if (!sidebarUser || (role !== "admin" && role !== "staff")) {
+    if (!sidebarUser || (role !== "admin" && role !== "staff" && role !== "branch_admin")) {
       // Redirect non-admin and non-staff users to home page
       navigate("/");
       return;
@@ -618,7 +619,7 @@ function AdminDashboard() {
         ],
       },
       {
-        label: "CUSTOMERS & STAFF",
+        label: "User Management",
         items: [
           { id: "customers", label: "Customers", icon: <FaUsers /> },
           { id: "usersStaff", label: "Admin & Staff", icon: <FaUserCog /> },
@@ -650,11 +651,24 @@ function AdminDashboard() {
       {
         label: "SETTINGS",
         items: [
+          { id: "branches", label: "Branches", icon: <FaHistory /> },
           { id: "activity", label: "Activity Log", icon: <FaHistory /> },
           { id: "profile", label: "Profile", icon: <FaUser /> },
         ],
       },
     ];
+
+    // Branch admin: full admin-shaped menu (every module is branch-filtered
+    // server-side), except Activity Log (company-wide audit trail) and
+    // Branches (creating/managing branches is super-admin only).
+    if (role === "branch_admin") {
+      return groups
+        .map((g) => ({
+          ...g,
+          items: g.items.filter((i) => i.id !== "activity" && i.id !== "branches"),
+        }))
+        .filter((g) => g.items.length > 0);
+    }
 
     // Staff: remove Manage Accounts (same restriction as before)
     // Staff gets a trimmed-down sidebar — just their dashboard, tasks,
@@ -2168,9 +2182,11 @@ function AdminDashboard() {
               <p className="user-role">
                 {role === "admin"
                   ? "Administrator"
-                  : role === "staff"
-                    ? "Staff"
-                    : "Customer"}
+                  : role === "branch_admin"
+                    ? "Branch Admin"
+                    : role === "staff"
+                      ? "Staff"
+                      : "Customer"}
               </p>
             </div>
             <span className="user-online-dot" title="Online" />
@@ -2698,7 +2714,7 @@ function AdminDashboard() {
 
           {activeItem === "calendar" && <AdminProductionCalendar />}
           {activeItem === "activity" && <AdminActivityLog />}
-
+          {activeItem === "branches" && <AdminBranches />}
           {activeItem === "products" && (
             <AdminProducts
               refreshTrigger={refreshProductsKey}

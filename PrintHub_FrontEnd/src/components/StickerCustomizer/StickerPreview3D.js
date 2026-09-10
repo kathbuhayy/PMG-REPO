@@ -61,6 +61,13 @@ export default function StickerPreview3D({
   zoneDesigns = {},
   zoneTexts = {},
   zones = ["front"],
+  // When true, flips the live 3D display horizontally (Edit mode) so
+  // the design reads mirrored while placing/dragging it. Same
+  // display-only model.scale.x transform as Tshirt/Jersey/Hoodie/
+  // Sweatshirt - no rebuild needed on toggle, since the texture is
+  // painted directly onto each mesh's own material and moves with the
+  // mesh for free.
+  mirrorDesign = false,
   onZoneDesignChange,
   onTextChange,
   onZoneSelect,
@@ -83,6 +90,7 @@ export default function StickerPreview3D({
   const onTextChangeRef = useRef(onTextChange); onTextChangeRef.current = onTextChange;
   const onZoneSelectRef = useRef(onZoneSelect); onZoneSelectRef.current = onZoneSelect;
   const onTextSelectRef = useRef(onTextSelect); onTextSelectRef.current = onTextSelect;
+  const mirrorDesignRef = useRef(mirrorDesign); mirrorDesignRef.current = mirrorDesign;
 
   const updateTexture = useCallback(() => {
     const model = modelRef.current;
@@ -122,6 +130,12 @@ export default function StickerPreview3D({
         const texture = new THREE.CanvasTexture(canvas);
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.needsUpdate = true;
+        // Was missing here (present in Tshirt/Jersey/Hoodie/Sweatshirt's
+        // identical canvas-texture setup) - without it, Three.js's
+        // default flipY=true vertically flips the canvas image when
+        // mapping it onto the mesh, swapping top and bottom. Unrelated
+        // to mirrorDesign, which only ever touches scale.x (left-right).
+        texture.flipY = false;
         if (target.material.map) target.material.map.dispose();
         const mat = new THREE.MeshStandardMaterial({
           color: new THREE.Color("#ffffff"),
@@ -289,6 +303,13 @@ export default function StickerPreview3D({
       (gltf) => {
         const model = gltf.scene;
         modelRef.current = model;
+        // Display-only mirror: flips how the model (and whatever
+        // texture is painted on it) reads on screen without touching
+        // any UV/vertex data, so raycasting and the baked texture
+        // stay correct - only the on-screen orientation flips. Set
+        // before adding to the scene so the very first render is
+        // already correctly oriented.
+        model.scale.x = mirrorDesignRef.current ? -1 : 1;
         scene.add(model);
         updateTexture();
 
@@ -357,6 +378,12 @@ export default function StickerPreview3D({
       cameraRef.current.updateProjectionMatrix();
     }
   }, [zoom]);
+
+  useEffect(() => {
+    if (modelRef.current) {
+      modelRef.current.scale.x = mirrorDesign ? -1 : 1;
+    }
+  }, [mirrorDesign]);
 
   useEffect(() => {
     if (ready) updateTexture();

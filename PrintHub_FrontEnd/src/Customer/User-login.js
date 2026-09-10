@@ -38,7 +38,11 @@ function UserLoginPage() {
   const saveLoggedInUser = (loggedInUser, authToken) => {
     const role = String(loggedInUser?.role || "").toLowerCase();
 
-    if (role === "admin" || role === "staff") {
+    if (
+      role === "admin" ||
+      role === "staff" ||
+      role === "branch_admin"
+    ) {
       if (Capacitor.isNativePlatform()) {
         localStorage.removeItem("adminUser");
         localStorage.removeItem("user");

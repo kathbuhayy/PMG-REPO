@@ -65,6 +65,12 @@ export default function JerseyPreview3D({
   zoneTexts = {},
   zoneLayers = {},
   zones = [],
+  // When true, flips the live 3D display horizontally (Edit mode) so
+  // the design reads mirrored while placing/dragging it. Same
+  // display-only model.scale.x transform as TshirtPreview3D - no
+  // rebuild needed on toggle, since the texture is painted directly
+  // onto each mesh's own material and moves with the mesh for free.
+  mirrorDesign = false,
   onZoneDesignChange,
   onTextChange,
   onZoneSelect,
@@ -115,6 +121,9 @@ export default function JerseyPreview3D({
 
   const zonesRef = useRef(zones);
   zonesRef.current = zones;
+
+  const mirrorDesignRef = useRef(mirrorDesign);
+  mirrorDesignRef.current = mirrorDesign;
 
   const updateZoneTextures = useCallback(async () => {
     const model = modelRef.current;
@@ -376,6 +385,13 @@ export default function JerseyPreview3D({
         const model = gltf.scene;
         modelRef.current = model;
         model.rotation.y = 0;
+        // Display-only mirror: flips how the model (and whatever
+        // texture is painted on it) reads on screen without touching
+        // any UV/vertex data, so raycasting and the baked texture
+        // stay correct - only the on-screen orientation flips. Set
+        // before adding to the scene so the very first render is
+        // already correctly oriented.
+        model.scale.x = mirrorDesignRef.current ? -1 : 1;
         scene.add(model);
 
         applyColor(model, shirtColorRef.current, zoneColorsRef.current);
@@ -461,6 +477,12 @@ export default function JerseyPreview3D({
       updateZoneTextures();
     }
   }, [shirtColor, zoneColors, updateZoneTextures]);
+
+  useEffect(() => {
+    if (modelRef.current) {
+      modelRef.current.scale.x = mirrorDesign ? -1 : 1;
+    }
+  }, [mirrorDesign]);
 
   useEffect(() => {
     if (ready) updateZoneTextures();

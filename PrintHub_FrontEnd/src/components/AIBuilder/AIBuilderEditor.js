@@ -1,7 +1,12 @@
 /**
  * AIBuilderEditor — simple drag-and-resize design editor.
+ *
  * Lets users position the generated/uploaded image and add a text element
  * on top of a faint product-image backdrop.
+ *
+ * Transparent PNG images are supported automatically.
+ * The checkerboard canvas background makes transparent areas visible
+ * while editing.
  *
  * Props:
  *   productImage  {string}  – background (the current product hero image)
@@ -9,13 +14,26 @@
  *   designSource  {string}  – "generated" | "upload"
  *   initialState  {object}  – optional previously-saved builder state
  *   onChange      {fn}      – called with the latest builderState JSON whenever anything changes
- *   imgLoading    {bool}    – true while the image is still loading (Pollinations lazy-gen)
+ *   imgLoading    {bool}    – true while the image is still loading
  *   onImgLoad     {fn}      – called when the img fires onLoad or onError
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
 import "./AIBuilder.css";
 
-const DEFAULT_LAYER = { x: 0, y: 0, w: 100, h: 100 }; // fill the canvas
+const DEFAULT_LAYER = {
+  x: 0,
+  y: 0,
+  w: 100,
+  h: 100,
+};
+
 const DEFAULT_TEXT = {
   x: 10,
   y: 75,
@@ -37,46 +55,104 @@ export default function AIBuilderEditor({
   const canvasRef = useRef(null);
 
   const [imgLayer, setImgLayer] = useState(
-    initialState?.imgLayer || { ...DEFAULT_LAYER },
-  );
-  const [textLayer, setTextLayer] = useState(
-    initialState?.textLayer || { ...DEFAULT_TEXT },
+    initialState?.imgLayer || {
+      ...DEFAULT_LAYER,
+    },
   );
 
-  // Emit state upward whenever layers change
+  const [textLayer, setTextLayer] = useState(
+    initialState?.textLayer || {
+      ...DEFAULT_TEXT,
+    },
+  );
+
+  /*
+   * --------------------------------------------------
+   * EMIT BUILDER STATE
+   * --------------------------------------------------
+   */
+
   useEffect(() => {
-    if (onChange) onChange({ imgLayer, textLayer, designImage });
+    if (onChange) {
+      onChange({
+        imgLayer,
+        textLayer,
+        designImage,
+      });
+    }
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imgLayer, textLayer]);
 
-  // ── Drag for image layer ────────────────────────────────────────
+  /*
+   * --------------------------------------------------
+   * IMAGE DRAG
+   * --------------------------------------------------
+   */
+
   const imgDrag = useRef(null);
 
   const onImgPointerDown = useCallback(
     (e) => {
-      e.currentTarget.setPointerCapture(e.pointerId);
-      const rect = canvasRef.current.getBoundingClientRect();
+      if (imgLoading) return;
+
+      e.currentTarget.setPointerCapture(
+        e.pointerId,
+      );
+
+      const rect =
+        canvasRef.current.getBoundingClientRect();
+
       imgDrag.current = {
         startX: e.clientX,
         startY: e.clientY,
+
         origX: imgLayer.x,
         origY: imgLayer.y,
+
         rectW: rect.width,
         rectH: rect.height,
       };
     },
-    [imgLayer],
+    [imgLayer, imgLoading],
   );
 
   const onImgPointerMove = useCallback((e) => {
     if (!imgDrag.current) return;
-    const { startX, startY, origX, origY, rectW, rectH } = imgDrag.current;
-    const dx = ((e.clientX - startX) / rectW) * 100;
-    const dy = ((e.clientY - startY) / rectH) * 100;
+
+    const {
+      startX,
+      startY,
+      origX,
+      origY,
+      rectW,
+      rectH,
+    } = imgDrag.current;
+
+    const dx =
+      ((e.clientX - startX) / rectW) * 100;
+
+    const dy =
+      ((e.clientY - startY) / rectH) * 100;
+
     setImgLayer((prev) => ({
       ...prev,
-      x: Math.max(0, Math.min(100 - prev.w, origX + dx)),
-      y: Math.max(0, Math.min(100 - prev.h, origY + dy)),
+
+      x: Math.max(
+        0,
+        Math.min(
+          100 - prev.w,
+          origX + dx,
+        ),
+      ),
+
+      y: Math.max(
+        0,
+        Math.min(
+          100 - prev.h,
+          origY + dy,
+        ),
+      ),
     }));
   }, []);
 
@@ -84,19 +160,32 @@ export default function AIBuilderEditor({
     imgDrag.current = null;
   }, []);
 
-  // ── Resize for image layer ──────────────────────────────────────
+  /*
+   * --------------------------------------------------
+   * IMAGE RESIZE
+   * --------------------------------------------------
+   */
+
   const imgResize = useRef(null);
 
   const onResizePointerDown = useCallback(
     (e) => {
       e.stopPropagation();
-      e.currentTarget.setPointerCapture(e.pointerId);
-      const rect = canvasRef.current.getBoundingClientRect();
+
+      e.currentTarget.setPointerCapture(
+        e.pointerId,
+      );
+
+      const rect =
+        canvasRef.current.getBoundingClientRect();
+
       imgResize.current = {
         startX: e.clientX,
         startY: e.clientY,
+
         origW: imgLayer.w,
         origH: imgLayer.h,
+
         rectW: rect.width,
         rectH: rect.height,
       };
@@ -106,13 +195,40 @@ export default function AIBuilderEditor({
 
   const onResizePointerMove = useCallback((e) => {
     if (!imgResize.current) return;
-    const { startX, startY, origW, origH, rectW, rectH } = imgResize.current;
-    const dw = ((e.clientX - startX) / rectW) * 100;
-    const dh = ((e.clientY - startY) / rectH) * 100;
+
+    const {
+      startX,
+      startY,
+      origW,
+      origH,
+      rectW,
+      rectH,
+    } = imgResize.current;
+
+    const dw =
+      ((e.clientX - startX) / rectW) * 100;
+
+    const dh =
+      ((e.clientY - startY) / rectH) * 100;
+
     setImgLayer((prev) => ({
       ...prev,
-      w: Math.max(10, Math.min(100 - prev.x, origW + dw)),
-      h: Math.max(10, Math.min(100 - prev.y, origH + dh)),
+
+      w: Math.max(
+        10,
+        Math.min(
+          100 - prev.x,
+          origW + dw,
+        ),
+      ),
+
+      h: Math.max(
+        10,
+        Math.min(
+          100 - prev.y,
+          origH + dh,
+        ),
+      ),
     }));
   }, []);
 
@@ -120,18 +236,30 @@ export default function AIBuilderEditor({
     imgResize.current = null;
   }, []);
 
-  // ── Drag for text layer ────────────────────────────────────────
+  /*
+   * --------------------------------------------------
+   * TEXT DRAG
+   * --------------------------------------------------
+   */
+
   const txtDrag = useRef(null);
 
   const onTxtPointerDown = useCallback(
     (e) => {
-      e.currentTarget.setPointerCapture(e.pointerId);
-      const rect = canvasRef.current.getBoundingClientRect();
+      e.currentTarget.setPointerCapture(
+        e.pointerId,
+      );
+
+      const rect =
+        canvasRef.current.getBoundingClientRect();
+
       txtDrag.current = {
         startX: e.clientX,
         startY: e.clientY,
+
         origX: textLayer.x,
         origY: textLayer.y,
+
         rectW: rect.width,
         rectH: rect.height,
       };
@@ -141,13 +269,40 @@ export default function AIBuilderEditor({
 
   const onTxtPointerMove = useCallback((e) => {
     if (!txtDrag.current) return;
-    const { startX, startY, origX, origY, rectW, rectH } = txtDrag.current;
-    const dx = ((e.clientX - startX) / rectW) * 100;
-    const dy = ((e.clientY - startY) / rectH) * 100;
+
+    const {
+      startX,
+      startY,
+      origX,
+      origY,
+      rectW,
+      rectH,
+    } = txtDrag.current;
+
+    const dx =
+      ((e.clientX - startX) / rectW) * 100;
+
+    const dy =
+      ((e.clientY - startY) / rectH) * 100;
+
     setTextLayer((prev) => ({
       ...prev,
-      x: Math.max(0, Math.min(90, origX + dx)),
-      y: Math.max(3, Math.min(97, origY + dy)),
+
+      x: Math.max(
+        0,
+        Math.min(
+          90,
+          origX + dx,
+        ),
+      ),
+
+      y: Math.max(
+        3,
+        Math.min(
+          97,
+          origY + dy,
+        ),
+      ),
     }));
   }, []);
 
@@ -155,47 +310,138 @@ export default function AIBuilderEditor({
     txtDrag.current = null;
   }, []);
 
+  /*
+   * --------------------------------------------------
+   * RENDER
+   * --------------------------------------------------
+   */
+
   return (
     <div className="aib-editor">
-      {/* Canvas */}
-      <div className="aib-editor-canvas-wrap" ref={canvasRef}>
-        {/* Image layer — always rendered so onLoad fires reliably */}
+
+      {/* =====================================================
+          CANVAS
+          ===================================================== */}
+
+      <div
+        className="aib-editor-canvas-wrap"
+        ref={canvasRef}
+        style={{
+          /*
+           * Checkerboard transparency indicator.
+           *
+           * This does NOT modify the generated PNG.
+           * It only makes transparent areas visible while editing.
+           */
+          backgroundColor: "#ffffff",
+
+          backgroundImage:
+            `
+            linear-gradient(45deg, #f1f3f5 25%, transparent 25%),
+            linear-gradient(-45deg, #f1f3f5 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #f1f3f5 75%),
+            linear-gradient(-45deg, transparent 75%, #f1f3f5 75%)
+            `,
+
+          backgroundSize: "20px 20px",
+
+          backgroundPosition:
+            "0 0, 0 10px, 10px -10px, -10px 0px",
+        }}
+      >
+
+        {/* =================================================
+            IMAGE LAYER
+            ================================================= */}
+
         {designImage && (
           <div
             className="aib-editor-design-layer"
+
             style={{
               left: `${imgLayer.x}%`,
               top: `${imgLayer.y}%`,
+
               width: `${imgLayer.w}%`,
               height: `${imgLayer.h}%`,
-              opacity: imgLoading ? 0 : (imgLayer.opacity ?? 100) / 100,
-              pointerEvents: imgLoading ? "none" : undefined,
+
+              opacity:
+                imgLoading
+                  ? 0
+                  : (imgLayer.opacity ?? 100) / 100,
+
+              pointerEvents:
+                imgLoading
+                  ? "none"
+                  : undefined,
             }}
-            onPointerDown={onImgPointerDown}
-            onPointerMove={onImgPointerMove}
-            onPointerUp={onImgPointerUp}
+
+            onPointerDown={
+              onImgPointerDown
+            }
+
+            onPointerMove={
+              onImgPointerMove
+            }
+
+            onPointerUp={
+              onImgPointerUp
+            }
           >
+
             <img
               src={designImage}
-              alt="design"
+              alt="AI generated design"
+
+              /*
+               * PNG transparency is preserved automatically.
+               *
+               * IMPORTANT:
+               * Do NOT use a background-color here.
+               */
+
+              style={{
+                display: "block",
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                background: "transparent",
+              }}
+
               onLoad={onImgLoad}
               onError={onImgLoad}
             />
+
+            {/* Resize handle */}
+
             {!imgLoading && (
               <div
                 className="aib-editor-resize-handle"
-                onPointerDown={onResizePointerDown}
-                onPointerMove={onResizePointerMove}
-                onPointerUp={onResizePointerUp}
+
+                onPointerDown={
+                  onResizePointerDown
+                }
+
+                onPointerMove={
+                  onResizePointerMove
+                }
+
+                onPointerUp={
+                  onResizePointerUp
+                }
               />
             )}
           </div>
         )}
 
-        {/* Loading overlay — sits on top while image is being fetched */}
+        {/* =================================================
+            LOADING OVERLAY
+            ================================================= */}
+
         {imgLoading && (
           <div className="aib-img-loading">
             <span className="aib-spinner" />
+
             <span>
               {designSource === "generated"
                 ? "Generating image, please wait…"
@@ -204,109 +450,227 @@ export default function AIBuilderEditor({
           </div>
         )}
 
-        {/* AI Generated label */}
-        {!imgLoading && designSource === "generated" && (
-          <span className="aib-result-label">AI Generated</span>
-        )}
+        {/* =================================================
+            AI GENERATED LABEL
+            ================================================= */}
 
-        {/* Text layer */}
-        {textLayer.visible && textLayer.text && (
-          <div
-            className="aib-editor-text-layer"
-            style={{
-              left: `${textLayer.x}%`,
-              top: `${textLayer.y}%`,
-              color: textLayer.color,
-              fontSize: `${textLayer.size}px`,
-              whiteSpace: "pre-wrap",
-            }}
-            onPointerDown={onTxtPointerDown}
-            onPointerMove={onTxtPointerMove}
-            onPointerUp={onTxtPointerUp}
-          >
-            {textLayer.text}
-          </div>
-        )}
+        {!imgLoading &&
+          designSource === "generated" && (
+            <span className="aib-result-label">
+              AI Generated
+            </span>
+          )}
+
+        {/* =================================================
+            TEXT LAYER
+            ================================================= */}
+
+        {textLayer.visible &&
+          textLayer.text && (
+            <div
+              className="aib-editor-text-layer"
+
+              style={{
+                left: `${textLayer.x}%`,
+                top: `${textLayer.y}%`,
+
+                color: textLayer.color,
+
+                fontSize:
+                  `${textLayer.size}px`,
+
+                whiteSpace: "pre-wrap",
+              }}
+
+              onPointerDown={
+                onTxtPointerDown
+              }
+
+              onPointerMove={
+                onTxtPointerMove
+              }
+
+              onPointerUp={
+                onTxtPointerUp
+              }
+            >
+              {textLayer.text}
+            </div>
+          )}
       </div>
 
-      {/* Controls */}
+      {/* =====================================================
+          CONTROLS
+          ===================================================== */}
+
       <div className="aib-editor-controls">
-        <p style={{ margin: 0, fontSize: 12, color: "#7e8b92" }}>
-          Drag the image to reposition it. Drag the ● dot to resize. Type text
-          below, then drag it to place it on the image.
+
+        <p
+          style={{
+            margin: 0,
+            fontSize: 12,
+            color: "#7e8b92",
+          }}
+        >
+          Drag the image to reposition it.
+          Drag the ● dot to resize. Type text
+          below, then drag it to place it on
+          the image.
         </p>
 
-        {/* Text controls */}
+        {/* =================================================
+            TEXT CONTROLS
+            ================================================= */}
+
         <div className="aib-ctrl-row">
-          <span className="aib-ctrl-label">Text</span>
+
+          <span className="aib-ctrl-label">
+            Text
+          </span>
+
           <textarea
             className="aib-ctrl-input"
+
             rows={3}
+
             placeholder="Add text overlay… (Enter for new line)"
+
             value={textLayer.text}
+
             onChange={(e) =>
               setTextLayer((p) => ({
                 ...p,
+
                 text: e.target.value,
-                visible: e.target.value.length > 0,
+
+                visible:
+                  e.target.value.length > 0,
               }))
             }
-            style={{ resize: "vertical", fontFamily: "inherit" }}
+
+            style={{
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
           />
         </div>
 
+        {/* =================================================
+            TEXT COLOR + SIZE
+            ================================================= */}
+
         {textLayer.text && (
-          <>
-            <div className="aib-ctrl-row">
-              <span className="aib-ctrl-label">Color</span>
-              <input
-                className="aib-ctrl-color"
-                type="color"
-                value={textLayer.color}
-                onChange={(e) =>
-                  setTextLayer((p) => ({ ...p, color: e.target.value }))
-                }
-              />
-              <span className="aib-ctrl-label" style={{ minWidth: 36 }}>
-                Size
-              </span>
-              <input
-                className="aib-ctrl-range"
-                type="range"
-                min={10}
-                max={72}
-                value={textLayer.size}
-                onChange={(e) =>
-                  setTextLayer((p) => ({
-                    ...p,
-                    size: parseInt(e.target.value, 10),
-                  }))
-                }
-              />
-              <span style={{ fontSize: 12, color: "#7e8b92", width: 28 }}>
-                {textLayer.size}px
-              </span>
-            </div>
-          </>
+          <div className="aib-ctrl-row">
+
+            <span className="aib-ctrl-label">
+              Color
+            </span>
+
+            <input
+              className="aib-ctrl-color"
+
+              type="color"
+
+              value={
+                textLayer.color
+              }
+
+              onChange={(e) =>
+                setTextLayer((p) => ({
+                  ...p,
+                  color:
+                    e.target.value,
+                }))
+              }
+            />
+
+            <span
+              className="aib-ctrl-label"
+              style={{
+                minWidth: 36,
+              }}
+            >
+              Size
+            </span>
+
+            <input
+              className="aib-ctrl-range"
+
+              type="range"
+
+              min={10}
+              max={72}
+
+              value={
+                textLayer.size
+              }
+
+              onChange={(e) =>
+                setTextLayer((p) => ({
+                  ...p,
+
+                  size: parseInt(
+                    e.target.value,
+                    10,
+                  ),
+                }))
+              }
+            />
+
+            <span
+              style={{
+                fontSize: 12,
+                color: "#7e8b92",
+                width: 28,
+              }}
+            >
+              {textLayer.size}px
+            </span>
+          </div>
         )}
 
-        {/* Image opacity */}
+        {/* =================================================
+            IMAGE OPACITY
+            ================================================= */}
+
         <div className="aib-ctrl-row">
-          <span className="aib-ctrl-label">Opacity</span>
+
+          <span className="aib-ctrl-label">
+            Opacity
+          </span>
+
           <input
             className="aib-ctrl-range"
+
             type="range"
+
             min={10}
             max={100}
-            value={imgLayer.opacity ?? 100}
+
+            value={
+              imgLayer.opacity ?? 100
+            }
+
             onChange={(e) =>
               setImgLayer((p) => ({
                 ...p,
-                opacity: parseInt(e.target.value, 10),
+
+                opacity:
+                  parseInt(
+                    e.target.value,
+                    10,
+                  ),
               }))
             }
           />
-          <span style={{ fontSize: 12, color: "#7e8b92", width: 34 }}>
+
+          <span
+            style={{
+              fontSize: 12,
+              color: "#7e8b92",
+              width: 34,
+            }}
+          >
             {imgLayer.opacity ?? 100}%
           </span>
         </div>

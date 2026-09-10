@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
 datasource db {
@@ -26,15 +27,19 @@ model User {
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
   avatar_url         String?         @map("avatar_url")
+  branchId           Int?            @map("branch_id")
   cartItems          CartItem[]
   supportAssignments Conversation[]  @relation("SupportAssignedStaff")
   conversations      Conversation[]
   inquiries          Inquiry[]
   notifications      Notification[]
   orders             Order[]
-  ratings            Rating[]
   productReviews     ProductReview[]
+  ratings            Rating[]
+  branch             Branch?         @relation(fields: [branchId], references: [id])
   staffRoles         UserStaffRole[]
+
+  @@index([branchId])
 }
 
 model Notification {
@@ -162,45 +167,61 @@ model Product {
   safeMarginInches      Float?          @map("safe_margin_inches")
   materialUsageMap      Json?           @map("material_usage_map")
   setupFee              Float?          @map("setup_fee")
+  branchId              Int?            @map("branch_id")
   cartItems             CartItem[]
   orderItems            OrderItem[]
+  branch                Branch?         @relation(fields: [branchId], references: [id])
   reviews               ProductReview[]
+
+  @@index([branchId])
 }
 
 model InventorySubstrate {
   id              Int      @id @default(autoincrement())
-  materialName    String   @unique @map("material_name")
+  materialName    String   @map("material_name")
   stockMeters     Float    @map("stock_meters")
   safetyThreshold Float    @default(15.0) @map("safety_threshold")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerMeter    Float?   @map("cost_per_meter")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
 
+  @@unique([materialName, branchId])
   @@index([materialName])
+  @@index([branchId])
 }
 
 model InventoryInk {
   id              Int      @id @default(autoincrement())
-  colorChannel    String   @unique @map("color_channel")
+  colorChannel    String   @map("color_channel")
   volumeMl        Float    @map("volume_ml")
   safetyThreshold Float    @default(15.0) @map("safety_threshold")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerMl       Float?   @map("cost_per_ml")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
 
+  @@unique([colorChannel, branchId])
   @@index([colorChannel])
+  @@index([branchId])
 }
 
 model InventoryUnit {
   id              Int      @id @default(autoincrement())
-  itemName        String   @unique @map("item_name")
+  itemName        String   @map("item_name")
   stockUnits      Int      @map("stock_units")
   safetyThreshold Int      @default(15) @map("safety_threshold")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerUnit     Float?   @map("cost_per_unit")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
 
+  @@unique([itemName, branchId])
   @@index([itemName])
+  @@index([branchId])
 }
 
 model PurchaseRequisition {
@@ -216,9 +237,12 @@ model PurchaseRequisition {
   generatedBy        Int?              @map("generated_by")
   createdAt          DateTime          @default(now()) @map("created_at")
   resolvedAt         DateTime?         @map("resolved_at")
+  branchId           Int?              @map("branch_id")
+  branch             Branch?           @relation(fields: [branchId], references: [id])
 
   @@index([status])
   @@index([materialName])
+  @@index([branchId])
 }
 
 model Order {
@@ -292,6 +316,8 @@ model ProductReview {
   comment     String?
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
+  images      String[]  @default([])
+  videos      String[]  @default([])
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
   product     Product   @relation(fields: [productId], references: [id])
   user        User?     @relation(fields: [userId], references: [id])
@@ -300,12 +326,18 @@ model ProductReview {
 }
 
 model Branch {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  address   String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  orders    Order[]
+  id           Int                   @id @default(autoincrement())
+  name         String                @unique
+  address      String?
+  active       Boolean               @default(true)
+  createdAt    DateTime              @default(now()) @map("created_at")
+  inks         InventoryInk[]
+  substrates   InventorySubstrate[]
+  units        InventoryUnit[]
+  orders       Order[]
+  products     Product[]
+  requisitions PurchaseRequisition[]
+  users        User[]
 }
 
 model OrderItem {

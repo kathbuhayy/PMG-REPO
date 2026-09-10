@@ -1,3 +1,4 @@
+//customizerWebViewScreen.js
 import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
@@ -7,10 +8,24 @@ import {
   StatusBar,
   SafeAreaView,
   Alert,
+  Modal,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { WEB_APP_URL, API_BASE_URL } from "../config";
+
+const CUSTOMIZE_CATEGORIES = [
+  { key: "COLORS", label: "Colors", icon: "🎨", target: "COLORS" },
+  { key: "SPECS", label: "Specs", icon: "📐", target: "SPECS" },
+  { key: "TEMPLATES", label: "Templates", icon: "🗂", target: "TEMPLATES" },
+  { key: "GRAPHICS", label: "Graphics & Shapes", icon: "✦", target: "GRAPHICS" },
+  { key: "TEXT", label: "Text", icon: "A", target: "TEXT" },
+  { key: "AI", label: "AI Design", icon: "✨", target: "AI" },
+  { key: "LAYERS", label: "Layers", icon: "▤", target: "LAYERS_PANEL" },
+  { key: "MORE", label: "Uploads", icon: "⋯", target: "GALLERY" },
+];
+
+const SIDES = ["Front", "Back", "Left", "Right"];
 
 export default function CustomizerWebViewScreen({ route, navigation }) {
   const { product, selectedOptions } = route.params || {};
@@ -18,6 +33,9 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
 
   const [userJson, setUserJson] = useState(null);
   const [designDirty, setDesignDirty] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState(null);
+  const [activeSide, setActiveSide] = useState("Front");
 
   const webViewRef = useRef(null);
 
@@ -133,6 +151,46 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
     `);
   };
 
+  const handleSideChange = (side) => {
+    setActiveSide(side);
+
+    runWebViewScript(`
+      if (window.__PMG_SET_VIEW__) {
+        window.__PMG_SET_VIEW__(${JSON.stringify(side.toLowerCase())});
+      }
+    `);
+  };
+
+  const openCategory = (cat) => {
+    setSheetOpen(false);
+    setActiveCategory(cat.key);
+
+    if (cat.target === "LAYERS_PANEL") {
+      runWebViewScript(`
+        if (window.__PMG_OPEN_LAYERS__) {
+          window.__PMG_OPEN_LAYERS__();
+        }
+      `);
+      return;
+    }
+
+    runWebViewScript(`
+      if (window.__PMG_OPEN_CATEGORY__) {
+        window.__PMG_OPEN_CATEGORY__(${JSON.stringify(cat.target)});
+      }
+    `);
+  };
+
+  const closeActiveCategory = () => {
+    setActiveCategory(null);
+
+    runWebViewScript(`
+      if (window.__PMG_CLOSE_CATEGORY__) {
+        window.__PMG_CLOSE_CATEGORY__();
+      }
+    `);
+  };
+
   // ---------------------------------------------------------
   // PRELOAD
   // ---------------------------------------------------------
@@ -161,8 +219,40 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
   const injectedPostLoadJS = `
     (function() {
 
+      // --- error/network capture, sent back to RN console ---
+      window.addEventListener("error", function(e) {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: "PMG_DEBUG_ERROR",
+            message: e.message,
+            source: e.filename,
+            line: e.lineno,
+          }));
+        }
+      });
+
+      window.addEventListener("unhandledrejection", function(e) {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: "PMG_DEBUG_ERROR",
+            message: "Unhandled rejection: " + (e.reason?.message || e.reason),
+          }));
+        }
+      });
+
+      var _origFetch = window.fetch;
+      window.fetch = function() {
+        return _origFetch.apply(this, arguments).catch(function(err) {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: "PMG_DEBUG_ERROR",
+              message: "Fetch failed: " + arguments[0] + " — " + err.message,
+            }));
+          }
+          throw err;
+        });
+      };
       var STYLE_ID = "pmg-mobile-customizer-style";
-      var MENU_ID = "pmg-mobile-customizer-menu";
 
       function findRealButton(label) {
         var wanted = String(label).toLowerCase().trim();
@@ -191,15 +281,45 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
 
       window.__PMG_FIND_BUTTON__ = findRealButton;
 
+      window.__PMG_OPEN_CATEGORY__ = function(label) {
+        var button = findRealButton(label);
+
+        if (button) {
+          button.click();
+          document.body.classList.add("pmg-tool-open");
+          setDesignDirty(true);
+        }
+      };
+
+      window.__PMG_CLOSE_CATEGORY__ = function() {
+        closePanel();
+      };
+
+      // Layers has no tab button of its own - LayersPanel renders
+      // persistently under whichever tab is active - so this just
+      // reveals the sidebar and scrolls it into view instead of
+      // clicking anything.
+      window.__PMG_OPEN_LAYERS__ = function() {
+        document.body.classList.add("pmg-tool-open");
+
+        var scrollToBottom = function() {
+          var container = document.querySelector(".tsc-left-docked, .tsc-sidebar");
+          if (container) {
+            container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+          }
+        };
+
+        // Two passes: once the sheet has finished sliding up, and again
+        // shortly after in case layer thumbnails are still loading and
+        // changing the sidebar's scrollHeight out from under the first scroll.
+        setTimeout(scrollToBottom, 300);
+        setTimeout(scrollToBottom, 700);
+      };
+
       var DESIGN_DIRTY = false;
       var DESIGN_STATE_INITIALIZED = false;
       var DESIGN_CHANGE_LISTENER_READY = false;
       var LAST_SENT_DIRTY = null;
-
-      var PMG_PATTERN_ID =
-        "pmg-mobile-tshirt-pattern";
-
-      var PMG_PATTERN_ACTIVE = false;
 
       // -------------------------------------------------------
       // DESIGN STATE
@@ -510,416 +630,6 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
           depth++;
         }
       }
-
-      // -------------------------------------------------------
-      // POLKA DOTS
-      // -------------------------------------------------------
-
-      var PATTERN_TYPES = {
-        POLKA: 'polka',
-        STRIPES: 'stripes',
-        CHEVRON: 'chevron'
-      };
-
-      var activePatternType = null;
-      var activePatternColor = '#ff6b6b';
-      var activePatternBg = '#ffffff';
-
-      function applyPatternToModel(patternType, color, bgColor) {
-        activePatternType = patternType;
-        activePatternColor = color || '#ff6b6b';
-        activePatternBg = bgColor || '#ffffff';
-        PMG_PATTERN_ACTIVE = true;
-
-        window.dispatchEvent(
-          new CustomEvent(
-            "pmg-shirt-pattern-change",
-            {
-              detail: {
-                pattern: patternType,
-                color: activePatternColor,
-                bgColor: activePatternBg
-              }
-            }
-          )
-        );
-
-        setDesignDirty(true);
-      }
-
-      function removePatternFromModel() {
-        PMG_PATTERN_ACTIVE = false;
-        activePatternType = null;
-
-        window.dispatchEvent(
-          new CustomEvent(
-            "pmg-shirt-pattern-change",
-            {
-              detail: {
-                pattern: null
-              }
-            }
-          )
-        );
-
-        var oldPattern =
-          document.getElementById(
-            PMG_PATTERN_ID
-          );
-
-        if (oldPattern) {
-          oldPattern.remove();
-        }
-
-        var oldStyle =
-          document.getElementById(
-            PMG_PATTERN_ID +
-              "-style"
-          );
-
-        if (oldStyle) {
-          oldStyle.remove();
-        }
-      }
-
-      // -------------------------------------------------------
-      // PATTERN PANEL
-      // -------------------------------------------------------
-
-      function createPatternPanel() {
-        if (
-          document.getElementById(
-            "pmg-mobile-pattern-panel"
-          )
-        ) {
-          return;
-        }
-
-        var patterns = [
-          { 
-            id: 'polka-red', 
-            name: 'Red Polka Dots', 
-            type: PATTERN_TYPES.POLKA,
-            color: '#ff6b6b', 
-            bg: '#ffffff' 
-          },
-          { 
-            id: 'polka-blue', 
-            name: 'Blue Polka Dots', 
-            type: PATTERN_TYPES.POLKA,
-            color: '#4a90d9', 
-            bg: '#ffffff' 
-          },
-          { 
-            id: 'polka-black', 
-            name: 'Black Polka Dots', 
-            type: PATTERN_TYPES.POLKA,
-            color: '#000000', 
-            bg: '#ffffff' 
-          },
-          { 
-            id: 'stripes-red', 
-            name: 'Red Stripes', 
-            type: PATTERN_TYPES.STRIPES,
-            color: '#ff6b6b', 
-            bg: '#ffffff' 
-          },
-          { 
-            id: 'stripes-blue', 
-            name: 'Blue Stripes', 
-            type: PATTERN_TYPES.STRIPES,
-            color: '#4a90d9', 
-            bg: '#ffffff' 
-          },
-          { 
-            id: 'chevron-black', 
-            name: 'Black Chevron', 
-            type: PATTERN_TYPES.CHEVRON,
-            color: '#000000', 
-            bg: '#ffffff' 
-          },
-        ];
-
-        var panel =
-          document.createElement(
-            "div"
-          );
-
-        panel.id =
-          "pmg-mobile-pattern-panel";
-
-        var html = '<div class="pmg-pattern-title">PATTERNS</div>';
-        
-        patterns.forEach(function(p) {
-          var bgStyle = p.bg;
-          var dotColor = p.color;
-          
-          html += '<button type="button" class="pmg-pattern-option" data-pattern="' + p.id + '" data-type="' + p.type + '" data-color="' + p.color + '" data-bg="' + p.bg + '">';
-          html += '<span class="pmg-pattern-preview" style="background: ' + bgStyle + '; background-image: radial-gradient(circle, ' + dotColor + ' 0 4px, transparent 4.5px); background-size: 16px 16px;"></span>';
-          html += '<span>' + p.name + '</span>';
-          html += '</button>';
-        });
-        
-        html += '<button class="pmg-pattern-close" type="button">Close</button>';
-
-        panel.innerHTML = html;
-
-        document.body.appendChild(
-          panel
-        );
-
-        panel
-          .querySelectorAll(
-            '[data-pattern]'
-          )
-          .forEach(
-            function(btn) {
-              btn.addEventListener(
-                "click",
-                function(e) {
-                  e.preventDefault();
-                  e.stopPropagation();
-
-                  var patternType = this.dataset.type;
-                  var color = this.dataset.color;
-                  var bg = this.dataset.bg;
-
-                  applyPatternToModel(patternType, color, bg);
-
-                  // Close panel after selection
-                  var panelEl = document.getElementById("pmg-mobile-pattern-panel");
-                  if (panelEl) {
-                    panelEl.classList.remove("open");
-                  }
-
-                  // Update button states
-                  document.querySelectorAll('.pmg-pattern-option').forEach(function(b) {
-                    b.style.border = '1px solid rgba(255,255,255,0.12)';
-                  });
-                  this.style.border = '2px solid #10b981';
-                }
-              );
-            }
-          );
-
-        panel
-          .querySelector(
-            ".pmg-pattern-close"
-          )
-          .addEventListener(
-            "click",
-            function(e) {
-              e.preventDefault();
-              e.stopPropagation();
-
-              panel.classList.remove(
-                "open"
-              );
-
-              removePatternFromModel();
-            }
-          );
-      }
-
-      function openPatternPanel() {
-        createPatternPanel();
-
-        var panel =
-          document.getElementById(
-            "pmg-mobile-pattern-panel"
-          );
-
-        if (panel) {
-          panel.classList.add(
-            "open"
-          );
-        }
-      }
-
-      // -------------------------------------------------------
-      // MOBILE MENU
-      // -------------------------------------------------------
-
-      function createVerticalMenu() {
-        if (
-          document.getElementById(
-            MENU_ID
-          )
-        ) {
-          return;
-        }
-
-        var menu =
-          document.createElement(
-            "div"
-          );
-
-        menu.id = MENU_ID;
-
-        var tools = [
-          {
-            label: "SPECS",
-            icon: "☷",
-          },
-          {
-            label: "COLORS",
-            icon: "🎨",
-          },
-          {
-            label: "GALLERY",
-            icon: "▣",
-          },
-          {
-            label: "AI",
-            icon: "✦",
-          },
-          {
-            label: "TEXT",
-            icon: "A",
-          },
-        ];
-
-        tools.forEach(
-          function(tool) {
-            var button =
-              document.createElement(
-                "button"
-              );
-
-            button.type =
-              "button";
-
-            button.className =
-              "pmg-mobile-tool-button";
-
-            button.setAttribute(
-              "data-tool",
-              tool.label
-            );
-
-            button.innerHTML =
-              '<span class="pmg-mobile-tool-icon">' +
-              tool.icon +
-              "</span>" +
-              '<span class="pmg-mobile-tool-label">' +
-              tool.label +
-              "</span>";
-
-            button.addEventListener(
-              "click",
-              function(event) {
-                event.preventDefault();
-                event.stopPropagation();
-
-                var isOpen =
-                  document.body.classList.contains(
-                    "pmg-tool-open"
-                  );
-
-                if (
-                  button.classList.contains(
-                    "active"
-                  ) &&
-                  isOpen
-                ) {
-                  document.body.classList.remove(
-                    "pmg-tool-open"
-                  );
-
-                  button.classList.remove(
-                    "active"
-                  );
-
-                  // Close pattern panel if open
-                  var patternPanel = document.getElementById("pmg-mobile-pattern-panel");
-                  if (patternPanel) {
-                    patternPanel.classList.remove("open");
-                  }
-
-                  return;
-                }
-
-                // ------------------------------------------------
-                // PATTERNS
-                // ------------------------------------------------
-
-                if (
-                  tool.label ===
-                  "PATTERNS"
-                ) {
-                  openPatternPanel();
-
-                  document
-                    .querySelectorAll(
-                      ".pmg-mobile-tool-button"
-                    )
-                    .forEach(
-                      function(item) {
-                        item.classList.remove(
-                          "active"
-                        );
-                      }
-                    );
-
-                  button.classList.add(
-                    "active"
-                  );
-
-                  document.body.classList.add(
-                    "pmg-tool-open"
-                  );
-
-                  return;
-                }
-
-                var realButton =
-                  findRealButton(
-                    tool.label
-                  );
-
-                if (!realButton) {
-                  return;
-                }
-
-                setDesignDirty(
-                  true
-                );
-
-                realButton.click();
-
-                document.body.classList.add(
-                  "pmg-tool-open"
-                );
-
-                document
-                  .querySelectorAll(
-                    ".pmg-mobile-tool-button"
-                  )
-                  .forEach(
-                    function(item) {
-                      item.classList.remove(
-                        "active"
-                      );
-                    }
-                  );
-
-                button.classList.add(
-                  "active"
-                );
-              }
-            );
-
-            menu.appendChild(
-              button
-            );
-          }
-        );
-
-        document.body.appendChild(
-          menu
-        );
-      }
-
       // -------------------------------------------------------
       // DESIGN CHANGE DETECTION
       // -------------------------------------------------------
@@ -1003,8 +713,6 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
                   setDesignDirty(
                     false
                   );
-
-                  removePatternFromModel();
                 },
                 150
               );
@@ -1195,6 +903,8 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
           // MAIN LAYOUT
           ".tsc-3col-layout,.tsc-4col-layout {" +
           "position:relative !important;" +
+          "display:flex !important;" +
+          "flex-direction:column !important;" +
           "width:100% !important;" +
           "max-width:100vw !important;" +
           "height:100% !important;" +
@@ -1207,23 +917,34 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
 
           // 3D PREVIEW
           ".tsc-right-preview {" +
-          "position:absolute !important;" +
-          "top:0 !important;" +
-          "left:0 !important;" +
-          "right:0 !important;" +
-          "bottom:0 !important;" +
+          "position:relative !important;" +
           "width:100% !important;" +
           "height:100% !important;" +
+          "flex:1 1 auto !important;" +
           "margin:0 !important;" +
           "padding:0 !important;" +
           "background:#1d2333 !important;" +
           "border:none !important;" +
           "display:flex !important;" +
-          "align-items:center !important;" +
-          "justify-content:center !important;" +
+          "flex-direction:column !important;" +
+          "align-items:stretch !important;" +
+          "justify-content:flex-start !important;" +
           "overflow:hidden !important;" +
           "z-index:1 !important;" +
           "pointer-events:auto !important;" +
+          "}" +
+
+          ".tsc-right-preview .tsc-preview-panel {" +
+          "height:100% !important;" +
+          "min-height:0 !important;" +
+          "flex:1 1 auto !important;" +
+          "}" +
+
+          ".tsc-right-preview .tsc-preview-3d {" +
+          "height:100% !important;" +
+          "min-height:0 !important;" +
+          "max-height:none !important;" +
+          "flex:1 1 auto !important;" +
           "}" +
 
           ".tsc-preview-panel {" +
@@ -1271,116 +992,55 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
           "}" +
 
           // ---------------------------------------------------
-          // VERTICAL MOBILE MENU
-          // ---------------------------------------------------
-
-          "#pmg-mobile-customizer-menu {" +
-          "position:fixed !important;" +
-          "top:50% !important;" +
-          "right:10px !important;" +
-          "transform:translateY(-50%) !important;" +
-          "width:56px !important;" +
-          "padding:6px 3px !important;" +
-          "margin:0 !important;" +
-          "display:flex !important;" +
-          "flex-direction:column !important;" +
-          "gap:3px !important;" +
-          "background:rgba(37,52,73,0.8) !important;" +
-          "border-radius:14px !important;" +
-          "box-shadow:0 4px 15px rgba(0,0,0,0.3) !important;" +
-          "z-index:999999 !important;" +
-          "backdrop-filter:blur(10px) !important;" +
-          "-webkit-backdrop-filter:blur(10px) !important;" +
-          "border:1px solid rgba(255,255,255,0.05) !important;" +
-          "}" +
-
-          ".pmg-mobile-tool-button {" +
-          "width:100% !important;" +
-          "height:44px !important;" +
-          "padding:3px 2px !important;" +
-          "margin:0 !important;" +
-          "border:none !important;" +
-          "border-radius:10px !important;" +
-          "background:transparent !important;" +
-          "color:#dbe7f4 !important;" +
-          "display:flex !important;" +
-          "flex-direction:column !important;" +
-          "align-items:center !important;" +
-          "justify-content:center !important;" +
-          "gap:1px !important;" +
-          "cursor:pointer !important;" +
-          "pointer-events:auto !important;" +
-          "touch-action:manipulation !important;" +
-          "transition:all 0.15s ease !important;" +
-          "}" +
-
-          ".pmg-mobile-tool-button:hover {" +
-          "background:rgba(255,255,255,0.05) !important;" +
-          "}" +
-
-          ".pmg-mobile-tool-button.active {" +
-          "background:rgba(64,83,109,0.6) !important;" +
-          "color:#ffffff !important;" +
-          "transform:scale(1.05) !important;" +
-          "}" +
-
-          ".pmg-mobile-tool-icon {" +
-          "display:block !important;" +
-          "font-size:17px !important;" +
-          "line-height:19px !important;" +
-          "width:19px !important;" +
-          "height:19px !important;" +
-          "text-align:center !important;" +
-          "}" +
-
-          ".pmg-mobile-tool-label {" +
-          "display:block !important;" +
-          "font-size:6px !important;" +
-          "line-height:8px !important;" +
-          "font-weight:700 !important;" +
-          "text-transform:uppercase !important;" +
-          "white-space:nowrap !important;" +
-          "letter-spacing:0.2px !important;" +
-          "opacity:0.7 !important;" +
-          "}" +
-
-          ".pmg-mobile-tool-button.active .pmg-mobile-tool-label {" +
-          "opacity:1 !important;" +
-          "}" +
-
-          // ---------------------------------------------------
           // ORIGINAL SIDEBAR
           // ---------------------------------------------------
 
           ".tsc-left-docked,.tsc-sidebar {" +
           "position:fixed !important;" +
-          "top:60px !important;" +
-          "left:10px !important;" +
-          "bottom:60px !important;" +
-          "width:300px !important;" +
-          "max-width:calc(100vw - 80px) !important;" +
-          "background:rgba(29,35,51,0.88) !important;" +
-          "border-radius:16px !important;" +
-          "padding:16px !important;" +
+          "top:auto !important;" +
+          "left:0 !important;" +
+          "right:0 !important;" +
+          "bottom:0 !important;" +
+          "width:100% !important;" +
+          "max-width:100% !important;" +
+          "max-height:78% !important;" +
+          "background:#1d2333 !important;" +
+          "border-radius:20px 20px 0 0 !important;" +
+          "padding:14px 16px 20px !important;" +
           "overflow-y:auto !important;" +
           "overflow-x:hidden !important;" +
+          "-webkit-overflow-scrolling:touch !important;" +
           "z-index:99998 !important;" +
           "pointer-events:none !important;" +
           "opacity:0 !important;" +
           "visibility:hidden !important;" +
-          "transform:translateX(-30px) scale(0.95) !important;" +
-          "transition:all 0.3s cubic-bezier(0.4,0,0.2,1) !important;" +
-          "box-shadow:0 10px 40px rgba(0,0,0,0.5) !important;" +
-          "border:1px solid rgba(255,255,255,0.06) !important;" +
-          "backdrop-filter:blur(20px) !important;" +
-          "-webkit-backdrop-filter:blur(20px) !important;" +
+          "transform:translateY(24px) !important;" +
+          "transition:transform 0.25s ease,opacity 0.25s ease,visibility 0.25s !important;" +
+          "box-shadow:0 -8px 30px rgba(0,0,0,0.45) !important;" +
+          "border:1px solid rgba(255,255,255,0.08) !important;" +
+          "border-bottom:none !important;" +
+          "box-sizing:border-box !important;" +
           "}" +
 
           "body.pmg-tool-open .tsc-left-docked,body.pmg-tool-open .tsc-sidebar {" +
           "pointer-events:auto !important;" +
           "opacity:1 !important;" +
           "visibility:visible !important;" +
-          "transform:translateX(0) scale(1) !important;" +
+          "transform:translateY(0) !important;" +
+          "}" +
+
+          ".tsc-left-docked::before,.tsc-sidebar::before {" +
+          "content:'' !important;" +
+          "display:block !important;" +
+          "width:36px !important;" +
+          "height:4px !important;" +
+          "border-radius:4px !important;" +
+          "background:rgba(255,255,255,0.25) !important;" +
+          "margin:0 auto 12px !important;" +
+          "}" +
+
+          ".tsc-sidebar-section {" +
+          "border-radius:14px !important;" +
           "}" +
 
           ".tsc-left-docked *,.tsc-sidebar * {" +
@@ -1393,79 +1053,6 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
 
           ".tsc-root button,.tsc-root input,.tsc-root select,.tsc-root textarea,.tsc-root label,.tsc-root [role='button'] {" +
           "pointer-events:auto !important;" +
-          "}" +
-
-          // ---------------------------------------------------
-          // POLKA DOT PANEL
-          // ---------------------------------------------------
-
-          "#pmg-mobile-pattern-panel {" +
-          "position:fixed !important;" +
-          "left:10px !important;" +
-          "bottom:60px !important;" +
-          "width:260px !important;" +
-          "padding:14px !important;" +
-          "background:rgba(29,35,51,0.96) !important;" +
-          "border:1px solid rgba(255,255,255,0.08) !important;" +
-          "border-radius:14px !important;" +
-          "box-shadow:0 10px 35px rgba(0,0,0,0.45) !important;" +
-          "z-index:1000000 !important;" +
-          "display:none !important;" +
-          "color:#ffffff !important;" +
-          "}" +
-
-          "#pmg-mobile-pattern-panel.open {" +
-          "display:block !important;" +
-          "}" +
-
-          ".pmg-pattern-title {" +
-          "font-size:13px !important;" +
-          "font-weight:800 !important;" +
-          "margin-bottom:10px !important;" +
-          "letter-spacing:0.4px !important;" +
-          "}" +
-
-          ".pmg-pattern-option {" +
-          "width:100% !important;" +
-          "min-height:56px !important;" +
-          "border:1px solid rgba(255,255,255,0.12) !important;" +
-          "border-radius:10px !important;" +
-          "background:rgba(255,255,255,0.06) !important;" +
-          "color:#ffffff !important;" +
-          "display:flex !important;" +
-          "align-items:center !important;" +
-          "gap:12px !important;" +
-          "padding:7px !important;" +
-          "font-size:12px !important;" +
-          "font-weight:700 !important;" +
-          "margin-bottom:6px !important;" +
-          "transition:all 0.2s !important;" +
-          "}" +
-
-          ".pmg-pattern-option:hover {" +
-          "background:rgba(255,255,255,0.12) !important;" +
-          "transform:scale(1.02) !important;" +
-          "}" +
-
-          ".pmg-pattern-preview {" +
-          "width:44px !important;" +
-          "height:38px !important;" +
-          "border-radius:7px !important;" +
-          "display:block !important;" +
-          "flex-shrink:0 !important;" +
-          "border:1px solid rgba(255,255,255,0.1) !important;" +
-          "}" +
-
-          ".pmg-pattern-close {" +
-          "margin-top:8px !important;" +
-          "width:100% !important;" +
-          "height:36px !important;" +
-          "border:none !important;" +
-          "border-radius:9px !important;" +
-          "background:rgba(255,255,255,0.08) !important;" +
-          "color:#cbd5e1 !important;" +
-          "font-size:11px !important;" +
-          "font-weight:700 !important;" +
           "}" +
 
           // ---------------------------------------------------
@@ -1500,29 +1087,6 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         document.body.classList.remove(
           "pmg-tool-open"
         );
-
-        var patternPanel =
-          document.getElementById(
-            "pmg-mobile-pattern-panel"
-          );
-
-        if (patternPanel) {
-          patternPanel.classList.remove(
-            "open"
-          );
-        }
-
-        document
-          .querySelectorAll(
-            ".pmg-mobile-tool-button"
-          )
-          .forEach(
-            function(item) {
-              item.classList.remove(
-                "active"
-              );
-            }
-          );
       }
 
       // -------------------------------------------------------
@@ -1572,7 +1136,6 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         hideExtraWhiteNavigation();
         hideOriginalDesignActions();
         applyStyles();
-        createVerticalMenu();
         addCloseOnBackgroundClick();
         setupDesignChangeDetection();
         detectInitialDesignState();
@@ -1606,7 +1169,6 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
             hideExtraWhiteNavigation();
             hideOriginalDesignActions();
             applyStyles();
-            createVerticalMenu();
             detectInitialDesignState();
           }
         );
@@ -1645,6 +1207,11 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         return;
       }
 
+      if (data.type === "PMG_DEBUG_ERROR") {
+        console.log("[PMG_DEBUG_ERROR]", data.message, data.source, data.line);
+        return;
+      }
+
       if (data.type === "DESIGN_COMPLETED") {
         Alert.alert("Success", "Added to cart with custom options!", [
           {
@@ -1674,48 +1241,45 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
         backgroundColor="#071323"
       />
 
-      <View
-        style={styles.mobileHeader}
-      >
+      <View style={styles.header}>
         <TouchableOpacity
-          style={styles.clearButton}
-          onPress={
-            handleClearAll
-          }
-          activeOpacity={0.8}
+          onPress={() => navigation.goBack()}
+          style={styles.headerIconButton}
+        >
+          <Text style={styles.headerIconText}>←</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>Customize</Text>
+
+        <TouchableOpacity
+          onPress={handleUseThisDesign}
           disabled={!designDirty}
+          style={styles.headerIconButton}
         >
           <Text
             style={[
-              styles.clearButtonText,
-              !designDirty &&
-                styles.clearButtonTextDisabled,
+              styles.headerCheckText,
+              !designDirty && styles.headerCheckTextDisabled,
+            ]}
+          >
+            ✓
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.clearRow}>
+        <TouchableOpacity
+          onPress={handleClearAll}
+          disabled={!designDirty}
+          style={styles.clearChip}
+        >
+          <Text
+            style={[
+              styles.clearChipText,
+              !designDirty && styles.clearChipTextDisabled,
             ]}
           >
             Clear All
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.useDesignButton,
-            !designDirty &&
-              styles.useDesignButtonDisabled,
-          ]}
-          onPress={
-            handleUseThisDesign
-          }
-          activeOpacity={0.8}
-          disabled={!designDirty}
-        >
-          <Text
-            style={[
-              styles.useDesignButtonText,
-              !designDirty &&
-                styles.useDesignButtonTextDisabled,
-            ]}
-          >
-            Use this Design
           </Text>
         </TouchableOpacity>
       </View>
@@ -1771,6 +1335,92 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
           }}
         />
       </View>
+
+      <View style={styles.sideTabsRow}>
+        {SIDES.map((side) => (
+          <TouchableOpacity
+            key={side}
+            onPress={() => handleSideChange(side)}
+            style={[
+              styles.sideTab,
+              activeSide === side && styles.sideTabActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.sideTabText,
+                activeSide === side && styles.sideTabTextActive,
+              ]}
+            >
+              {side}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.bottomBar}>
+        {activeCategory ? (
+          <TouchableOpacity
+            style={styles.customizeButtonActive}
+            onPress={closeActiveCategory}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.customizeButtonText}>
+              ✕ Close{" "}
+              {
+                CUSTOMIZE_CATEGORIES.find(
+                  (c) => c.key === activeCategory
+                )?.label
+              }
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.customizeButton}
+            onPress={() => setSheetOpen(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.customizeButtonText}>☰ Customize</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <Modal
+        visible={sheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSheetOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.sheetBackdrop}
+          activeOpacity={1}
+          onPress={() => setSheetOpen(false)}
+        />
+
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Customize</Text>
+
+            <TouchableOpacity onPress={() => setSheetOpen(false)}>
+              <Text style={styles.sheetClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.sheetGrid}>
+            {CUSTOMIZE_CATEGORIES.map((cat) => (
+              <TouchableOpacity
+                key={cat.key}
+                style={styles.sheetItem}
+                onPress={() => openCategory(cat)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.sheetItemIcon}>{cat.icon}</Text>
+                <Text style={styles.sheetItemLabel}>{cat.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1787,77 +1437,190 @@ const styles =
         "#1e2434",
     },
 
-    mobileHeader: {
-      backgroundColor:
-        "#1e2434",
-      height: 58,
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "flex-end",
+    header: {
+      backgroundColor: "#1e2434",
+      height: 52,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
       paddingHorizontal: 12,
       borderBottomWidth: 1,
-      borderBottomColor:
-        "rgba(130, 45, 45, 0.04)",
+      borderBottomColor: "rgba(255,255,255,0.06)",
     },
 
-    clearButton: {
-      minWidth: 94,
-      height: 42,
-      paddingHorizontal: 16,
-      borderWidth: 1,
-      borderColor:
-        "#d7e0e8",
-      borderRadius: 60,
-      backgroundColor:
-        "#f5f8fb",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+    headerIconButton: {
+      width: 36,
+      height: 36,
+      alignItems: "center",
+      justifyContent: "center",
     },
 
-    clearButtonText: {
-      color: "#526174",
-      fontSize: 13,
-      fontWeight:
-        "600",
+    headerIconText: {
+      color: "#dbe7f4",
+      fontSize: 20,
+      fontWeight: "600",
     },
 
-    clearButtonTextDisabled: {
-      color: "#a9b4c0",
-    },
-
-    useDesignButton: {
-      minWidth: 150,
-      height: 42,
-      paddingHorizontal: 18,
-      borderRadius: 60,
-      backgroundColor:
-        "#10b981",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      marginLeft: 10,
-    },
-
-    useDesignButtonDisabled: {
-      backgroundColor:
-        "#dce3e9",
-    },
-
-    useDesignButtonText: {
+    headerTitle: {
       color: "#ffffff",
-      fontSize: 13,
-      fontWeight:
-        "700",
+      fontSize: 15,
+      fontWeight: "700",
     },
 
-    useDesignButtonTextDisabled: {
-      color: "#8a98a8",
+    headerCheckText: {
+      color: "#10b981",
+      fontSize: 20,
+      fontWeight: "800",
+    },
+
+    headerCheckTextDisabled: {
+      color: "#4a5568",
+    },
+
+    clearRow: {
+      backgroundColor: "#1e2434",
+      paddingHorizontal: 12,
+      paddingBottom: 8,
+      alignItems: "flex-start",
+    },
+
+    clearChip: {
+      height: 30,
+      paddingHorizontal: 12,
+      borderRadius: 60,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.12)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    clearChipText: {
+      color: "#dbe7f4",
+      fontSize: 12,
+      fontWeight: "600",
+    },
+
+    clearChipTextDisabled: {
+      color: "#5b6472",
+    },
+
+    sideTabsRow: {
+      backgroundColor: "#1e2434",
+      flexDirection: "row",
+      justifyContent: "center",
+      paddingVertical: 8,
+      gap: 8,
+    },
+
+    sideTab: {
+      minWidth: 64,
+      height: 32,
+      paddingHorizontal: 14,
+      borderRadius: 60,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    sideTabActive: {
+      backgroundColor: "#10b981",
+    },
+
+    sideTabText: {
+      color: "#9aa7b8",
+      fontSize: 12,
+      fontWeight: "600",
+    },
+
+    sideTabTextActive: {
+      color: "#ffffff",
+    },
+
+    bottomBar: {
+      backgroundColor: "#1e2434",
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+
+    customizeButton: {
+      height: 46,
+      borderRadius: 60,
+      backgroundColor: "#10b981",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    customizeButtonActive: {
+      height: 46,
+      borderRadius: 60,
+      backgroundColor: "#3a4557",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    customizeButtonText: {
+      color: "#ffffff",
+      fontSize: 14,
+      fontWeight: "700",
+    },
+
+    sheetBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+    },
+
+    sheet: {
+      backgroundColor: "#1e2434",
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingHorizontal: 16,
+      paddingTop: 14,
+      paddingBottom: 28,
+    },
+
+    sheetHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 14,
+    },
+
+    sheetTitle: {
+      color: "#ffffff",
+      fontSize: 16,
+      fontWeight: "700",
+    },
+
+    sheetClose: {
+      color: "#9aa7b8",
+      fontSize: 18,
+      fontWeight: "700",
+    },
+
+    sheetGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+    },
+
+    sheetItem: {
+      width: "48%",
+      height: 72,
+      borderRadius: 14,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+    },
+
+    sheetItemIcon: {
+      fontSize: 20,
+    },
+
+    sheetItemLabel: {
+      color: "#dbe7f4",
+      fontSize: 12,
+      fontWeight: "600",
     },
 
     webviewContainer: {
