@@ -2196,6 +2196,7 @@ export default function TshirtCustomizerPanel({
                   activeTextId={null}
                   onZoneSelect={handleZoneSelect}
                   {...mergedPreviewProps}
+                  mirrorDesign={true}
                 />
               </div>
             </div>

@@ -97,6 +97,14 @@ export default function CapPreview3D({
   zones = [],
   fillParent = false,
   modelRotationY = 0,
+  // When true, flips the live 3D display horizontally (Edit mode) so
+  // the design reads mirrored while placing/dragging it. Display-only:
+  // flips the model object itself, not any baked texture/decal data.
+  // Decal meshes here are separate scene objects baked from each
+  // zone's world-space bounding box (same as GenericProductPreview3D),
+  // so toggling this after load forces a decal rebuild - see the
+  // mirrorDesign effect below.
+  mirrorDesign = false,
   onZoneDesignChange,
   onTextChange,
   onZoneSelect,
@@ -137,6 +145,9 @@ export default function CapPreview3D({
 
   const decalScaleRef = useRef(decalScale);
   decalScaleRef.current = decalScale;
+
+  const mirrorDesignRef = useRef(mirrorDesign);
+  mirrorDesignRef.current = mirrorDesign;
 
   const zoneCanvasRef = useRef({});
   const getZoneCanvas = (zoneId) => {
@@ -506,6 +517,12 @@ export default function CapPreview3D({
       (gltf) => {
         const model = gltf.scene;
         modelRef.current = model;
+        // Display-only mirror (see mirrorDesign prop docs above). Set
+        // before the model is added to the scene / before the first
+        // rebuildDecals() call, so decal positions - baked from each
+        // zone's current world-space bounding box - come out correctly
+        // mirrored (or not) from the start.
+        model.scale.x = mirrorDesignRef.current ? -1 : 1;
         scene.add(model);
         model.rotation.y = modelRotationY;
         applyBaseColor();
@@ -578,6 +595,18 @@ export default function CapPreview3D({
   useEffect(() => {
     if (ready) rebuildDecalsThrottled();
   }, [ready, rebuildDecalsThrottled, zoneDesigns, zoneTexts, zones]);
+
+  // Toggling the mirror after the model is already loaded: flip the
+  // model's own display transform, then force a decal rebuild - see
+  // the identical note in GenericProductPreview3D.js's mirrorDesign
+  // effect for why the rebuild is required (decal meshes are separate
+  // scene objects with positions baked from a world-space box at
+  // construction time, not re-derived automatically on every frame).
+  useEffect(() => {
+    if (!modelRef.current) return;
+    modelRef.current.scale.x = mirrorDesign ? -1 : 1;
+    rebuildDecalsThrottled();
+  }, [mirrorDesign, rebuildDecalsThrottled]);
 
   const resetCameraView = useCallback(() => {
     if (!controlsRef.current || !cameraRef.current || !initialCameraPosRef.current) return;
