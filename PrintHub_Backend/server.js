@@ -5723,7 +5723,7 @@ app.post("/api/orders/:id/rating", async (req, res) => {
 app.post("/api/order-items/:id/review", async (req, res) => {
   try {
     const orderItemId = parseInt(req.params.id, 10);
-    const { userId, stars, comment } = req.body;
+    const { userId, stars, comment, images, videos } = req.body;
 
     const starsInt = parseInt(stars, 10);
     if (!Number.isInteger(starsInt) || starsInt < 1 || starsInt > 5) {
@@ -5749,15 +5749,20 @@ app.post("/api/order-items/:id/review", async (req, res) => {
       });
     }
 
+    const reviewImages = Array.isArray(images) ? images.filter((u) => typeof u === "string") : [];
+    const reviewVideos = Array.isArray(videos) ? videos.filter((u) => typeof u === "string") : [];
+
     const review = await prisma.productReview.upsert({
       where: { orderItemId },
-      update: { stars: starsInt, comment: comment || null },
+      update: { stars: starsInt, comment: comment || null, images: reviewImages, videos: reviewVideos },
       create: {
         orderItemId,
         productId: orderItem.productId,
         userId: orderItem.order.userId,
         stars: starsInt,
         comment: comment || null,
+        images: reviewImages,
+        videos: reviewVideos,
       },
     });
 
@@ -5766,6 +5771,80 @@ app.post("/api/order-items/:id/review", async (req, res) => {
     console.error("POST /api/order-items/:id/review failed:", err);
     res.status(500).json({ message: "Failed to save review." });
   }
+});
+
+const REVIEW_MAX_IMAGE_SIZE = 3 * 1024 * 1024;   // 3 MB per image
+const REVIEW_MAX_VIDEO_SIZE = 25 * 1024 * 1024;  // 25 MB per video
+const REVIEW_MAX_FILES = 5; // total images + videos combined per review
+
+const REVIEW_ALLOWED_IMAGE_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const REVIEW_ALLOWED_VIDEO_MIME = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+
+const reviewUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: REVIEW_MAX_VIDEO_SIZE }, // multer only supports one ceiling; per-type check happens below
+  fileFilter: (_req, file, cb) => {
+    if (REVIEW_ALLOWED_IMAGE_MIME.has(file.mimetype) || REVIEW_ALLOWED_VIDEO_MIME.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only JPEG, PNG, WebP, GIF images or MP4, WebM, MOV videos are allowed"));
+    }
+  },
+});
+
+app.post(
+  "/api/reviews/upload",
+  reviewUpload.array("files", REVIEW_MAX_FILES),
+  async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "No files provided" });
+    }
+
+    // Enforce per-type size limits (multer only gave us one shared ceiling)
+    for (const file of req.files) {
+      const isImage = REVIEW_ALLOWED_IMAGE_MIME.has(file.mimetype);
+      const isVideo = REVIEW_ALLOWED_VIDEO_MIME.has(file.mimetype);
+      if (isImage && file.size > REVIEW_MAX_IMAGE_SIZE) {
+        return res.status(400).json({ message: `Image "${file.originalname}" exceeds 3 MB limit` });
+      }
+      if (isVideo && file.size > REVIEW_MAX_VIDEO_SIZE) {
+        return res.status(400).json({ message: `Video "${file.originalname}" exceeds 25 MB limit` });
+      }
+    }
+
+    try {
+      const imageUrls = [];
+      const videoUrls = [];
+
+      for (const file of req.files) {
+        const isVideo = REVIEW_ALLOWED_VIDEO_MIME.has(file.mimetype);
+        const ext = file.mimetype.split("/")[1] || (isVideo ? "mp4" : "jpg");
+        const path = `reviews/${isVideo ? "videos" : "images"}/${Date.now()}-${Math.floor(Math.random() * 1000)}.${ext}`;
+
+        const { error } = await supabase.storage
+          .from("printhub_s3")
+          .upload(path, file.buffer, { contentType: file.mimetype, upsert: false });
+        if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+        const { data: urlData } = supabase.storage.from("printhub_s3").getPublicUrl(path);
+        if (isVideo) videoUrls.push(urlData.publicUrl);
+        else imageUrls.push(urlData.publicUrl);
+      }
+
+      return res.status(201).json({ imageUrls, videoUrls });
+    } catch (e) {
+      console.error("Review media upload error:", e.message);
+      return res.status(500).json({ message: e.message || "Upload failed" });
+    }
+  },
+);
+
+// Multer error handler for review upload
+app.use((err, req, res, next) => {
+  if ((err instanceof multer.MulterError || err) && req.path === "/api/reviews/upload") {
+    return res.status(400).json({ message: err.message });
+  }
+  next(err);
 });
 
 // GET /api/products/:id/reviews — public, paginated reviews + average
@@ -5800,6 +5879,8 @@ app.get("/api/products/:id/reviews", async (req, res) => {
         id: r.id,
         stars: r.stars,
         comment: r.comment,
+        images: r.images || [],
+        videos: r.videos || [],
         createdAt: r.createdAt,
         customerName: r.user
           ? `${r.user.first_name || "Customer"}${
@@ -5812,6 +5893,40 @@ app.get("/api/products/:id/reviews", async (req, res) => {
   } catch (err) {
     console.error("GET /api/products/:id/reviews failed:", err);
     res.status(500).json({ message: "Failed to fetch reviews." });
+  }
+});
+
+app.get("/api/products/:id/reviewable-order-items", async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    const userId = parseInt(req.query.userId, 10);
+    if (!userId) return res.json({ items: [] });
+
+    const items = await prisma.orderItem.findMany({
+      where: {
+        productId,
+        productReview: null,
+        order: {
+          userId,
+          payment_status: "paid",
+          status: { in: ["delivered", "completed"] },
+        },
+      },
+      include: { order: { select: { id: true, createdAt: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+
+    res.json({
+      items: items.map((it) => ({
+        id: it.id,
+        orderId: it.orderId,
+        quantity: it.quantity,
+        createdAt: it.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error("GET /api/products/:id/reviewable-order-items failed:", err);
+    res.status(500).json({ message: "Failed to fetch reviewable items." });
   }
 });
 

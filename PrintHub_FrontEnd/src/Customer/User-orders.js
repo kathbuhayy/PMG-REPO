@@ -101,6 +101,8 @@ function UserOrders() {
   const [reviewStars, setReviewStars] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewFiles, setReviewFiles] = useState([]); // File[]
+  const [uploadingReviewMedia, setUploadingReviewMedia] = useState(false);
 
   const [noticeModal, setNoticeModal] = useState(null);
   const [cancelTargetId, setCancelTargetId] = useState(null);
@@ -914,6 +916,16 @@ function UserOrders() {
     }
   };
 
+  const handleReviewFilesChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setReviewFiles((prev) => [...prev, ...files].slice(0, 5));
+    e.target.value = "";
+  };
+
+  const removeReviewFile = (idx) => {
+    setReviewFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const handleSubmitReview = async (e) => {
     e.preventDefault();
     if (!reviewItem || !reviewStars) return;
@@ -921,6 +933,29 @@ function UserOrders() {
     setSubmittingReview(true);
 
     try {
+      let imageUrls = [];
+      let videoUrls = [];
+
+      if (reviewFiles.length > 0) {
+        setUploadingReviewMedia(true);
+        const formData = new FormData();
+        reviewFiles.forEach((file) => formData.append("files", file));
+
+        const uploadRes = await fetch(buildApiUrl("/api/reviews/upload"), {
+          method: "POST",
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.message || "Failed to upload media");
+        }
+
+        imageUrls = uploadData.imageUrls || [];
+        videoUrls = uploadData.videoUrls || [];
+        setUploadingReviewMedia(false);
+      }
+
       const res = await fetch(
         buildApiUrl(`/api/order-items/${reviewItem.id}/review`),
         {
@@ -930,6 +965,8 @@ function UserOrders() {
             userId: currentUser.id,
             stars: reviewStars,
             comment: reviewComment,
+            images: imageUrls,
+            videos: videoUrls,
           }),
         }
       );
@@ -954,6 +991,7 @@ function UserOrders() {
       setReviewItem(null);
       setReviewStars(0);
       setReviewComment("");
+      setReviewFiles([]);
 
       setNoticeModal({
         title: "Review submitted",
@@ -968,6 +1006,7 @@ function UserOrders() {
       });
     } finally {
       setSubmittingReview(false);
+      setUploadingReviewMedia(false);
     }
   };
 
@@ -1291,6 +1330,7 @@ function UserOrders() {
                   });
                   setReviewStars(0);
                   setReviewComment("");
+                  setReviewFiles([]);
                 }}
               >
                 Review product
@@ -2385,12 +2425,69 @@ function UserOrders() {
               />
             </label>
 
+            <label>
+              Add photos or videos (optional)
+              <input
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                onChange={handleReviewFilesChange}
+              />
+            </label>
+
+            {reviewFiles.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                {reviewFiles.map((file, idx) => (
+                  <div key={idx} style={{ position: "relative" }}>
+                    {file.type.startsWith("video/") ? (
+                      <video
+                        src={URL.createObjectURL(file)}
+                        style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6 }}
+                        muted
+                      />
+                    ) : (
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={`preview ${idx}`}
+                        style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6 }}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeReviewFile(idx)}
+                      style={{
+                        position: "absolute",
+                        top: -6,
+                        right: -6,
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        border: "none",
+                        background: "#ef4444",
+                        color: "#fff",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        lineHeight: "20px",
+                      }}
+                      aria-label="Remove file"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <button
               type="submit"
               className="uo-submit-return"
               disabled={submittingReview || !reviewStars}
             >
-              {submittingReview ? "Submitting..." : "Submit review"}
+              {uploadingReviewMedia
+                ? "Uploading media..."
+                : submittingReview
+                ? "Submitting..."
+                : "Submit review"}
             </button>
           </form>
         </div>

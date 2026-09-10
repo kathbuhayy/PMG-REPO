@@ -24,19 +24,19 @@ model User {
   gender             String?
   birthday           DateTime?
   position           String?
-  branchId           Int?            @map("branch_id")
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
   avatar_url         String?         @map("avatar_url")
-  branch             Branch?         @relation(fields: [branchId], references: [id])
+  branchId           Int?            @map("branch_id")
   cartItems          CartItem[]
   supportAssignments Conversation[]  @relation("SupportAssignedStaff")
   conversations      Conversation[]
   inquiries          Inquiry[]
   notifications      Notification[]
   orders             Order[]
-  ratings            Rating[]
   productReviews     ProductReview[]
+  ratings            Rating[]
+  branch             Branch?         @relation(fields: [branchId], references: [id])
   staffRoles         UserStaffRole[]
 
   @@index([branchId])
@@ -168,9 +168,9 @@ model Product {
   materialUsageMap      Json?           @map("material_usage_map")
   setupFee              Float?          @map("setup_fee")
   branchId              Int?            @map("branch_id")
-  branch                Branch?         @relation(fields: [branchId], references: [id])
   cartItems             CartItem[]
   orderItems            OrderItem[]
+  branch                Branch?         @relation(fields: [branchId], references: [id])
   reviews               ProductReview[]
 
   @@index([branchId])
@@ -181,11 +181,11 @@ model InventorySubstrate {
   materialName    String   @map("material_name")
   stockMeters     Float    @map("stock_meters")
   safetyThreshold Float    @default(15.0) @map("safety_threshold")
-  branchId        Int?     @map("branch_id")
-  branch          Branch?  @relation(fields: [branchId], references: [id])
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerMeter    Float?   @map("cost_per_meter")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
 
   @@unique([materialName, branchId])
   @@index([materialName])
@@ -197,11 +197,11 @@ model InventoryInk {
   colorChannel    String   @map("color_channel")
   volumeMl        Float    @map("volume_ml")
   safetyThreshold Float    @default(15.0) @map("safety_threshold")
-  branchId        Int?     @map("branch_id")
-  branch          Branch?  @relation(fields: [branchId], references: [id])
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerMl       Float?   @map("cost_per_ml")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
 
   @@unique([colorChannel, branchId])
   @@index([colorChannel])
@@ -213,11 +213,11 @@ model InventoryUnit {
   itemName        String   @map("item_name")
   stockUnits      Int      @map("stock_units")
   safetyThreshold Int      @default(15) @map("safety_threshold")
-  branchId        Int?     @map("branch_id")
-  branch          Branch?  @relation(fields: [branchId], references: [id])
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
   costPerUnit     Float?   @map("cost_per_unit")
+  branchId        Int?     @map("branch_id")
+  branch          Branch?  @relation(fields: [branchId], references: [id])
 
   @@unique([itemName, branchId])
   @@index([itemName])
@@ -235,10 +235,10 @@ model PurchaseRequisition {
   triggeredByOrderId Int?              @map("triggered_by_order_id")
   documentText       String
   generatedBy        Int?              @map("generated_by")
-  branchId           Int?              @map("branch_id")
-  branch             Branch?           @relation(fields: [branchId], references: [id])
   createdAt          DateTime          @default(now()) @map("created_at")
   resolvedAt         DateTime?         @map("resolved_at")
+  branchId           Int?              @map("branch_id")
+  branch             Branch?           @relation(fields: [branchId], references: [id])
 
   @@index([status])
   @@index([materialName])
@@ -316,6 +316,8 @@ model ProductReview {
   comment     String?
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
+  images      String[]  @default([])
+  videos      String[]  @default([])
   orderItem   OrderItem @relation(fields: [orderItemId], references: [id])
   product     Product   @relation(fields: [productId], references: [id])
   user        User?     @relation(fields: [userId], references: [id])
@@ -329,13 +331,13 @@ model Branch {
   address      String?
   active       Boolean               @default(true)
   createdAt    DateTime              @default(now()) @map("created_at")
-  orders       Order[]
-  users        User[]
-  products     Product[]
-  substrates   InventorySubstrate[]
   inks         InventoryInk[]
+  substrates   InventorySubstrate[]
   units        InventoryUnit[]
+  orders       Order[]
+  products     Product[]
   requisitions PurchaseRequisition[]
+  users        User[]
 }
 
 model OrderItem {
