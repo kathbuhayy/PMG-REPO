@@ -91,6 +91,35 @@ export default function PaymentScreen({
     };
 
     fetchProfile();
+
+    const fetchBranches = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/branches`);
+        const data = await res.json();
+
+        if (res.ok) {
+          const list = Array.isArray(data) ? data : [];
+          setBranches(list);
+
+          const savedBranchId = await AsyncStorage.getItem(
+            "checkout_selected_branch_id"
+          );
+
+          if (
+            savedBranchId &&
+            list.some((b) => String(b.id) === savedBranchId)
+          ) {
+            setSelectedBranchId(savedBranchId);
+          }
+        }
+      } catch (err) {
+        console.error("[PaymentScreen] Branches error:", err);
+      } finally {
+        setBranchesLoading(false);
+      }
+    };
+
+    fetchBranches();
   }, []);
 
   const handlePay = async () => {
@@ -117,6 +146,15 @@ export default function PaymentScreen({
               ),
           },
         ]
+      );
+
+      return;
+    }
+
+    if (branches.length > 0 && !selectedBranchId) {
+      Alert.alert(
+        "Select a Branch",
+        "Please choose a branch before placing your order."
       );
 
       return;
@@ -177,6 +215,9 @@ export default function PaymentScreen({
           profile.address.trim(),
         billing_address:
           profile.address.trim(),
+        shipping_address: profile.address.trim(),
+        billing_address: profile.address.trim(),
+        branchId: selectedBranchId || null,
       };
 
       console.log(
@@ -262,6 +303,10 @@ export default function PaymentScreen({
         "latestOrderId",
         String(createdOrderId)
       );
+
+      await AsyncStorage.removeItem(
+        "checkout_selected_branch_id"
+      ).catch(() => {});
 
       Alert.alert(
         "Order Placed Successfully!",
@@ -400,6 +445,73 @@ export default function PaymentScreen({
             {profile?.address ||
               "No shipping address set yet."}
           </Text>
+      {/* Branch Selection Card */}
+      <View style={styles.addressCard}>
+        <Text style={styles.addressTitle}>
+          Select Branch
+        </Text>
+
+        {branchesLoading ? (
+          <Text style={styles.addressText}>
+            Loading branches...
+          </Text>
+        ) : branches.length === 0 ? (
+          <Text style={styles.addressText}>
+            No branches are currently available. You can still place your
+            order — a branch will be assigned by our team.
+          </Text>
+        ) : (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+            {branches.map((branch) => {
+              const isSelected =
+                String(selectedBranchId) === String(branch.id);
+
+              return (
+                <TouchableOpacity
+                  key={branch.id}
+                  onPress={() => {
+                    setSelectedBranchId(branch.id);
+
+                    AsyncStorage.setItem(
+                      "checkout_selected_branch_id",
+                      String(branch.id)
+                    ).catch(() => {});
+                  }}
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 20,
+                    borderWidth: 1.5,
+                    borderColor: isSelected
+                      ? COLORS.accentCyan
+                      : COLORS.borderLight,
+                    backgroundColor: isSelected
+                      ? COLORS.accentCyan
+                      : COLORS.cardBg,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "700",
+                      color: isSelected
+                        ? COLORS.textLight
+                        : COLORS.textPrimary,
+                    }}
+                  >
+                    {branch.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* Informational Note */}
+      <Text style={styles.sectionHeader}>
+        Important Note
+      </Text>
 
           <TouchableOpacity
             onPress={() =>

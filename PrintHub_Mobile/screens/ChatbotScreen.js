@@ -6,6 +6,7 @@ import React, {
 
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -24,6 +25,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS } from "../theme";
 import { API_BASE_URL } from "../config";
+import * as ImagePicker from "expo-image-picker";
 
 // ============================================================
 // PMG CHATBOT IMAGES
@@ -134,6 +136,19 @@ export default function ChatbotScreen({
 
   const [sending, setSending] =
     useState(false);
+    const [mode, setMode] = useState("choice"); // "choice" | "ai" | "staff"
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const [staffMessages, setStaffMessages] = useState([]);
+  const [staffInput, setStaffInput] = useState("");
+  const [staffConnected, setStaffConnected] = useState(false);
+  const [staffConnecting, setStaffConnecting] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+  const wsRef = useRef(null);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const scrollViewRef =
     useRef(null);
@@ -160,6 +175,20 @@ export default function ChatbotScreen({
     messages,
     sending,
   ]);
+
+    useEffect(() => {
+    (async () => {
+      const token = await AsyncStorage.getItem("authToken");
+      const user = await AsyncStorage.getItem("user");
+      setIsLoggedIn(!!(token && user));
+    })();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      wsRef.current?.close();
+    };
+  }, []);
 
   // ==========================================================
   // SAFE TEXT
@@ -266,7 +295,7 @@ export default function ChatbotScreen({
       }
 
       if (
-        !text ||
+        (!text && !selectedImage) ||
         sending
       ) {
         return;
@@ -280,7 +309,11 @@ export default function ChatbotScreen({
         id: `${Date.now()}-user`,
         role: "user",
         content: text,
+        imageUri: selectedImage?.uri || null,
       };
+
+      const imageToSend = selectedImage;
+      setSelectedImage(null);
 
       const updatedMessages = [
         ...messages,
@@ -404,6 +437,7 @@ export default function ChatbotScreen({
                       ),
                   })
                 ),
+                image: imageToSend?.base64 || null,
             }),
           }
         );
@@ -559,6 +593,113 @@ export default function ChatbotScreen({
       setSending(false);
     }
   };
+
+  // ==========================================================
+  // STAFF CHAT
+  // ==========================================================
+
+  const buildWsUrl = () => {
+    const base = API_BASE_URL.replace(/\/$/, "");
+    return base.replace(/^http/, "ws") + "/ws/chat";
+  };
+
+  const connectStaffChat = async () => {
+    if (!isLoggedIn || wsRef.current) return;
+    setStaffConnecting(true);
+
+    const ws = new WebSocket(buildWsUrl());
+    wsRef.current = ws;
+
+    ws.onopen = async () => {
+      const token = await AsyncStorage.getItem("authToken");
+      ws.send(JSON.stringify({ type: "auth", token }));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "auth_ok" && data.role === "customer") {
+        setStaffConnected(true);
+        setStaffConnecting(false);
+        setStaffMessages(data.history || []);
+      }
+      if (data.type === "auth_error") {
+        setStaffConnecting(false);
+        setStaffConnected(false);
+      }
+      if (data.type === "message") {
+        setStaffMessages((previous) => [...previous, data.message]);
+        if (data.message.senderRole === "staff" && modeRef.current !== "staff") {
+          setHasUnread(true);
+        }
+      }
+    };
+
+    ws.onclose = () => {
+      setStaffConnected(false);
+      setStaffConnecting(false);
+      wsRef.current = null;
+    };
+    ws.onerror = () => {
+      setStaffConnected(false);
+      setStaffConnecting(false);
+    };
+  };
+
+  const sendStaffMessage = () => {
+    const body = staffInput.trim();
+    if (!body || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: "customer_message", body }));
+    setStaffInput("");
+  };
+
+  const chooseMode = (nextMode) => {
+    if (nextMode === "staff" && !isLoggedIn) {
+      Alert.alert(
+        "Login Required",
+        "You need to be logged in to chat with our staff.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Log In",
+            onPress: () => navigation.navigate("Login"),
+          },
+        ]
+      );
+      return;
+    }
+
+    setMode(nextMode);
+    if (nextMode === "staff" && !wsRef.current) {
+      setHasUnread(false);
+      connectStaffChat();
+    }
+  };
+
+  const backToChoice = () => {
+    setMode("choice");
+  };
+
+  // ==========================================================
+  // IMAGE UPLOAD
+  // ==========================================================
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.6,
+      base64: true,
+    });
+
+    if (!result.canceled && result.assets?.[0]) {
+      setSelectedImage(result.assets[0]);
+    }
+  };
+
+
 
   // ==========================================================
   // SUBMIT FROM KEYBOARD
@@ -783,6 +924,15 @@ export default function ChatbotScreen({
           },
         ]}
       >
+        {mode !== "choice" && (
+          <TouchableOpacity
+            onPress={backToChoice}
+            style={{ marginRight: 10, padding: 4 }}
+          >
+            <Ionicons name="chevron-back" size={24} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+        )}
+
         {/* BOT LOGO */}
 
         {renderBotIcon(
@@ -821,7 +971,7 @@ export default function ChatbotScreen({
               1
             }
           >
-            PrintHub Assistant
+            {mode === "staff" ? "Live Support" : "PrintHub Assistant"}
           </Text>
 
           <View
@@ -870,7 +1020,11 @@ export default function ChatbotScreen({
               1
             }
           >
-            Your printing support, anytime.
+            {mode === "staff"
+              ? staffConnected
+                ? "Connected to staff"
+                : "Not connected"
+              : "Your printing support, anytime."}
           </Text>
         </View>
       </View>
@@ -924,7 +1078,80 @@ export default function ChatbotScreen({
           false
         }
       >
-        {messages.map(
+        {mode === "choice" && (
+          <View style={styles.choiceContainer}>
+            <Text style={styles.choiceLead}>
+              Hi! How would you like to get help today?
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => chooseMode("ai")}
+              style={styles.choiceCard}
+              activeOpacity={0.75}
+            >
+              <View style={styles.choiceIconWrap}>
+                <Text style={styles.choiceEmoji}>💬</Text>
+              </View>
+              <View style={styles.choiceTextWrap}>
+                <Text style={styles.choiceTitle}>Chat with AI</Text>
+                <Text style={styles.choiceSubtitle}>
+                  Instant answers about pricing, delivery, and more.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => chooseMode("staff")}
+              style={styles.choiceCard}
+              activeOpacity={0.75}
+            >
+              <View style={styles.choiceIconWrap}>
+                <Text style={styles.choiceEmoji}>🧑‍💼</Text>
+              </View>
+              <View style={styles.choiceTextWrap}>
+                <Text style={styles.choiceTitle}>Talk to Staff</Text>
+                <Text style={styles.choiceSubtitle}>
+                  {isLoggedIn
+                    ? "Connect live with a PrintHub team member."
+                    : "Log in required to chat with our team."}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {mode === "staff" &&
+          staffMessages.map((msg) => (
+            <View
+              key={msg.id}
+              style={[
+                styles.messageRow,
+                msg.senderRole === "staff" ? styles.assistantRow : styles.userRow,
+              ]}
+            >
+              <View style={styles.messageColumn}>
+                <View
+                  style={[
+                    styles.messageBubble,
+                    msg.senderRole === "staff" ? styles.assistantBubble : styles.userBubble,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.messageText,
+                      msg.senderRole !== "staff" && styles.userMessageText,
+                    ]}
+                  >
+                    {msg.body}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ))}
+
+        {mode === "ai" && messages.map(
           (message) => {
             const isUser =
               message.role ===
@@ -1033,7 +1260,7 @@ export default function ChatbotScreen({
             TYPING
         ================================================== */}
 
-        {sending && (
+        {mode === "ai" && sending && (
           <View
             style={[
               styles.messageRow,
@@ -1094,6 +1321,7 @@ export default function ChatbotScreen({
             QUICK ACTIONS
         ================================================== */}
 
+        {mode === "ai" && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={
@@ -1252,6 +1480,7 @@ export default function ChatbotScreen({
             )
           )}
         </ScrollView>
+        )}
 
         {/* ==================================================
             DIVIDER
@@ -1267,6 +1496,7 @@ export default function ChatbotScreen({
             INPUT
         ================================================== */}
 
+        {mode !== "choice" && (mode === "ai" || (mode === "staff" && staffConnected)) && (
         <View
           style={[
             styles.inputArea,
@@ -1325,7 +1555,7 @@ export default function ChatbotScreen({
               activeOpacity={
                 0.7
               }
-              onPress={() => {}}
+              onPress={pickImage}
             >
               <Ionicons
                 name="attach-outline"
@@ -1360,10 +1590,10 @@ export default function ChatbotScreen({
                 },
               ]}
               value={
-                input
+                mode === "ai" ? input : staffInput
               }
               onChangeText={
-                setInput
+                mode === "ai" ? setInput : setStaffInput
               }
               placeholder="Ask about printing, prices, orders..."
               placeholderTextColor={
@@ -1422,11 +1652,12 @@ export default function ChatbotScreen({
                 styles.sendButtonDisabled,
             ]}
             onPress={() =>
-              sendMessage()
+              mode === "ai" ? sendMessage() : sendStaffMessage()
             }
             disabled={
-              !input.trim() ||
-              sending
+              mode === "ai"
+                ? !input.trim() || sending
+                : !staffConnected || !staffInput.trim()
             }
             activeOpacity={
               0.8
@@ -1455,6 +1686,7 @@ export default function ChatbotScreen({
             )}
           </TouchableOpacity>
         </View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -2103,5 +2335,69 @@ const styles =
       opacity: 0.30,
 
       shadowOpacity: 0,
+    },
+
+    // ========================================================
+    // CHOICE SCREEN
+    // ========================================================
+
+    choiceContainer: {
+      padding: 20,
+      gap: 12,
+    },
+
+    choiceLead: {
+      color: COLORS.textPrimary,
+      fontFamily: "Poppins_600SemiBold",
+      fontSize: 14,
+      marginBottom: 4,
+    },
+
+    choiceCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: COLORS.surfaceDark,
+      borderWidth: 1,
+      borderColor: COLORS.borderStrong,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+    },
+
+    choiceIconWrap: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(182,255,0,0.08)",
+      borderWidth: 1,
+      borderColor: COLORS.border,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 12,
+      flexShrink: 0,
+    },
+
+    choiceEmoji: {
+      fontSize: 20,
+    },
+
+    choiceTextWrap: {
+      flex: 1,
+      minWidth: 0,
+      marginRight: 8,
+    },
+
+    choiceTitle: {
+      fontFamily: "Poppins_700Bold",
+      fontSize: 14,
+      color: COLORS.textPrimary,
+      marginBottom: 2,
+    },
+
+    choiceSubtitle: {
+      fontFamily: "Poppins_400Regular",
+      fontSize: 11.5,
+      color: COLORS.textMuted,
+      lineHeight: 15,
     },
   });

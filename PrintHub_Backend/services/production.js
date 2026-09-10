@@ -1,6 +1,6 @@
 const prisma = require("../db/prisma");
 const { roleFromDb } = require("./auth");
-const { getZoneRealSize } = require("./zonePhysicalInches");
+const { getZoneRealSize, parseSizeInchesRaw } = require("./zonePhysicalInches");
 // Core roles allowed to hold a production assignment.
 // Confirm these strings match what roleFromDb() actually returns in your auth.js.
 const CLEARED_CORE_ROLES = new Set(["staff", "admin"]);
@@ -106,6 +106,47 @@ function computeDesignAreaScale(item, product) {
   if (fullArea <= 0) return 1;
   const scale = actualArea / fullArea;
   return Math.max(MIN_DESIGN_AREA_SCALE, Math.min(scale, 1));
+}
+
+// A parsed size smaller than this fraction of the reference size is
+// still billed at this minimum - guards against a malformed/typo'd
+// size option producing a near-zero price.
+const MIN_SIZE_AREA_SCALE = 0.1;
+
+/**
+ * Scale factor (>=1 for the normal case) for how much bigger this
+ * item's SELECTED size is than the product's smallest configured size
+ * option, by area - e.g. choosing "4x8 ft" on a banner whose smallest
+ * option is "1x2 ft" (24 sq in) returns 16 (4608 / 24 sq in... in this
+ * example scaled to whatever units parseSizeInchesRaw returns).
+ *
+ * This is deliberately independent of computeDesignAreaScale, which
+ * measures what FRACTION of the current zone a design covers (and
+ * already cancels out any absolute size, since both its numerator and
+ * denominator move together). This instead answers "how much more
+ * material does this size need than the base size", so it applies
+ * even when there's no design yet - the size itself is what's being
+ * billed for on large-format/flat-stock products.
+ *
+ * Only engages for sizes that parse as real WxH dimensions (paper,
+ * banners, cards, etc.) - garment sizes like "M" / "XL" don't parse,
+ * so this returns 1 and leaves their pricing untouched.
+ */
+function computeSizeAreaScale(product, sizeStr) {
+  const selected = parseSizeInchesRaw(sizeStr);
+  if (!selected) return 1;
+
+  let referenceArea = null;
+  for (const option of product.size_options || []) {
+    const parsed = parseSizeInchesRaw(option);
+    if (!parsed) continue;
+    const area = parsed.width * parsed.height;
+    if (referenceArea == null || area < referenceArea) referenceArea = area;
+  }
+  if (referenceArea == null || referenceArea <= 0) return 1;
+
+  const selectedArea = selected.width * selected.height;
+  return Math.max(MIN_SIZE_AREA_SCALE, selectedArea / referenceArea);
 }
 
 function resolveMaterialUsage(product, item) {
@@ -376,4 +417,5 @@ module.exports = {
   getRelevantProductionStatuses,
   resolveMaterialUsage,
   computeDesignAreaScale,
+  computeSizeAreaScale,
 };

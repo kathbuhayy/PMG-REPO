@@ -1,3 +1,4 @@
+//ProductDetailScreen.js MObile App
 import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
@@ -356,6 +357,12 @@ export default function ProductDetailScreen({
   const [openDropdown, setOpenDropdown] =
     useState(null);
 
+  const [priceEstimate, setPriceEstimate] =
+    useState(null);
+
+  const [priceEstimateLoading, setPriceEstimateLoading] =
+    useState(false);
+
   // ==========================================================
   // COMPLETED 3D DESIGN
   // ==========================================================
@@ -685,6 +692,110 @@ useEffect(() => {
     grandTotal + rushFee;
 
   // ==========================================================
+  // LIVE PRICE ESTIMATE (debounced call to /estimate-price)
+  // ==========================================================
+
+  useEffect(() => {
+    const needsDesign =
+      (displayProduct?.print_zones?.length || 0) > 0;
+
+    if (
+      !displayProduct?.id ||
+      !selectedQuantityNumber ||
+      (needsDesign && !activeDesign)
+    ) {
+      setPriceEstimate(null);
+      setPriceEstimateLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPriceEstimateLoading(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        let branchIdToUse = null;
+
+        const savedBranchId = await AsyncStorage.getItem(
+          "checkout_selected_branch_id"
+        );
+
+        if (savedBranchId) {
+          branchIdToUse = parseInt(savedBranchId, 10);
+        } else {
+          try {
+            const branchesRes = await fetch(
+              `${API_BASE_URL}/api/branches`
+            );
+            const branchesData = await branchesRes.json();
+
+            if (
+              branchesRes.ok &&
+              Array.isArray(branchesData) &&
+              branchesData.length > 0
+            ) {
+              branchIdToUse = branchesData[0].id;
+            }
+          } catch (branchErr) {
+            console.error(
+              "[ProductDetail] Default branch fetch error:",
+              branchErr?.message || branchErr
+            );
+          }
+        }
+
+        const res = await fetch(
+          `${API_BASE_URL}/api/products/${displayProduct.id}/estimate-price`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customizations: {
+                design: activeDesign,
+                size: selectedSize,
+                material: selectedMaterial,
+              },
+              quantity: selectedQuantityNumber,
+              branchId: branchIdToUse,
+            }),
+          }
+        );
+
+        const data = await res.json();
+
+        if (!cancelled && res.ok) {
+          setPriceEstimate(data);
+        }
+      } catch (err) {
+        console.error(
+          "[ProductDetail] Price estimate error:",
+          err?.message || err
+        );
+
+        if (!cancelled) {
+          // Fall back to the local calculation (finalTotal) by clearing
+          // the estimate — the price Text already does
+          // `priceEstimate?.grandTotal ?? finalTotal`.
+          setPriceEstimate(null);
+        }
+      } finally {
+        if (!cancelled) setPriceEstimateLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    displayProduct?.id,
+    activeDesign,
+    selectedSize,
+    selectedMaterial,
+    selectedQuantityNumber,
+  ]);
+
+  // ==========================================================
   // STOCK
   // ==========================================================
 
@@ -796,7 +907,7 @@ useEffect(() => {
                   currentProduct.name,
 
                 price:
-                  finalTotal,
+                  priceEstimate?.grandTotal ?? finalTotal,
 
                 qty: 1,
 
@@ -1323,12 +1434,78 @@ useEffect(() => {
             ]}
           >
             ₱
-            {finalTotal.toLocaleString()}
+            {(priceEstimate?.grandTotal ?? finalTotal).toLocaleString()}
 
             {selectedQty?.label
               ? ` (${selectedQty.label})`
               : ""}
           </Text>
+
+          {priceEstimateLoading && (
+            <View style={styles.breakdownCard}>
+              <Text style={styles.breakdownLabel}>
+                Calculating price…
+              </Text>
+            </View>
+          )}
+
+          {priceEstimate && !priceEstimateLoading && (
+            <View style={styles.breakdownCard}>
+              <View style={styles.breakdownRow}>
+                <Text style={styles.breakdownLabel}>Setup fee</Text>
+                <Text style={styles.breakdownValue}>
+                  ₱{priceEstimate.setupFee.toLocaleString()}
+                </Text>
+              </View>
+
+              {priceEstimate.materialBreakdown?.length > 0 && (
+                <View style={{ marginTop: 6 }}>
+                  <Text style={styles.breakdownSectionTitle}>
+                    Materials used (design size)
+                  </Text>
+
+                  {priceEstimate.materialBreakdown.map((m, i) => (
+                    <View key={i} style={styles.breakdownMaterialRow}>
+                      <Text style={styles.breakdownMaterialText}>
+                        {m.name} — {m.amount}{" "}
+                        {m.type === "substrate"
+                          ? "m"
+                          : m.type === "ink"
+                          ? "ml"
+                          : "pcs"}
+                      </Text>
+
+                      <Text style={styles.breakdownMaterialText}>
+                        {m.lineCost != null
+                          ? `₱${m.lineCost.toLocaleString()}`
+                          : "—"}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {priceEstimate.quantityDiscountFactor < 1 && (
+                <View style={styles.breakdownRow}>
+                  <Text style={[styles.breakdownLabel, { color: COLORS.success }]}>
+                    Bulk discount
+                  </Text>
+                  <Text style={[styles.breakdownValue, { color: COLORS.success }]}>
+                    -{Math.round((1 - priceEstimate.quantityDiscountFactor) * 100)}%
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.breakdownTotalRow}>
+                <Text style={styles.breakdownTotalLabel}>
+                  Per unit × {priceEstimate.quantity}
+                </Text>
+                <Text style={styles.breakdownTotalValue}>
+                  ₱{priceEstimate.unitPrice.toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* STOCK */}
 
@@ -2188,6 +2365,74 @@ const styles = StyleSheet.create({
     color:
       COLORS.success,
     marginBottom: 18,
+  },
+
+  breakdownCard: {
+    backgroundColor: COLORS.surfaceDark,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+
+  breakdownRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+
+  breakdownLabel: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+
+  breakdownValue: {
+    fontFamily: "Poppins_500Medium",
+    fontSize: 12,
+    color: COLORS.textPrimary,
+  },
+
+  breakdownSectionTitle: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 12,
+    color: COLORS.textPrimary,
+    marginBottom: 3,
+  },
+
+  breakdownMaterialRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingLeft: 8,
+    marginBottom: 2,
+  },
+
+  breakdownMaterialText: {
+    fontFamily: "Poppins_400Regular",
+    fontSize: 11,
+    color: COLORS.textMuted,
+  },
+
+  breakdownTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 6,
+    marginTop: 4,
+  },
+
+  breakdownTotalLabel: {
+    fontFamily: "Poppins_600SemiBold",
+    fontSize: 12,
+    color: COLORS.textPrimary,
+  },
+
+  breakdownTotalValue: {
+    fontFamily: "Poppins_700Bold",
+    fontSize: 12,
+    color: COLORS.textPrimary,
   },
 
   sectionTitle: {

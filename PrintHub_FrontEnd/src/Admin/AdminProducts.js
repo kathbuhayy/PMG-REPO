@@ -1498,7 +1498,6 @@ function AdminProducts({
         createPortal(
           <div
             className="ad-logout-overlay"
-            onMouseDown={() => setShowEditModal(false)}
             role="dialog"
             aria-modal="true"
           >

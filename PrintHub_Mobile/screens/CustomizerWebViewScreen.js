@@ -2023,32 +2023,19 @@ function closePanel() {
         return;
       }
 
-      /*
-      | Existing Use This Design success.
-      */
+      if (data.type === "DESIGN_COMPLETED") {
+        // The customizer's only job is to produce the design. Actually
+        // adding to the cart — with price, qty, and every other selected
+        // option — happens back on ProductDetail via the normal
+        // "Add to Cart" flow, the same one used for non-customized orders.
+        const completedDesign = data.design || data.payload || data;
 
-      if (
-        data.type ===
-        "DESIGN_COMPLETED"
-      ) {
+        navigation.navigate("ProductDetail", {
+          product,
+          completedDesign,
+        });
 
-        Alert.alert(
-          "Success",
-          "Added to cart with custom options!",
-          [
-            {
-              text: "OK",
-              onPress: () =>
-                navigation.navigate(
-                  "Main",
-                  {
-                    screen:
-                      "CartTab",
-                  }
-                ),
-            },
-          ]
-        );
+        return;
       }
 
     } catch (err) {

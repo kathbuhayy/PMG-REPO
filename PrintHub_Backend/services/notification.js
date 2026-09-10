@@ -754,6 +754,99 @@ async function notifyFinalPaymentDue(order, remainingBalance) {
   });
 }
 
+// Sends an email to the customer when staff set or update the estimated
+// finish time for their order while it's in the printing stage.
+async function notifyEstimatedFinishTime(order, estimatedFinishTime) {
+  const customerName = getCustomerName(order);
+
+  const contentHtml =
+    `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;">` +
+    `Hi ${customerName},` +
+    `</p>` +
+    `<p style="margin:0 0 20px 0;font-size:15px;line-height:1.5;">` +
+    `Your Order <strong>#${order.id}</strong> is currently being printed.` +
+    `</p>` +
+    `<div style="background:#f8fafc;border:1px solid #e2e8f0;` +
+    `border-radius:8px;padding:20px;margin-bottom:20px;">` +
+    `<div style="margin-bottom:8px;">` +
+    `<span style="font-size:12px;color:#64748b;` +
+    `text-transform:uppercase;font-weight:600;">Estimated Finish Time</span>` +
+    `<br>` +
+    `<span style="font-size:20px;font-weight:700;color:#024494;">` +
+    `${estimatedFinishTime}` +
+    `</span>` +
+    `</div>` +
+    `</div>` +
+    `<p style="margin:0;font-size:14px;color:#475569;">` +
+    `You can check your order's progress anytime from the "My Orders" tab ` +
+    `on your PrintSync profile.` +
+    `</p>`;
+
+  return sendSystemEmail({
+    to: order.user?.email,
+    subject: `PrintSync Order #${order.id}: Estimated Finish Time Updated`,
+    text:
+      `Hi ${customerName}, your Order #${order.id} is being printed. ` +
+      `Estimated finish time: ${estimatedFinishTime}. ` +
+      `Check My Orders for updates.`,
+    html: renderBaseEmailTemplate({
+      title: "Estimated Finish Time Updated",
+      category: "Order Update",
+      contentHtml,
+    }),
+  });
+}
+
+// Sends an email to the customer whenever their order's production stage
+// changes (entered printing, passed quality check, now packaging, etc.).
+const PRODUCTION_STAGE_EMAIL_LABELS = {
+  PRINTING_QUEUE: "Now Printing",
+  QUALITY_ASSURANCE: "Quality Check",
+  PACKAGING_READY: "Now Packaging",
+};
+
+async function notifyProductionStageChange(order, productionStatus, message) {
+  const customerName = getCustomerName(order);
+  const stageLabel = PRODUCTION_STAGE_EMAIL_LABELS[productionStatus] || "Production Update";
+
+  const contentHtml =
+    `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.5;">` +
+    `Hi ${customerName},` +
+    `</p>` +
+    `<p style="margin:0 0 20px 0;font-size:15px;line-height:1.5;">` +
+    `There's an update on your Order <strong>#${order.id}</strong>.` +
+    `</p>` +
+    `<div style="background:#f8fafc;border:1px solid #e2e8f0;` +
+    `border-radius:8px;padding:20px;margin-bottom:20px;">` +
+    `<div style="margin-bottom:8px;">` +
+    `<span style="font-size:12px;color:#64748b;` +
+    `text-transform:uppercase;font-weight:600;">Production Stage</span>` +
+    `<br>` +
+    `<span style="font-size:20px;font-weight:700;color:#024494;">` +
+    `${stageLabel}` +
+    `</span>` +
+    `</div>` +
+    `</div>` +
+    `<p style="margin:0 0 20px 0;font-size:14px;color:#475569;">` +
+    `${message}` +
+    `</p>` +
+    `<p style="margin:0;font-size:14px;color:#475569;">` +
+    `You can check your order's progress anytime from the "My Orders" tab ` +
+    `on your PrintSync profile.` +
+    `</p>`;
+
+  return sendSystemEmail({
+    to: order.user?.email,
+    subject: `PrintSync Order #${order.id}: ${stageLabel}`,
+    text: `Hi ${customerName}, ${message} Check My Orders for updates.`,
+    html: renderBaseEmailTemplate({
+      title: stageLabel,
+      category: "Order Update",
+      contentHtml,
+    }),
+  });
+}
+
 // Sends an OTP email to the user, logging to console in development.
 async function sendOtpEmail({ email, code, expiresAt, subject }) {
   const emojiPattern =
@@ -955,6 +1048,8 @@ module.exports = {
   notifyAdminsNewOrderForReview,
   notifyDesignApproval,
   notifyFinalPaymentDue,
+  notifyEstimatedFinishTime,
+  notifyProductionStageChange,
   notifyNewSupportChat,
   notifyContactForm,
 };

@@ -2467,3 +2467,30 @@
   text-overflow: ellipsis;
   max-width: 260px;
 }
+
+/* ============================================================
+   ADMIN ORDERS — 3D DESIGN PREVIEW MODAL
+   Scoped overrides for the shared .tsc-preview-* classes (from
+   TshirtCustomizer.css) used only inside this admin modal, so the
+   customer-facing Design Customizer's own sizing is untouched.
+   A bigger 3D viewport, a compact zoom-control bar underneath.
+   ============================================================ */
+.admin-3d-preview-wrap .tsc-preview-panel {
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+.admin-3d-preview-wrap .tsc-preview-3d {
+  height: 460px;
+}
+
+.admin-3d-preview-wrap .tsc-zoom-row {
+  margin-top: 0;
+  padding: 4px 0;
+}
+
+.admin-3d-preview-wrap .tsc-zoom-btn {
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+}

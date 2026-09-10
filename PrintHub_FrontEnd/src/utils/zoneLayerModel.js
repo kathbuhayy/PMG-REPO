@@ -29,11 +29,16 @@ function makeId(prefix) {
   return `${prefix}_${Date.now()}_${_idCounter}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function createImageLayer({ imageUrl, x = 10, y = 10, w = 80, h = 80, rotation = 0 } = {}) {
+export function createImageLayer({ imageUrl, galleryId = null, x = 10, y = 10, w = 80, h = 80, rotation = 0 } = {}) {
   return {
     id: makeId("image"),
     kind: "image",
     imageUrl,
+    // Links this layer back to the gallery item it was placed from, so
+    // deleting that gallery item can find and clear every layer (in
+    // every zone) that came from it. null for layers restored from
+    // older saved designs that predate this field.
+    galleryId,
     x,
     y,
     w,
@@ -211,6 +216,41 @@ export function addLayer(zoneLayers, zoneId, layer) {
 export function removeLayer(zoneLayers, zoneId, layerId) {
   const existing = zoneLayers[zoneId] || [];
   return { ...zoneLayers, [zoneId]: existing.filter((l) => l.id !== layerId) };
+}
+
+/**
+ * Removes every image layer, across every zone, that came from a given
+ * gallery item - used when that item is deleted from the gallery so the
+ * Canvas (and anything derived from zoneLayers, like the garment preview)
+ * clears in sync instead of keeping an orphaned copy of the image.
+ *
+ * Matches by galleryId first, falling back to a direct imageUrl match
+ * (covers layers placed before galleryId was tracked). Layers for a
+ * *different* image are always left untouched.
+ *
+ * Returns { zoneLayers, removedLayerIds } - zoneLayers is the same
+ * reference back when nothing matched, so callers can skip a re-render.
+ */
+export function removeLayersBySource(zoneLayers, { galleryId, urls } = {}) {
+  const removedLayerIds = [];
+  const next = {};
+  let changed = false;
+
+  Object.entries(zoneLayers).forEach(([zoneId, layers]) => {
+    const kept = layers.filter((l) => {
+      if (l.kind !== "image") return true;
+      const matches =
+        (galleryId != null && l.galleryId === galleryId) ||
+        (urls && urls.includes(l.imageUrl));
+      if (!matches) return true;
+      removedLayerIds.push(l.id);
+      changed = true;
+      return false;
+    });
+    next[zoneId] = kept;
+  });
+
+  return { zoneLayers: changed ? next : zoneLayers, removedLayerIds };
 }
 
 export function updateLayer(zoneLayers, zoneId, layerId, updates) {

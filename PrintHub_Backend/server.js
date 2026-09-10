@@ -14,6 +14,57 @@ const mockupRoutes = require("./routes/mockup");
 const { generateImage: generateFalImage } = require("./services/falai");
 const { generateWithCloudflare } = require("./services/cloudflareAI");
 const { computeItemPrice } = require("./services/pricingEngine");
+
+/**
+ * Loads material cost-per-unit lookups, optionally scoped to one branch.
+ * Falls back to the cheapest cost across all branches for any material
+ * type that has no rows for the given branch, so pricing never breaks
+ * for branches with partial inventory tracking.
+ */
+async function getMaterialCostsForBranch(branchId) {
+  const where = branchId ? { branchId } : {};
+
+  const [substrates, inks, units] = await Promise.all([
+    prisma.inventorySubstrate.findMany({
+      where,
+      select: { materialName: true, costPerMeter: true },
+      orderBy: { costPerMeter: "asc" },
+    }),
+    prisma.inventoryInk.findMany({
+      where,
+      select: { colorChannel: true, costPerMl: true },
+      orderBy: { costPerMl: "asc" },
+    }),
+    prisma.inventoryUnit.findMany({
+      where,
+      select: { itemName: true, costPerUnit: true },
+      orderBy: { costPerUnit: "asc" },
+    }),
+  ]);
+
+  // Branch has no tracked materials at all — fall back to global costs.
+  if (
+    branchId &&
+    substrates.length === 0 &&
+    inks.length === 0 &&
+    units.length === 0
+  ) {
+    return getMaterialCostsForBranch(null);
+  }
+
+  const materialCosts = {};
+  substrates.forEach((s) => {
+    materialCosts[s.materialName] = s.costPerMeter;
+  });
+  inks.forEach((i) => {
+    materialCosts[i.colorChannel] = i.costPerMl;
+  });
+  units.forEach((u) => {
+    materialCosts[u.itemName] = u.costPerUnit;
+  });
+
+  return materialCosts;
+}
 const {
   logActivity,
   resolveUserDisplayName,
@@ -97,6 +148,8 @@ const {
   notifyAdminsNewOrderForReview,
   notifyDesignApproval,
   notifyFinalPaymentDue,
+  notifyEstimatedFinishTime,
+  notifyProductionStageChange,
   notifyContactForm,
 } = require("./services/notification");
 
@@ -152,14 +205,14 @@ app.use(identifyActor(prisma));
 // AI CHATBOT API (Gemini)
 // =================================================
 app.post("/api/chat", async (req, res) => {
-  const { messages } = req.body;
+  const { messages, image } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ reply: "Invalid messages format." });
   }
 
   try {
-    const reply = await handleChat(messages);
+    const reply = await handleChat(messages, image);
     res.json({ reply });
   } catch (err) {
     console.error("Gemini API error:", err);
@@ -1317,30 +1370,9 @@ app.post("/api/orders", async (req, res) => {
     // branch tracks its own separate stock). Prices are meant to be the
     // same everywhere, but ordering deterministically (lowest cost wins
     // on a name collision) keeps this safe even if that ever drifts.
-    const [substratesForCheck, inksForCheck, unitsForCheck] = await Promise.all([
-      prisma.inventorySubstrate.findMany({
-        select: { materialName: true, costPerMeter: true },
-        orderBy: { costPerMeter: "asc" },
-      }),
-      prisma.inventoryInk.findMany({
-        select: { colorChannel: true, costPerMl: true },
-        orderBy: { costPerMl: "asc" },
-      }),
-      prisma.inventoryUnit.findMany({
-        select: { itemName: true, costPerUnit: true },
-        orderBy: { costPerUnit: "asc" },
-      }),
-    ]);
-    const materialCostsForCheck = {};
-    substratesForCheck.forEach((s) => {
-      materialCostsForCheck[s.materialName] = s.costPerMeter;
-    });
-    inksForCheck.forEach((i) => {
-      materialCostsForCheck[i.colorChannel] = i.costPerMl;
-    });
-    unitsForCheck.forEach((u) => {
-      materialCostsForCheck[u.itemName] = u.costPerUnit;
-    });
+    const materialCostsForCheck = await getMaterialCostsForBranch(
+      branchId ? parseInt(branchId) : null,
+    );
 
     for (const it of items) {
       const product = productMap.get(it.productId);
@@ -1403,38 +1435,75 @@ app.post("/api/orders", async (req, res) => {
       `💰 Calculation: itemsTotal=${itemsTotal}, shipping=${shipping}, total=${total}`,
     );
 
-    // Create order and deduct stock in transaction
-    const order = await prisma.$transaction(async (tx) => {
-      // Create the order
-      const newOrder = await tx.order.create({
-        data: {
-          userId,
-          total: parseFloat(total.toFixed(2)),
-          currency: "PHP",
-          status: "pending",
-          payment_status: payment_status || "awaiting_payment",
-          shipping_address,
-          billing_address,
-          branchId: branchId ? parseInt(branchId) : null,
-          items: { create: createItems },
-        },
-        include: { items: true },
+    // Create order and deduct stock in transaction.
+    //
+    // The stock check a few lines up (before this transaction) is only
+    // a fast advisory check for a friendly early error - it reads stock
+    // from a snapshot taken before this request even started, so it
+    // can't by itself stop two concurrent checkouts from both reading
+    // "1 available" and both deciding they can claim it. The decrement
+    // below is what actually prevents that: instead of a plain
+    // read-then-write, it's a single atomic conditional UPDATE
+    // (`WHERE stock >= requested`) executed inside the transaction. If
+    // two requests race, the database serializes their UPDATEs against
+    // the same row - only the one that lands first can still match
+    // `stock >= requested`; the second sees the now-lower stock, its
+    // WHERE clause matches zero rows, and it fails cleanly instead of
+    // deducting past zero.
+    let insufficientStockItem = null;
+    let order;
+    try {
+      order = await prisma.$transaction(async (tx) => {
+        for (const item of items) {
+          const lineQty = Number(item.quantity || 1);
+          const pcsPerItem = extractPcsFromCustomizations(item.customizations);
+          const requestedStock = pcsPerItem * lineQty;
+
+          const decremented = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: requestedStock } },
+            data: { stock: { decrement: requestedStock } },
+          });
+
+          if (decremented.count === 0) {
+            const product = productMap.get(item.productId);
+            insufficientStockItem = {
+              productId: item.productId,
+              productName: product?.name || `Product #${item.productId}`,
+            };
+            throw new Error("INSUFFICIENT_STOCK");
+          }
+        }
+
+        // Create the order only after every item's stock is confirmed
+        // and reserved.
+        return tx.order.create({
+          data: {
+            userId,
+            total: parseFloat(total.toFixed(2)),
+            currency: "PHP",
+            status: "pending",
+            payment_status: payment_status || "awaiting_payment",
+            shipping_address,
+            billing_address,
+            branchId: branchId ? parseInt(branchId) : null,
+            items: { create: createItems },
+          },
+          include: { items: true },
+        });
       });
-
-      // Deduct stock for each item based on requestedStock
-      for (const item of items) {
-        const lineQty = Number(item.quantity || 1);
-        const pcsPerItem = extractPcsFromCustomizations(item.customizations);
-        const requestedStock = pcsPerItem * lineQty;
-
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: requestedStock } },
+    } catch (txError) {
+      if (txError.message === "INSUFFICIENT_STOCK" && insufficientStockItem) {
+        return res.status(409).json({
+          message:
+            `Sorry, "${insufficientStockItem.productName}" just sold out ` +
+            "while you were checking out. Please update your cart and try again.",
+          productId: insufficientStockItem.productId,
+          productName: insufficientStockItem.productName,
+          soldOutDuringCheckout: true,
         });
       }
-
-      return newOrder;
-    });
+      throw txError;
+    }
 
     const orderWithDetails = await prisma.order.findUnique({
       where: { id: order.id },
@@ -1555,405 +1624,6 @@ const cartItemPayload = (item) => ({
 });
 
 
-// =================================================
-// CUSTOMER CART API
-// =================================================
-
-// GET USER CART
-app.get(
-  "/api/user/:id/cart",
-  async (req, res) => {
-    const userId = parseInt(
-      req.params.id,
-      10
-    );
-
-    if (!userId) {
-      return res.status(400).json({
-        message: "Invalid user id",
-      });
-    }
-
-    try {
-      const userExists =
-        await prisma.user.findUnique({
-          where: {
-            id: userId,
-          },
-        });
-
-      if (!userExists) {
-        return res.status(404).json({
-          message: "User not found",
-        });
-      }
-
-      const items =
-        await prisma.cartItem.findMany({
-          where: {
-            userId,
-          },
-
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-
-                // IMPORTANT
-                stock: true,
-
-                images: true,
-              },
-            },
-          },
-
-          orderBy: {
-            createdAt: "asc",
-          },
-        });
-
-      res.json(
-        items.map(cartItemPayload)
-      );
-    } catch (e) {
-      console.error(
-        "GET CART ERROR:",
-        e
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to load cart",
-      });
-    }
-  }
-);
-
-
-// ADD TO CART
-app.post(
-  "/api/user/:id/cart",
-  async (req, res) => {
-    const userId = parseInt(
-      req.params.id,
-      10
-    );
-
-    if (!userId) {
-      return res.status(400).json({
-        message: "Invalid user id",
-      });
-    }
-
-    const {
-      productId,
-      title,
-      name,
-      price,
-      qty = 1,
-      productImage,
-      images,
-      customizations,
-    } = req.body || {};
-
-    if (
-      !productId ||
-      !(title || name)
-    ) {
-      return res.status(400).json({
-        message:
-          "Invalid cart item",
-      });
-    }
-
-    try {
-      const userExists =
-        await prisma.user.findUnique({
-          where: {
-            id: userId,
-          },
-        });
-
-      if (!userExists) {
-        return res.status(404).json({
-          message:
-            "User not found",
-        });
-      }
-
-      const normalizedCustomizations =
-        normalizeCartCustomizations(
-          customizations
-        );
-
-      const existingItems =
-        await prisma.cartItem.findMany({
-          where: {
-            userId,
-            productId:
-              Number(productId),
-          },
-        });
-
-      const match =
-        existingItems.find(
-          (item) =>
-            JSON.stringify(
-              item.customizations ||
-                {}
-            ) ===
-            JSON.stringify(
-              normalizedCustomizations
-            )
-        );
-
-      const saved = match
-        ? await prisma.cartItem.update({
-            where: {
-              id: match.id,
-            },
-
-            data: {
-              qty: {
-                increment:
-                  Number(qty) || 1,
-              },
-            },
-
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  stock: true,
-                  images: true,
-                },
-              },
-            },
-          })
-        : await prisma.cartItem.create({
-            data: {
-              userId,
-
-              productId:
-                Number(productId),
-
-              title:
-                title || name,
-
-              price:
-                Number(price || 0),
-
-              qty: Math.max(
-                1,
-                Number(qty) || 1
-              ),
-
-              productImage:
-                productImage ||
-                images?.[0] ||
-                null,
-
-              customizations:
-                normalizedCustomizations,
-            },
-
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  stock: true,
-                  images: true,
-                },
-              },
-            },
-          });
-
-      res
-        .status(match ? 200 : 201)
-        .json(
-          cartItemPayload(saved)
-        );
-    } catch (e) {
-      console.error(
-        "ADD CART ERROR:",
-        e
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to save cart item",
-      });
-    }
-  }
-);
-
-
-// UPDATE CART QUANTITY
-app.patch(
-  "/api/user/:id/cart/:itemId",
-  async (req, res) => {
-    const userId = parseInt(
-      req.params.id,
-      10
-    );
-
-    const itemId = parseInt(
-      req.params.itemId,
-      10
-    );
-
-    const qty = Math.floor(
-      Number(
-        req.body?.qty || 0
-      )
-    );
-
-    if (
-      !userId ||
-      !itemId
-    ) {
-      return res.status(400).json({
-        message:
-          "Invalid cart item",
-      });
-    }
-
-    try {
-      if (qty < 1) {
-        await prisma.cartItem.deleteMany(
-          {
-            where: {
-              id: itemId,
-              userId,
-            },
-          }
-        );
-
-        return res.json({
-          message:
-            "Cart item removed",
-        });
-      }
-
-      const existing =
-        await prisma.cartItem.findFirst({
-          where: {
-            id: itemId,
-            userId,
-          },
-        });
-
-      if (!existing) {
-        return res.status(404).json({
-          message:
-            "Cart item not found",
-        });
-      }
-
-      const item =
-        await prisma.cartItem.update({
-          where: {
-            id: existing.id,
-          },
-
-          data: {
-            qty,
-          },
-
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-
-                // IMPORTANT
-                stock: true,
-
-                images: true,
-              },
-            },
-          },
-        });
-
-      res.json(
-        cartItemPayload(item)
-      );
-    } catch (e) {
-      console.error(
-        "UPDATE CART ERROR:",
-        e
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to update cart item",
-      });
-    }
-  }
-);
-
-
-// DELETE CART ITEM
-app.delete(
-  "/api/user/:id/cart/:itemId",
-  async (req, res) => {
-    const userId = parseInt(
-      req.params.id,
-      10
-    );
-
-    const itemId = parseInt(
-      req.params.itemId,
-      10
-    );
-
-    if (
-      !userId ||
-      !itemId
-    ) {
-      return res.status(400).json({
-        message:
-          "Invalid cart item",
-      });
-    }
-
-    try {
-      const result =
-        await prisma.cartItem.deleteMany({
-          where: {
-            id: itemId,
-            userId,
-          },
-        });
-
-      if (result.count === 0) {
-        return res.status(404).json({
-          message:
-            "Cart item not found",
-        });
-      }
-
-      res.json({
-        message:
-          "Cart item removed",
-      });
-    } catch (e) {
-      console.error(
-        "DELETE CART ERROR:",
-        e
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to delete cart item",
-      });
-    }
-  }
-);
-
 // Customer cart API - shared by web and mobile clients.
 app.get("/api/user/:id/cart", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -1971,7 +1641,7 @@ app.get("/api/user/:id/cart", async (req, res) => {
 
     const items = await prisma.cartItem.findMany({
       where: { userId },
-      include: { product: { select: { id: true, name: true, images: true } } },
+      include: { product: { select: { id: true, name: true, stock: true, images: true } } },
       orderBy: { createdAt: "asc" },
     });
     res.json(items.map(cartItemPayload));
@@ -2010,6 +1680,26 @@ app.post("/api/user/:id/cart", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Carts don't reserve inventory (only order placement does, and does
+    // so atomically - see POST /api/orders), so this is a soft check:
+    // it stops an item from being added at all once it's fully sold out,
+    // and caps the stored quantity at current stock so a customer can't
+    // silently stack up far more than's available. The cart page's own
+    // re-validation on open is what catches stock dropping further
+    // after this point.
+    const product = await prisma.product.findUnique({
+      where: { id: Number(productId) },
+    });
+    if (!product || product.deleted_at) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    if (product.stock <= 0) {
+      return res.status(409).json({
+        message: `"${product.name}" is currently out of stock.`,
+        outOfStock: true,
+      });
+    }
+
     const normalizedCustomizations = normalizeCartCustomizations(customizations);
     const existingItems = await prisma.cartItem.findMany({
       where: { userId, productId: Number(productId) },
@@ -2020,12 +1710,17 @@ app.post("/api/user/:id/cart", async (req, res) => {
         JSON.stringify(normalizedCustomizations),
     );
 
+    const requestedQty = match
+      ? match.qty + (Number(qty) || 1)
+      : Math.max(1, Number(qty) || 1);
+    const cappedQty = Math.min(requestedQty, product.stock);
+
     const saved = match
       ? await prisma.cartItem.update({
         where: { id: match.id },
-        data: { qty: { increment: Number(qty) || 1 } },
+        data: { qty: cappedQty },
         include: {
-          product: { select: { id: true, name: true, images: true } },
+          product: { select: { id: true, name: true, stock: true, images: true } },
         },
       })
       : await prisma.cartItem.create({
@@ -2034,16 +1729,20 @@ app.post("/api/user/:id/cart", async (req, res) => {
           productId: Number(productId),
           title: title || name,
           price: Number(price || 0),
-          qty: Math.max(1, Number(qty) || 1),
+          qty: cappedQty,
           productImage: productImage || images?.[0] || null,
           customizations: normalizedCustomizations,
         },
         include: {
-          product: { select: { id: true, name: true, images: true } },
+          product: { select: { id: true, name: true, stock: true, images: true } },
         },
       });
 
-    res.status(match ? 200 : 201).json(cartItemPayload(saved));
+    res.status(match ? 200 : 201).json({
+      ...cartItemPayload(saved),
+      stockCapped: cappedQty < requestedQty,
+      available: product.stock,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Failed to save cart item" });
@@ -2068,26 +1767,37 @@ app.patch("/api/user/:id/cart/:itemId", async (req, res) => {
 
     const existing = await prisma.cartItem.findFirst({
       where: { id: itemId, userId },
+      include: { product: { select: { stock: true } } },
     });
 
     if (!existing) {
       return res.status(404).json({ message: "Cart item not found" });
     }
 
+    // Same stock ceiling as add-to-cart, so bumping quantity from the
+    // cart page can't push it past what's actually available either.
+    const cappedQty =
+      existing.product?.stock != null
+        ? Math.min(qty, existing.product.stock)
+        : qty;
+
     const item = await prisma.cartItem.update({
       where: { id: existing.id },
       data: {
-        qty,
+        qty: cappedQty,
         // Only updates price when the client sends a fresh formula
         // estimate (e.g. after a quantity change triggers re-pricing in
         // CartContext.js) — omitting it here leaves the stored price
         // untouched, so a plain qty-only PATCH still behaves as before.
         ...(price != null && !isNaN(Number(price)) && { price: Number(price) }),
       },
-      include: { product: { select: { id: true, name: true, images: true } } },
+      include: { product: { select: { id: true, name: true, stock: true, images: true } } },
     });
 
-    res.json(cartItemPayload(item));
+    res.json({
+      ...cartItemPayload(item),
+      stockCapped: cappedQty < qty,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Failed to update cart item" });
@@ -2218,6 +1928,7 @@ app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff",
         total: order.total,
         createdAt: order.createdAt,
         due_date: order.due_date,
+        estimatedFinishTime: order.estimatedFinishTime,
         items: order.items,
       })),
     });
@@ -2383,7 +2094,13 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
     const updatedOrder = await prisma.$transaction(async (tx) => {
       const order = await tx.order.update({
         where: { id: orderId },
-        data: { productionStatus },
+        data: {
+          productionStatus,
+          // Clear the printing ETA once the order moves past PRINTING_QUEUE
+          // so a stale time doesn't linger into Quality Check/Packaging.
+          ...(existing.productionStatus === "PRINTING_QUEUE" &&
+            productionStatus !== "PRINTING_QUEUE" && { estimatedFinishTime: null }),
+        },
       });
 
       if (productionStatus === "PRINTING_QUEUE") {
@@ -2463,6 +2180,37 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
       metadata: { orderId, previousStatus: existing.productionStatus, newStatus: productionStatus },
     });
 
+    // Notify the customer on every customer-visible production stage change.
+    // PENDING_FILE_CHECK -> AWAITING_PAYMENT is already covered by the
+    // design-approval notification, and COMPLETED has its own richer
+    // balance-due notification further below, so both are skipped here.
+    const PRODUCTION_STAGE_MESSAGES = {
+      PRINTING_QUEUE: "Your order has entered production and is now being printed.",
+      QUALITY_ASSURANCE: "Your order has finished printing and is now undergoing quality checks.",
+      PACKAGING_READY: "Your order passed quality check and is now being packaged.",
+    };
+    if (PRODUCTION_STAGE_MESSAGES[productionStatus] && updatedOrder.userId) {
+      await createNotification({
+        userId: updatedOrder.userId,
+        title: `Order #${orderId} update`,
+        body: PRODUCTION_STAGE_MESSAGES[productionStatus],
+        type: "order_status",
+        link: `/orders/${orderId}`,
+      });
+
+      const orderForEmail = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: { user: true, items: { include: { product: true } } },
+      });
+      await notifyProductionStageChange(
+        orderForEmail,
+        productionStatus,
+        PRODUCTION_STAGE_MESSAGES[productionStatus]
+      ).catch((e) =>
+        console.warn("notifyProductionStageChange failed (non-fatal):", e.message)
+      );
+    }
+
     if (requisitions.length > 0) {
       await createNotificationForAdmins({
         title: `${requisitions.length} purchase requisition(s) generated`,
@@ -2494,6 +2242,23 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
             link: `/orders/${orderId}`,
           });
         }
+      } else if (updatedOrder.userId) {
+        // Fully paid — just tell them production is done.
+        await createNotification({
+          userId: updatedOrder.userId,
+          title: `Order #${orderId} production complete`,
+          body: "Your order has finished production and is ready.",
+          type: "order_status",
+          link: `/orders/${orderId}`,
+        });
+
+        const completedOrderForEmail = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: { user: true, items: { include: { product: true } } },
+        });
+        await notifyOrderStatus(completedOrderForEmail, "completed").catch((e) =>
+          console.warn("notifyOrderStatus (completed) failed (non-fatal):", e.message)
+        );
       }
     }
 
@@ -2509,6 +2274,62 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
       return res.status(404).json({ message: "Order not found" });
     }
     return res.status(500).json({ message: "Failed to update production status" });
+  }
+});
+
+// PUT /api/production/orders/:id/eta — staff/admin sets the estimated
+// finish time shown to the customer while an order is in PRINTING_QUEUE
+app.put("/api/production/orders/:id/eta", requireAuth(prisma), requireRole("staff", "admin", "branch_admin"), async (req, res) => {
+  const orderId = parseInt(req.params.id);
+  const { estimatedFinishTime } = req.body;
+
+  if (!orderId) {
+    return res.status(400).json({ message: "Invalid order id" });
+  }
+  if (typeof estimatedFinishTime !== "string" || !estimatedFinishTime.trim()) {
+    return res.status(400).json({ message: "estimatedFinishTime is required" });
+  }
+
+  try {
+    const existing = await prisma.order.findUnique({ where: { id: orderId } });
+    if (!existing) return res.status(404).json({ message: "Order not found" });
+    if (!canActOnBranch(req.actor, existing.branchId)) return denyCrossBranch(res);
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { estimatedFinishTime: estimatedFinishTime.trim() },
+      include: { user: true, items: { include: { product: true } } },
+    });
+
+    if (updated.userId) {
+      await createNotification({
+        userId: updated.userId,
+        title: `Order #${orderId} — estimated finish time updated`,
+        body: `Your order is being printed. Estimated finish: ${updated.estimatedFinishTime}.`,
+        type: "order_status",
+        link: `/orders/${orderId}`,
+      });
+
+      await notifyEstimatedFinishTime(updated, updated.estimatedFinishTime).catch((e) =>
+        console.warn("notifyEstimatedFinishTime failed (non-fatal):", e.message)
+      );
+    }
+
+    await logActivity({
+      actor: req.actor,
+      action: "updated",
+      module: "orders",
+      description: `Set estimated finish time for order #${orderId} to "${updated.estimatedFinishTime}"`,
+      metadata: { orderId, estimatedFinishTime: updated.estimatedFinishTime },
+    });
+
+    return res.json({ message: "Estimated finish time saved", order: updated });
+  } catch (e) {
+    console.error("Set estimated finish time error:", e.message);
+    if (e.code === "P2025") {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    return res.status(500).json({ message: "Failed to save estimated finish time" });
   }
 });
 
@@ -3701,7 +3522,7 @@ app.get("/api/products/:id", async (req, res) => {
 app.post("/api/products/:id/estimate-price", async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    const { customizations, quantity } = req.body || {};
+    const { customizations, quantity, branchId } = req.body || {};
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
@@ -3711,32 +3532,11 @@ app.post("/api/products/:id/estimate-price", async (req, res) => {
     }
 
     // Gather cost-per-unit for every material this product could touch,
-    // in one batch, so computeItemPrice never needs its own DB access.
-    const [substrates, inks, units] = await Promise.all([
-      prisma.inventorySubstrate.findMany({
-        select: { materialName: true, costPerMeter: true },
-        orderBy: { costPerMeter: "asc" },
-      }),
-      prisma.inventoryInk.findMany({
-        select: { colorChannel: true, costPerMl: true },
-        orderBy: { costPerMl: "asc" },
-      }),
-      prisma.inventoryUnit.findMany({
-        select: { itemName: true, costPerUnit: true },
-        orderBy: { costPerUnit: "asc" },
-      }),
-    ]);
-
-    const materialCosts = {};
-    substrates.forEach((s) => {
-      materialCosts[s.materialName] = s.costPerMeter;
-    });
-    inks.forEach((i) => {
-      materialCosts[i.colorChannel] = i.costPerMl;
-    });
-    units.forEach((u) => {
-      materialCosts[u.itemName] = u.costPerUnit;
-    });
+    // scoped to the selected branch when provided, so computeItemPrice
+    // never needs its own DB access.
+    const materialCosts = await getMaterialCostsForBranch(
+      branchId ? parseInt(branchId) : null,
+    );
 
     const result = computeItemPrice(
       product,
@@ -6537,7 +6337,8 @@ function setupChatWebSocket(wss) {
         // --- CUSTOMER SENDS MESSAGE ---
       if (data.type === "customer_message" && ws.userRole === "customer") {
         const body = String(data.body || "").trim();
-        if (!body) return;
+        const imageUrl = data.imageUrl ? String(data.imageUrl).trim() : null;
+        if (!body && !imageUrl) return;
 
         const priorMessageCount = await prisma.message.count({
           where: { conversationId: ws.conversationId },
@@ -6555,6 +6356,7 @@ function setupChatWebSocket(wss) {
             senderId: ws.userId,
             senderRole: "customer",
             body,
+            imageUrl,
           },
         });
 
@@ -6610,7 +6412,9 @@ function setupChatWebSocket(wss) {
             await createNotification({
               userId,
               title: `New message from ${ws.userName}`,
-              body: message.body.length > 80 ? message.body.slice(0, 80) + "…" : message.body,
+              body: message.body
+                ? (message.body.length > 80 ? message.body.slice(0, 80) + "…" : message.body)
+                : "📷 Sent an image",
               type: "support_chat",
               link: "/admin/supportInbox",
             });
@@ -6634,8 +6438,9 @@ function setupChatWebSocket(wss) {
       // --- STAFF SENDS MESSAGE ---
       if (data.type === "staff_message" && ws.userRole === "staff") {
         const body = String(data.body || "").trim();
+        const imageUrl = data.imageUrl ? String(data.imageUrl).trim() : null;
         const conversationId = parseInt(data.conversationId);
-        if (!body || !conversationId) return;
+        if ((!body && !imageUrl) || !conversationId) return;
 
         const message = await prisma.message.create({
           data: {
@@ -6643,6 +6448,7 @@ function setupChatWebSocket(wss) {
             senderId: ws.userId,
             senderRole: "staff",
             body,
+            imageUrl,
           },
         });
 

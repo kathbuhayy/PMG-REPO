@@ -1202,9 +1202,10 @@
 }
 
 .tsc-quick-colors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  justify-items: center;
+  gap: 10px;
   margin-top: 10px;
 }
 

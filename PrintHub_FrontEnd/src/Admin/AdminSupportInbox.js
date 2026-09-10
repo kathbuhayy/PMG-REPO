@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FaHeadset, FaPaperPlane } from "react-icons/fa";
+import { buildApiUrl } from "../config/api";
 
 function isSameDay(a, b) {
   const d1 = new Date(a);
@@ -59,16 +60,74 @@ function UnreadBadge({ count }) {
 
 function AdminSupportInbox({ chat }) {
   const [input, setInput] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = React.useRef(null);
   const activeConversation = chat.conversations.find((c) => c.id === chat.activeId);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    chat.sendMessage(input);
+  // This tab is a fixed-height chat shell (conversations list + message
+  // thread each scroll internally) rather than a normal tall page like
+  // every other admin tab, so lock the outer page scroll while it's
+  // mounted - otherwise any slight overflow (a long unread message, an
+  // extra-tall row) makes the whole page scroll behind it too, on top
+  // of the internal scroll areas. Locks both <body> and <html>: body
+  // alone can leave the page's scrollbar still active if the browser
+  // treats <html> as the actual scrolling root (same fix needed for
+  // CheckoutModal's overlay earlier). Restored on unmount so other
+  // tabs' normal page scrolling is unaffected.
+  useEffect(() => {
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, []);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) setSelectedImage(file);
+    e.target.value = "";
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() && !selectedImage) return;
+
+    let imageUrl = null;
+    if (selectedImage) {
+      setUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", selectedImage);
+        const res = await fetch(buildApiUrl("/api/builder/upload"), {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        imageUrl = data.url;
+      } catch (err) {
+        console.error("Image upload failed:", err);
+      } finally {
+        setUploading(false);
+      }
+    }
+
+    chat.sendMessage(input, imageUrl);
     setInput("");
+    setSelectedImage(null);
   };
 
   return (
-    <div>
+    // 64px = .dashboard-content's own top+bottom padding (32px each) -
+    // the only fixed number this needs, since everything above the
+    // conversations/chat row (the header) sizes itself; a flex:1 row
+    // then gets exactly whatever's left, instead of guessing the
+    // header's rendered height and hardcoding that guess as well
+    // (which is what previously left a large gap of unused space
+    // below both panels).
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
       <div className="admin-page-header">
         <h1 className="admin-page-header-title">Support Inbox</h1>
         <p className="admin-page-header-desc">
@@ -76,7 +135,7 @@ function AdminSupportInbox({ chat }) {
         </p>
       </div>
 
-      <div style={{ display: "flex", gap: "16px", height: "calc(100vh - 320px)" }}>
+      <div style={{ display: "flex", gap: "16px", flex: 1, minHeight: 0 }}>
       <div className="data-table-card" style={{ marginTop: 0, width: "320px", flexShrink: 0, display: "flex", flexDirection: "column" }}>
         <div className="data-table-head">
           <h3><FaHeadset style={{ marginRight: "6px" }} />Conversations</h3>
@@ -111,7 +170,8 @@ function AdminSupportInbox({ chat }) {
                       )}
                     </div>
                     <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {conv.messages?.[0]?.body || "No messages yet"}
+                      {conv.messages?.[0]?.body ||
+                        (conv.messages?.[0]?.imageUrl ? "📷 Image" : "No messages yet")}
                     </p>
                     {conv.assignedStaff && (
                       <span style={{ fontSize: "11px", color: "#2563eb" }}>
@@ -184,11 +244,26 @@ function AdminSupportInbox({ chat }) {
                         style={{
                           background: msg.senderRole === "staff" ? "#2563eb" : "#f1f5f9",
                           color: msg.senderRole === "staff" ? "#fff" : "#0f172a",
-                          padding: "8px 12px",
+                          padding: msg.imageUrl ? "6px" : "8px 12px",
                           borderRadius: "12px",
                           fontSize: "13px",
                         }}
                       >
+                        {msg.imageUrl && (
+                          <img
+                            src={msg.imageUrl}
+                            alt="Attachment"
+                            style={{
+                              maxWidth: "220px",
+                              maxHeight: "220px",
+                              borderRadius: "8px",
+                              display: "block",
+                              marginBottom: msg.body ? "6px" : 0,
+                              cursor: "pointer",
+                            }}
+                            onClick={() => window.open(msg.imageUrl, "_blank")}
+                          />
+                        )}
                         {msg.body}
                       </div>
                       <span
