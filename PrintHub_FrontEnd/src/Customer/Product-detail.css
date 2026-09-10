@@ -3072,16 +3072,21 @@ body.embed-mode .printhub-chatbot-btn {
   
   .pd-pmg-product-header h1 {
     margin: 0 0 8px !important;
-  
+
     color: #111516 !important;
-  
+
     font-size: clamp(42px, 4vw, 56px) !important;
-  
+
     font-weight: 800 !important;
-  
+
     line-height: 1 !important;
-  
+
     letter-spacing: -1.5px;
+
+    /* Keeps the absolutely-positioned rating badge (top-right of this
+       header) clear of the title text - without this, a long product
+       name wrapping to 2+ lines runs right under the badge. */
+    padding-right: 160px;
   }
   
   
@@ -3261,40 +3266,71 @@ body.embed-mode .printhub-chatbot-btn {
   }
   
   .pd-pmg-size-btn {
-    min-height: 43px;
-  
+    min-height: 52px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+
+    padding: 6px 6px;
+
     border: 1px solid #ccd2cf;
     border-radius: 9px;
-  
+
     background: #ffffff;
-  
+
     color: #24292a;
-  
+
     font-size: 13px;
     font-weight: 700;
-  
+
     cursor: pointer;
-  
+
     transition:
       background 0.2s ease,
       border-color 0.2s ease,
       transform 0.15s ease,
       box-shadow 0.2s ease;
   }
-  
+
+  .pd-pmg-size-label {
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .pd-pmg-size-detail {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0.7;
+  }
+
+  /* A bare dimension with no separate label (e.g. "2x3.5 in") reads as
+     the button's main value, not a muted footnote under something. */
+  .pd-pmg-size-btn:not(:has(.pd-pmg-size-label)) .pd-pmg-size-detail {
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 1;
+    white-space: normal;
+  }
+
   .pd-pmg-size-btn:hover {
     border-color: #8fd66e;
-  
+
     transform: translateY(-1px);
   }
-  
+
   .pd-pmg-size-btn.active {
     border-color: var(--pmg-green);
-  
+
     background: var(--pmg-green);
-  
+
     color: #101c0b;
-  
+
     box-shadow:
       0 5px 14px rgba(87, 224, 0, 0.25);
   }
@@ -3380,12 +3416,55 @@ body.embed-mode .printhub-chatbot-btn {
   
   .pd-pmg-quantity-row > label {
     color: #171b1c;
-  
+
     font-size: 13px;
-  
+
     font-weight: 800;
   }
-  
+
+  .pd-pmg-quantity-select {
+    appearance: none;
+    -webkit-appearance: none;
+
+    min-width: 200px;
+    min-height: 43px;
+
+    padding: 0 38px 0 14px;
+
+    border: 1px solid #ccd2cf;
+    border-radius: 9px;
+
+    background:
+      #ffffff
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23566058' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      no-repeat right 14px center;
+    background-size: 12px 8px;
+
+    color: #252a2c;
+
+    font-size: 13px;
+    font-weight: 600;
+
+    outline: none;
+    cursor: pointer;
+
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.025);
+
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .pd-pmg-quantity-select:hover {
+    border-color: #9ca5a1;
+  }
+
+  .pd-pmg-quantity-select:focus {
+    border-color: var(--pmg-green);
+
+    box-shadow: 0 0 0 3px rgba(87, 224, 0, 0.12);
+  }
+
   .pd-pmg-quantity-control {
     display: flex;
   
@@ -3421,20 +3500,34 @@ body.embed-mode .printhub-chatbot-btn {
   .pd-pmg-quantity-control input {
     width: 48px;
     height: 38px;
-  
+
     border: none;
     border-left: 1px solid #e1e4e2;
     border-right: 1px solid #e1e4e2;
-  
+
     outline: none;
-  
+
     text-align: center;
-  
+
     font-size: 14px;
     font-weight: 700;
   }
-  
-  
+
+  .pd-pmg-quantity-control button:disabled {
+    color: #cbd5e1;
+    cursor: not-allowed;
+    background: #f8fafc;
+  }
+
+  .pd-pmg-qty-notice {
+    margin: -6px 0 14px;
+    color: #b45309;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: right;
+  }
+
+
   /* ============================================================
      RUSH ORDER
      ============================================================ */
@@ -3677,12 +3770,25 @@ body.embed-mode .printhub-chatbot-btn {
   
   .pd-pmg-cart-btn:hover {
     transform: translateY(-1px);
-  
+
     box-shadow:
       0 9px 20px rgba(87, 224, 0, 0.28);
   }
-  
-  
+
+  .pd-pmg-cart-btn:disabled {
+    background: #cbd5e1;
+    color: #64748b;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .pd-pmg-cart-btn:disabled:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+
   /* Hide old order card */
   
   .pd-pmg-info-col .pd-order-card {

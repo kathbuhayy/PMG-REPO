@@ -1403,38 +1403,75 @@ app.post("/api/orders", async (req, res) => {
       `💰 Calculation: itemsTotal=${itemsTotal}, shipping=${shipping}, total=${total}`,
     );
 
-    // Create order and deduct stock in transaction
-    const order = await prisma.$transaction(async (tx) => {
-      // Create the order
-      const newOrder = await tx.order.create({
-        data: {
-          userId,
-          total: parseFloat(total.toFixed(2)),
-          currency: "PHP",
-          status: "pending",
-          payment_status: payment_status || "awaiting_payment",
-          shipping_address,
-          billing_address,
-          branchId: branchId ? parseInt(branchId) : null,
-          items: { create: createItems },
-        },
-        include: { items: true },
+    // Create order and deduct stock in transaction.
+    //
+    // The stock check a few lines up (before this transaction) is only
+    // a fast advisory check for a friendly early error - it reads stock
+    // from a snapshot taken before this request even started, so it
+    // can't by itself stop two concurrent checkouts from both reading
+    // "1 available" and both deciding they can claim it. The decrement
+    // below is what actually prevents that: instead of a plain
+    // read-then-write, it's a single atomic conditional UPDATE
+    // (`WHERE stock >= requested`) executed inside the transaction. If
+    // two requests race, the database serializes their UPDATEs against
+    // the same row - only the one that lands first can still match
+    // `stock >= requested`; the second sees the now-lower stock, its
+    // WHERE clause matches zero rows, and it fails cleanly instead of
+    // deducting past zero.
+    let insufficientStockItem = null;
+    let order;
+    try {
+      order = await prisma.$transaction(async (tx) => {
+        for (const item of items) {
+          const lineQty = Number(item.quantity || 1);
+          const pcsPerItem = extractPcsFromCustomizations(item.customizations);
+          const requestedStock = pcsPerItem * lineQty;
+
+          const decremented = await tx.product.updateMany({
+            where: { id: item.productId, stock: { gte: requestedStock } },
+            data: { stock: { decrement: requestedStock } },
+          });
+
+          if (decremented.count === 0) {
+            const product = productMap.get(item.productId);
+            insufficientStockItem = {
+              productId: item.productId,
+              productName: product?.name || `Product #${item.productId}`,
+            };
+            throw new Error("INSUFFICIENT_STOCK");
+          }
+        }
+
+        // Create the order only after every item's stock is confirmed
+        // and reserved.
+        return tx.order.create({
+          data: {
+            userId,
+            total: parseFloat(total.toFixed(2)),
+            currency: "PHP",
+            status: "pending",
+            payment_status: payment_status || "awaiting_payment",
+            shipping_address,
+            billing_address,
+            branchId: branchId ? parseInt(branchId) : null,
+            items: { create: createItems },
+          },
+          include: { items: true },
+        });
       });
-
-      // Deduct stock for each item based on requestedStock
-      for (const item of items) {
-        const lineQty = Number(item.quantity || 1);
-        const pcsPerItem = extractPcsFromCustomizations(item.customizations);
-        const requestedStock = pcsPerItem * lineQty;
-
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: requestedStock } },
+    } catch (txError) {
+      if (txError.message === "INSUFFICIENT_STOCK" && insufficientStockItem) {
+        return res.status(409).json({
+          message:
+            `Sorry, "${insufficientStockItem.productName}" just sold out ` +
+            "while you were checking out. Please update your cart and try again.",
+          productId: insufficientStockItem.productId,
+          productName: insufficientStockItem.productName,
+          soldOutDuringCheckout: true,
         });
       }
-
-      return newOrder;
-    });
+      throw txError;
+    }
 
     const orderWithDetails = await prisma.order.findUnique({
       where: { id: order.id },
@@ -1555,405 +1592,6 @@ const cartItemPayload = (item) => ({
 });
 
 
-// =================================================
-// CUSTOMER CART API
-// =================================================
-
-// GET USER CART
-app.get(
-  "/api/user/:id/cart",
-  async (req, res) => {
-    const userId = parseInt(
-      req.params.id,
-      10
-    );
-
-    if (!userId) {
-      return res.status(400).json({
-        message: "Invalid user id",
-      });
-    }
-
-    try {
-      const userExists =
-        await prisma.user.findUnique({
-          where: {
-            id: userId,
-          },
-        });
-
-      if (!userExists) {
-        return res.status(404).json({
-          message: "User not found",
-        });
-      }
-
-      const items =
-        await prisma.cartItem.findMany({
-          where: {
-            userId,
-          },
-
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-
-                // IMPORTANT
-                stock: true,
-
-                images: true,
-              },
-            },
-          },
-
-          orderBy: {
-            createdAt: "asc",
-          },
-        });
-
-      res.json(
-        items.map(cartItemPayload)
-      );
-    } catch (e) {
-      console.error(
-        "GET CART ERROR:",
-        e
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to load cart",
-      });
-    }
-  }
-);
-
-
-// ADD TO CART
-app.post(
-  "/api/user/:id/cart",
-  async (req, res) => {
-    const userId = parseInt(
-      req.params.id,
-      10
-    );
-
-    if (!userId) {
-      return res.status(400).json({
-        message: "Invalid user id",
-      });
-    }
-
-    const {
-      productId,
-      title,
-      name,
-      price,
-      qty = 1,
-      productImage,
-      images,
-      customizations,
-    } = req.body || {};
-
-    if (
-      !productId ||
-      !(title || name)
-    ) {
-      return res.status(400).json({
-        message:
-          "Invalid cart item",
-      });
-    }
-
-    try {
-      const userExists =
-        await prisma.user.findUnique({
-          where: {
-            id: userId,
-          },
-        });
-
-      if (!userExists) {
-        return res.status(404).json({
-          message:
-            "User not found",
-        });
-      }
-
-      const normalizedCustomizations =
-        normalizeCartCustomizations(
-          customizations
-        );
-
-      const existingItems =
-        await prisma.cartItem.findMany({
-          where: {
-            userId,
-            productId:
-              Number(productId),
-          },
-        });
-
-      const match =
-        existingItems.find(
-          (item) =>
-            JSON.stringify(
-              item.customizations ||
-                {}
-            ) ===
-            JSON.stringify(
-              normalizedCustomizations
-            )
-        );
-
-      const saved = match
-        ? await prisma.cartItem.update({
-            where: {
-              id: match.id,
-            },
-
-            data: {
-              qty: {
-                increment:
-                  Number(qty) || 1,
-              },
-            },
-
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  stock: true,
-                  images: true,
-                },
-              },
-            },
-          })
-        : await prisma.cartItem.create({
-            data: {
-              userId,
-
-              productId:
-                Number(productId),
-
-              title:
-                title || name,
-
-              price:
-                Number(price || 0),
-
-              qty: Math.max(
-                1,
-                Number(qty) || 1
-              ),
-
-              productImage:
-                productImage ||
-                images?.[0] ||
-                null,
-
-              customizations:
-                normalizedCustomizations,
-            },
-
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  stock: true,
-                  images: true,
-                },
-              },
-            },
-          });
-
-      res
-        .status(match ? 200 : 201)
-        .json(
-          cartItemPayload(saved)
-        );
-    } catch (e) {
-      console.error(
-        "ADD CART ERROR:",
-        e
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to save cart item",
-      });
-    }
-  }
-);
-
-
-// UPDATE CART QUANTITY
-app.patch(
-  "/api/user/:id/cart/:itemId",
-  async (req, res) => {
-    const userId = parseInt(
-      req.params.id,
-      10
-    );
-
-    const itemId = parseInt(
-      req.params.itemId,
-      10
-    );
-
-    const qty = Math.floor(
-      Number(
-        req.body?.qty || 0
-      )
-    );
-
-    if (
-      !userId ||
-      !itemId
-    ) {
-      return res.status(400).json({
-        message:
-          "Invalid cart item",
-      });
-    }
-
-    try {
-      if (qty < 1) {
-        await prisma.cartItem.deleteMany(
-          {
-            where: {
-              id: itemId,
-              userId,
-            },
-          }
-        );
-
-        return res.json({
-          message:
-            "Cart item removed",
-        });
-      }
-
-      const existing =
-        await prisma.cartItem.findFirst({
-          where: {
-            id: itemId,
-            userId,
-          },
-        });
-
-      if (!existing) {
-        return res.status(404).json({
-          message:
-            "Cart item not found",
-        });
-      }
-
-      const item =
-        await prisma.cartItem.update({
-          where: {
-            id: existing.id,
-          },
-
-          data: {
-            qty,
-          },
-
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-
-                // IMPORTANT
-                stock: true,
-
-                images: true,
-              },
-            },
-          },
-        });
-
-      res.json(
-        cartItemPayload(item)
-      );
-    } catch (e) {
-      console.error(
-        "UPDATE CART ERROR:",
-        e
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to update cart item",
-      });
-    }
-  }
-);
-
-
-// DELETE CART ITEM
-app.delete(
-  "/api/user/:id/cart/:itemId",
-  async (req, res) => {
-    const userId = parseInt(
-      req.params.id,
-      10
-    );
-
-    const itemId = parseInt(
-      req.params.itemId,
-      10
-    );
-
-    if (
-      !userId ||
-      !itemId
-    ) {
-      return res.status(400).json({
-        message:
-          "Invalid cart item",
-      });
-    }
-
-    try {
-      const result =
-        await prisma.cartItem.deleteMany({
-          where: {
-            id: itemId,
-            userId,
-          },
-        });
-
-      if (result.count === 0) {
-        return res.status(404).json({
-          message:
-            "Cart item not found",
-        });
-      }
-
-      res.json({
-        message:
-          "Cart item removed",
-      });
-    } catch (e) {
-      console.error(
-        "DELETE CART ERROR:",
-        e
-      );
-
-      res.status(500).json({
-        message:
-          "Failed to delete cart item",
-      });
-    }
-  }
-);
-
 // Customer cart API - shared by web and mobile clients.
 app.get("/api/user/:id/cart", async (req, res) => {
   const userId = parseInt(req.params.id, 10);
@@ -1971,7 +1609,7 @@ app.get("/api/user/:id/cart", async (req, res) => {
 
     const items = await prisma.cartItem.findMany({
       where: { userId },
-      include: { product: { select: { id: true, name: true, images: true } } },
+      include: { product: { select: { id: true, name: true, stock: true, images: true } } },
       orderBy: { createdAt: "asc" },
     });
     res.json(items.map(cartItemPayload));
@@ -2010,6 +1648,26 @@ app.post("/api/user/:id/cart", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Carts don't reserve inventory (only order placement does, and does
+    // so atomically - see POST /api/orders), so this is a soft check:
+    // it stops an item from being added at all once it's fully sold out,
+    // and caps the stored quantity at current stock so a customer can't
+    // silently stack up far more than's available. The cart page's own
+    // re-validation on open is what catches stock dropping further
+    // after this point.
+    const product = await prisma.product.findUnique({
+      where: { id: Number(productId) },
+    });
+    if (!product || product.deleted_at) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    if (product.stock <= 0) {
+      return res.status(409).json({
+        message: `"${product.name}" is currently out of stock.`,
+        outOfStock: true,
+      });
+    }
+
     const normalizedCustomizations = normalizeCartCustomizations(customizations);
     const existingItems = await prisma.cartItem.findMany({
       where: { userId, productId: Number(productId) },
@@ -2020,12 +1678,17 @@ app.post("/api/user/:id/cart", async (req, res) => {
         JSON.stringify(normalizedCustomizations),
     );
 
+    const requestedQty = match
+      ? match.qty + (Number(qty) || 1)
+      : Math.max(1, Number(qty) || 1);
+    const cappedQty = Math.min(requestedQty, product.stock);
+
     const saved = match
       ? await prisma.cartItem.update({
         where: { id: match.id },
-        data: { qty: { increment: Number(qty) || 1 } },
+        data: { qty: cappedQty },
         include: {
-          product: { select: { id: true, name: true, images: true } },
+          product: { select: { id: true, name: true, stock: true, images: true } },
         },
       })
       : await prisma.cartItem.create({
@@ -2034,16 +1697,20 @@ app.post("/api/user/:id/cart", async (req, res) => {
           productId: Number(productId),
           title: title || name,
           price: Number(price || 0),
-          qty: Math.max(1, Number(qty) || 1),
+          qty: cappedQty,
           productImage: productImage || images?.[0] || null,
           customizations: normalizedCustomizations,
         },
         include: {
-          product: { select: { id: true, name: true, images: true } },
+          product: { select: { id: true, name: true, stock: true, images: true } },
         },
       });
 
-    res.status(match ? 200 : 201).json(cartItemPayload(saved));
+    res.status(match ? 200 : 201).json({
+      ...cartItemPayload(saved),
+      stockCapped: cappedQty < requestedQty,
+      available: product.stock,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Failed to save cart item" });
@@ -2068,26 +1735,37 @@ app.patch("/api/user/:id/cart/:itemId", async (req, res) => {
 
     const existing = await prisma.cartItem.findFirst({
       where: { id: itemId, userId },
+      include: { product: { select: { stock: true } } },
     });
 
     if (!existing) {
       return res.status(404).json({ message: "Cart item not found" });
     }
 
+    // Same stock ceiling as add-to-cart, so bumping quantity from the
+    // cart page can't push it past what's actually available either.
+    const cappedQty =
+      existing.product?.stock != null
+        ? Math.min(qty, existing.product.stock)
+        : qty;
+
     const item = await prisma.cartItem.update({
       where: { id: existing.id },
       data: {
-        qty,
+        qty: cappedQty,
         // Only updates price when the client sends a fresh formula
         // estimate (e.g. after a quantity change triggers re-pricing in
         // CartContext.js) — omitting it here leaves the stored price
         // untouched, so a plain qty-only PATCH still behaves as before.
         ...(price != null && !isNaN(Number(price)) && { price: Number(price) }),
       },
-      include: { product: { select: { id: true, name: true, images: true } } },
+      include: { product: { select: { id: true, name: true, stock: true, images: true } } },
     });
 
-    res.json(cartItemPayload(item));
+    res.json({
+      ...cartItemPayload(item),
+      stockCapped: cappedQty < qty,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ message: "Failed to update cart item" });

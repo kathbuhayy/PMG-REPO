@@ -13,8 +13,8 @@ import AdminInquiries from "./AdminInquiries";
 import AdminProducts from "./AdminProducts";
 import AdminActivityLog from "./AdminActivityLog";
 import NotificationBell from "./NotificationBell";
+import LogoutConfirmModal from "../components/LogoutConfirmModal";
 // import ProductionQueue from "./ProductionQueue";
-import AdminRequisitions from "./AdminRequisitions";
 import StaffDashboard from "./StaffDashboard";
 import AdminReports from "./AdminReports";
 import AdminPayments from "./AdminPayments";
@@ -614,7 +614,6 @@ function AdminDashboard() {
         label: "INVENTORY",
         items: [
           { id: "inventory", label: "Inventory", icon: <FaWarehouse /> },
-          { id: "requisitions", label: "Requisitions", icon: <FaFileInvoiceDollar /> },
           { id: "products", label: "Products", icon: <FaBoxOpen /> },
         ],
       },
@@ -701,9 +700,6 @@ function AdminDashboard() {
       }
       if (staffRoles.includes("INVENTORY_CONTROLLER")) {
         STAFF_ALLOWED_IDS.push("inventory");
-      }
-      if (staffRoles.includes("PROCUREMENT_OFFICER")) {
-        STAFF_ALLOWED_IDS.push("requisitions");
       }
       if (staffRoles.includes("CUSTOMER_SUPPORT")) {
         STAFF_ALLOWED_IDS.push("supportInbox");
@@ -1148,42 +1144,12 @@ function AdminDashboard() {
       )}
 
       {/* Logout confirmation modal */}
-      {showLogoutModal &&
-        createPortal(
-          <div
-            className="ad-logout-overlay"
-            onMouseDown={() => setShowLogoutModal(false)}
-            role="dialog"
-            aria-modal="true"
-          >
-            <div
-              className="ad-logout-modal"
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <h3 className="ad-logout-title">Log out?</h3>
-              <p className="ad-logout-text">Are you sure you want to logout?</p>
-
-              <div className="ad-logout-actions">
-                <button
-                  type="button"
-                  className="ad-logout-btn ghost"
-                  onClick={() => setShowLogoutModal(false)}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  className="ad-logout-btn danger"
-                  onClick={doLogout}
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+      {showLogoutModal && (
+        <LogoutConfirmModal
+          onCancel={() => setShowLogoutModal(false)}
+          onConfirm={doLogout}
+        />
+      )}
 
       {/* Add Product modal */}
       {showAddProductModal &&
@@ -2728,7 +2694,6 @@ function AdminDashboard() {
           {activeItem === "supportInbox" && <AdminSupportInbox chat={chat} />}
           {/* {activeItem === "productionQueue" && <ProductionQueue />} */}
           {activeItem === "inventory" && <AdminInventory />}
-          {activeItem === "requisitions" && <AdminRequisitions />}
           {activeItem === "payments" && <AdminPayments />}
           {activeItem === "reports" && <AdminReports />}
         </div>

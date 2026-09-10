@@ -15,6 +15,7 @@ import {
 import { useCart } from "../hooks/useCart";
 import "./Header.css";
 import { buildApiUrl } from "../config/api";
+import LogoutConfirmModal from "./LogoutConfirmModal";
 
 import pmgNavLogo from "../assets/brand/pmg-logo-nav.png";
 import pmgLogoBlack from "../assets/brand/pmg-logo-black.png";
@@ -26,6 +27,7 @@ function Header() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const dropdownRef = useRef(null);
 
@@ -226,11 +228,16 @@ function Header() {
      ========================================================= */
 
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
     localStorage.clear();
     sessionStorage.clear();
 
     setIsProfileOpen(false);
     setIsMobileMenuOpen(false);
+    setShowLogoutConfirm(false);
 
     window.location.href = "/";
   };
@@ -268,6 +275,7 @@ function Header() {
     );
 
   return (
+    <>
     <nav
       className={`uh-nav ${location.pathname === "/" ||
           location.pathname === "/user-home" ||
@@ -760,6 +768,14 @@ function Header() {
 
       </div>
     </nav>
+
+    {showLogoutConfirm && (
+      <LogoutConfirmModal
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+      />
+    )}
+    </>
   );
 }
 

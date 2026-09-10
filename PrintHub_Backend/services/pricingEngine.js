@@ -13,6 +13,7 @@
 const {
   resolveMaterialUsage,
   computeDesignAreaScale,
+  computeSizeAreaScale,
 } = require("./production");
 const { getMarginMultiplier } = require("./marginMultiplierByPrintType");
 
@@ -92,6 +93,13 @@ function computeItemPrice(product, customizations, materialCosts, quantity) {
 
   const usageEntries = resolveMaterialUsage(product, { customizations });
   const designScale = computeDesignAreaScale({ customizations }, product);
+  // Independent of designScale (a 0-1 coverage FRACTION that already
+  // cancels out absolute size) - this is how much bigger the customer's
+  // chosen size is than the product's smallest size option, so a 4x8ft
+  // banner correctly costs more material than a 1x2ft one even before
+  // any design is attached. Stays 1 for non-dimensional sizes (garment
+  // "M"/"XL" labels don't parse as WxH).
+  const sizeScale = computeSizeAreaScale(product, customizations?.size);
 
   let rawMaterialCost = 0;
   const materialBreakdown = [];
@@ -100,8 +108,8 @@ function computeItemPrice(product, customizations, materialCosts, quantity) {
     const unitCost = materialCosts[entry.name] ?? null;
     const amount =
       entry.type === "unit"
-        ? entry.usagePerUnit // units don't scale by design area
-        : entry.usagePerUnit * designScale;
+        ? entry.usagePerUnit // units don't scale by design or size area
+        : entry.usagePerUnit * designScale * sizeScale;
 
     const lineCost = unitCost != null ? amount * unitCost : 0;
     rawMaterialCost += lineCost;
@@ -138,6 +146,7 @@ function computeItemPrice(product, customizations, materialCosts, quantity) {
     grandTotal: Number(grandTotal.toFixed(2)),
     materialBreakdown,
     designScale: Number(designScale.toFixed(4)),
+    sizeScale: Number(sizeScale.toFixed(4)),
   };
 }
 

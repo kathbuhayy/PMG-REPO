@@ -16,6 +16,8 @@ import {
 import "./Admin-dashboard.css";
 import { buildApiUrl } from "../config/api";
 import TshirtPreview3D from "../components/TshirtCustomizer/TshirtPreview3D";
+import HoodiePreview3D from "../components/HoodieCustomizer/HoodiePreview3D";
+import SweatshirtPreview3D from "../components/SweatshirtCustomizer/SweatshirtPreview3D";
 import CapPreview3D from "../components/CapCustomizer/CapPreview3D";
 import MugPreview3D from "../components/MugCustomizer/MugPreview3D";
 import NotebookPreview3D from "../components/NotebookCustomizer/NotebookPreview3D";
@@ -83,6 +85,10 @@ function inferCustomizerCategory({ category, name }) {
   if (label.includes("jersey")) return "jersey";
   if (label.includes("cap") || label.includes("hat")) return "cap";
   if (label.includes("mug") || label.includes("cup")) return "mug";
+  if (label.includes("hoodie")) return "hoodie";
+  if (label.includes("sweatshirt") || label.includes("sweater")) {
+    return "sweatshirt";
+  }
   if (
     label.includes("shirt") ||
     label.includes("t-shirt") ||
@@ -167,6 +173,28 @@ function render3DPreview(ai3DPreviewModal) {
             z: -0.15,
           },
         }}
+      />
+    );
+  }
+  if (category === "hoodie") {
+    return (
+      <HoodiePreview3D
+        modelPath="/models/hoodie.glb"
+        shirtColor={baseColor}
+        zoneDesigns={zoneDesigns}
+        zoneTexts={zoneTexts}
+        fillParent={true}
+      />
+    );
+  }
+  if (category === "sweatshirt") {
+    return (
+      <SweatshirtPreview3D
+        modelPath="/models/sweatshirt.glb"
+        shirtColor={baseColor}
+        zoneDesigns={zoneDesigns}
+        zoneTexts={zoneTexts}
+        fillParent={true}
       />
     );
   }
@@ -1795,9 +1823,10 @@ function AdminOrders() {
             style={{
               width: "100%",
               maxWidth: 900,
-              height: "min(720px, 86vh)",
+              maxHeight: "86vh",
               display: "flex",
               flexDirection: "column",
+              overflowY: "auto",
             }}
           >
             {/* Modal Header */}
@@ -1831,11 +1860,10 @@ function AdminOrders() {
 
             {/* 3D Canvas */}
             <div
+              className="admin-3d-preview-wrap"
               style={{
-                flex: 1,
                 display: "block",
                 width: "100%",
-                height: "100%",
                 background: "rgba(15, 23, 42, 0.3)",
                 borderRadius: "8px",
                 overflow: "hidden",

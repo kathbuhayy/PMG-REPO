@@ -122,6 +122,28 @@ function getSizeSurcharge(size) {
 }
 
 /**
+ * Splits a size option string into a short label and its dimensions,
+ * so the size grid can show them on two clean lines instead of letting
+ * the whole string wrap wherever it happens to run out of width (e.g.
+ * "A6 (4.13x5.83 in)" wrapping mid-unit as "...5.83" / "in)").
+ *   "A6 (4.13x5.83 in)"  -> { label: "A6",       detail: "4.13x5.83 in" }
+ *   "Standard 3.5x2 in"  -> { label: "Standard",  detail: "3.5x2 in" }
+ *   "2x3.5 in"           -> { label: null,        detail: "2x3.5 in" }
+ */
+function splitSizeLabel(size) {
+  const str = String(size || "").trim();
+  const parenMatch = str.match(/^(.+?)\s*\((.+)\)\s*$/);
+  if (parenMatch) {
+    return { label: parenMatch[1].trim(), detail: parenMatch[2].trim() };
+  }
+  const wordThenNumberMatch = str.match(/^([A-Za-z][A-Za-z\s]*?)\s+(\d.*)$/);
+  if (wordThenNumberMatch) {
+    return { label: wordThenNumberMatch[1].trim(), detail: wordThenNumberMatch[2].trim() };
+  }
+  return { label: null, detail: str };
+}
+
+/**
  * Maps each "Printed Sides" dropdown label to the zone IDs it implies.
  * The filteredZones logic intersects this with the product's actual
  * print_zones so phantom zones never appear.
@@ -389,6 +411,14 @@ function ProductDetail() {
     setProductLoading(true);
     setProductError(null);
 
+    // React Router keeps this same component instance mounted when
+    // navigating from one /product/:id page to another - without this,
+    // a design/price estimate left over from the PREVIOUS product stays
+    // in state and gets priced/sent for the new one until something
+    // else happens to clear it.
+    setActiveDesign(null);
+    setPriceEstimate(null);
+
     fetch(buildApiUrl(`/api/products/${id}`))
       .then((r) => {
         if (!r.ok) {
@@ -476,11 +506,17 @@ function ProductDetail() {
       ),
     );
 
+  // Inline "Only X units available." message shown under the quantity
+  // stepper when a typed/incremented value gets auto-corrected down to
+  // the product's current stock count.
+  const [qtyStockNotice, setQtyStockNotice] =
+    useState("");
+
   const buildGuestDraftPayload = () => ({
     id: product.id,
     productId: product.id,
     title: product.title,
-    price: grandTotal,
+    price: finalUnitPrice,
     size: selectedSize,
     color: selectedColor || "",
     material: {
@@ -736,11 +772,6 @@ function ProductDetail() {
   const [noticeModal,
     setNoticeModal] =
     useState(null);
-
-  const [
-    showOosConfirmModal,
-    setShowOosConfirmModal,
-  ] = useState(false);
 
   const [
     showNoDesignConfirmModal,
@@ -1375,6 +1406,18 @@ function ProductDetail() {
 
   const grandTotal = useMemo(() => subtotal, [subtotal]);
 
+  // The live /estimate-price call can legitimately come back null (e.g.
+  // adding to cart without a custom design), leaving grandTotal at 0 -
+  // the TOTAL shown on this page already falls back to the product's
+  // base listed price in that case (see the TOTAL card below), so the
+  // price actually sent to the cart has to use that same fallback, or
+  // the cart ends up recording ₱0 / a stale estimate that never matched
+  // what the customer was shown.
+  const finalUnitPrice = useMemo(
+    () => (grandTotal > 0 ? grandTotal : extractNumericPrice(product?.price)),
+    [grandTotal, product?.price],
+  );
+
   const selectedQuantityNumber =
     useMemo(() => {
       if (!product) return 0;
@@ -1411,10 +1454,11 @@ function ProductDetail() {
 
   // Live price: debounced call to /estimate-price whenever anything that
   // affects the formula changes (design, material, size, quantity).
+  // Fires even with no design attached yet - size alone can already
+  // change the price for products billed by physical dimensions (e.g.
+  // a banner), not just by how much of the zone a design covers.
   useEffect(() => {
-    const needsDesign = product?.print_zones?.length > 0;
-
-    if (!product?.id || !selectedQuantityNumber || (needsDesign && !activeDesign)) {
+    if (!product?.id || !selectedQuantityNumber) {
       setPriceEstimate(null);
       setPriceEstimateLoading(false);
       return undefined;
@@ -1869,7 +1913,7 @@ function ProductDetail() {
         title:
           product.title,
         price:
-          grandTotal,
+          finalUnitPrice,
         size:
           selectedSize,
         color:
@@ -1982,9 +2026,14 @@ function ProductDetail() {
         product.stock ===
         0
       ) {
-        setShowOosConfirmModal(
-          true,
-        );
+        setNoticeModal({
+          title:
+            "Out of stock",
+          message:
+            "This item is currently out of stock and can't be added to your cart.",
+          tone:
+            "warning",
+        });
 
         return;
       }
@@ -2405,6 +2454,48 @@ function ProductDetail() {
       </div>
     );
   }
+
+  // Clamps a requested quantity to the product's current stock (and the
+  // separate bulk-order threshold), updates all the related quantity
+  // state together, and surfaces an inline "Only X units available."
+  // notice whenever the stock cap is what kicked in.
+  const applyQuantity = (rawN) => {
+    let n = Math.max(1, rawN);
+
+    if (
+      typeof product.stock === "number" &&
+      product.stock >= 0 &&
+      n > product.stock
+    ) {
+      n = Math.max(1, product.stock);
+      setQtyStockNotice(
+        product.stock > 0
+          ? `Only ${product.stock} unit${product.stock === 1 ? "" : "s"} available.`
+          : "This item is currently out of stock.",
+      );
+    } else {
+      setQtyStockNotice("");
+    }
+
+    const v = String(n);
+    setCustomQty(v);
+    setSessionValue(id, "customQty", v);
+
+    if (product.quantity_count && n > product.quantity_count) {
+      setSelectedQty(null);
+      setSessionValue(id, "selectedQty", null);
+      setShowBulkQuoteModal(true);
+      return;
+    }
+
+    const qtyObj = {
+      label: `${n} pcs`,
+      price: formatPrice(extractNumericPrice(product.price) * n),
+      quantityNumber: n,
+    };
+    setSelectedQty(qtyObj);
+    setSessionValue(id, "selectedQty", qtyObj);
+  };
 
   return (
     <div className="pd-page fade-in-up">
@@ -2900,34 +2991,44 @@ function ProductDetail() {
                 <div className="pd-pmg-size-grid">
 
                   {product.sizes.map(
-                    (size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        className={`pd-pmg-size-btn ${selectedSize ===
-                            size
-                            ? "active"
-                            : ""
-                          }`}
-                        onClick={() => {
-                          setSelectedSize(
-                            size,
-                          );
+                    (size) => {
+                      const { label, detail } = splitSizeLabel(size);
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          className={`pd-pmg-size-btn ${selectedSize ===
+                              size
+                              ? "active"
+                              : ""
+                            }`}
+                          onClick={() => {
+                            setSelectedSize(
+                              size,
+                            );
 
-                          setSessionValue(
-                            id,
-                            "selectedSize",
-                            size,
-                          );
+                            setSessionValue(
+                              id,
+                              "selectedSize",
+                              size,
+                            );
 
-                          setCustomSizeSelected(
-                            false,
-                          );
-                        }}
-                      >
-                        {size}
-                      </button>
-                    ),
+                            setCustomSizeSelected(
+                              false,
+                            );
+                          }}
+                        >
+                          {label && (
+                            <span className="pd-pmg-size-label">
+                              {label}
+                            </span>
+                          )}
+                          <span className="pd-pmg-size-detail">
+                            {detail}
+                          </span>
+                        </button>
+                      );
+                    },
                   )}
 
                 </div>
@@ -3129,56 +3230,11 @@ function ProductDetail() {
 
                     <button
                       type="button"
-                      onClick={() => {
-                        const next =
-                          Math.max(
-                            1,
-                            (parseInt(
-                              customQty,
-                              10,
-                            ) || 1) -
-                            1,
-                          );
-
-                        const v =
-                          String(
-                            next,
-                          );
-
-                        setCustomQty(
-                          v,
-                        );
-
-                        setSessionValue(
-                          id,
-                          "customQty",
-                          v,
-                        );
-
-                        const qtyObj =
-                        {
-                          label: `${next} pcs`,
-                          price:
-                            formatPrice(
-                              extractNumericPrice(
-                                product.price,
-                              ) *
-                              next,
-                            ),
-                          quantityNumber:
-                            next,
-                        };
-
-                        setSelectedQty(
-                          qtyObj,
-                        );
-
-                        setSessionValue(
-                          id,
-                          "selectedQty",
-                          qtyObj,
-                        );
-                      }}
+                      onClick={() =>
+                        applyQuantity(
+                          (parseInt(customQty, 10) || 1) - 1,
+                        )
+                      }
                     >
                       −
                     </button>
@@ -3186,6 +3242,11 @@ function ProductDetail() {
                     <input
                       type="number"
                       min="1"
+                      max={
+                        typeof product.stock === "number"
+                          ? product.stock
+                          : undefined
+                      }
                       value={
                         customQty ||
                         1
@@ -3213,110 +3274,24 @@ function ProductDetail() {
                             10,
                           ) || 0;
 
-                        if (
-                          n > 0 &&
-                          (!product.quantity_count ||
-                            n <=
-                            product.quantity_count)
-                        ) {
-                          const qtyObj =
-                          {
-                            label: `${n} pcs`,
-                            price:
-                              formatPrice(
-                                extractNumericPrice(
-                                  product.price,
-                                ) *
-                                n,
-                              ),
-                            quantityNumber:
-                              n,
-                          };
-
-                          setSelectedQty(
-                            qtyObj,
-                          );
-
-                          setSessionValue(
-                            id,
-                            "selectedQty",
-                            qtyObj,
-                          );
+                        if (n > 0) {
+                          applyQuantity(n);
                         }
                       }}
                     />
 
                     <button
                       type="button"
-                      onClick={() => {
-                        const next =
-                          (parseInt(
-                            customQty,
-                            10,
-                          ) || 0) +
-                          1;
-
-                        const v =
-                          String(
-                            next,
-                          );
-
-                        setCustomQty(
-                          v,
-                        );
-
-                        setSessionValue(
-                          id,
-                          "customQty",
-                          v,
-                        );
-
-                        if (
-                          product.quantity_count &&
-                          next >
-                          product.quantity_count
-                        ) {
-                          setSelectedQty(
-                            null,
-                          );
-
-                          setSessionValue(
-                            id,
-                            "selectedQty",
-                            null,
-                          );
-
-                          setShowBulkQuoteModal(
-                            true,
-                          );
-
-                          return;
-                        }
-
-                        const qtyObj =
-                        {
-                          label: `${next} pcs`,
-                          price:
-                            formatPrice(
-                              extractNumericPrice(
-                                product.price,
-                              ) *
-                              next,
-                            ),
-                          quantityNumber:
-                            next,
-                        };
-
-                        setSelectedQty(
-                          qtyObj,
-                        );
-
-                        setSessionValue(
-                          id,
-                          "selectedQty",
-                          qtyObj,
-                        );
-                      }}
+                      disabled={
+                        typeof product.stock === "number" &&
+                        (parseInt(customQty, 10) || 0) >=
+                        product.stock
+                      }
+                      onClick={() =>
+                        applyQuantity(
+                          (parseInt(customQty, 10) || 0) + 1,
+                        )
+                      }
                     >
                       +
                     </button>
@@ -3326,6 +3301,7 @@ function ProductDetail() {
                 ) : (
 
                   <select
+                    className="pd-pmg-quantity-select"
                     value={
                       selectedQty?.label ||
                       ""
@@ -3359,26 +3335,40 @@ function ProductDetail() {
                     {product.quantities.map(
                       (
                         qty,
-                      ) => (
-                        <option
-                          key={
-                            qty.label
-                          }
-                          value={
-                            qty.label
-                          }
-                        >
-                          {
-                            qty.label
-                          }
-                        </option>
-                      ),
+                      ) => {
+                        const qtyNumber = parseInt(qty.label, 10) || 0;
+                        const exceedsStock =
+                          typeof product.stock === "number" &&
+                          qtyNumber > product.stock;
+                        return (
+                          <option
+                            key={
+                              qty.label
+                            }
+                            value={
+                              qty.label
+                            }
+                            disabled={exceedsStock}
+                          >
+                            {qty.label}
+                            {exceedsStock
+                              ? ` (only ${product.stock} available)`
+                              : ""}
+                          </option>
+                        );
+                      },
                     )}
                   </select>
 
                 )}
 
               </div>
+
+              {qtyStockNotice && (
+                <p className="pd-pmg-qty-notice">
+                  {qtyStockNotice}
+                </p>
+              )}
 
               {/* CUSTOMIZER */}
               {CustomizerPanel &&
@@ -3501,7 +3491,7 @@ function ProductDetail() {
                 <div className="pd-pmg-total-heading">
 
                   <span>
-                    🛒 &nbsp; TOTAL
+                    TOTAL
                   </span>
 
                   <strong>
@@ -3512,9 +3502,7 @@ function ProductDetail() {
                       <span style={{ opacity: 0.5 }}>Calculating…</span>
                     )}
                     {selectedQuantityNumber > 0 && !priceEstimateLoading &&
-                      (grandTotal > 0
-                        ? formatPrice(grandTotal)
-                        : formatPrice(extractNumericPrice(product.price)))}
+                      formatPrice(finalUnitPrice)}
                   </strong>
 
                 </div>
@@ -3591,11 +3579,16 @@ function ProductDetail() {
                 <button
                   type="button"
                   className="pd-pmg-cart-btn"
+                  disabled={
+                    product.stock === 0
+                  }
                   onClick={
                     handleAddToCart
                   }
                 >
-                  🛒 &nbsp; ADD TO CART
+                  {product.stock === 0
+                    ? "OUT OF STOCK"
+                    : "ADD TO CART"}
                 </button>
 
               </div>
@@ -3852,32 +3845,6 @@ function ProductDetail() {
         onConfirm={() =>
           setNoticeModal(
             null,
-          )
-        }
-      />
-
-      <AppModal
-        open={
-          showOosConfirmModal
-        }
-        title="Item Currently Out of Stock"
-        message={
-          "This item is currently out of stock. " +
-          "Do you still want to add it to your cart?"
-        }
-        confirmText="Add to Cart"
-        cancelText="Cancel"
-        tone="warning"
-        onConfirm={() => {
-          setShowOosConfirmModal(
-            false,
-          );
-
-          attemptAddToCart();
-        }}
-        onCancel={() =>
-          setShowOosConfirmModal(
-            false,
           )
         }
       />

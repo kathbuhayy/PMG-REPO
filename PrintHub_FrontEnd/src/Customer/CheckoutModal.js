@@ -1,5 +1,6 @@
 //CheckoutModal.js
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { FaTimes, FaSpinner, FaCheckCircle } from "react-icons/fa";
 import "./CheckoutModal.css";
 import { extractNumericPrice } from "../utils/appUtils";
@@ -111,6 +112,30 @@ function CheckoutModal({
       cancelled = true;
     };
   }, [step, cartItems]);
+
+  // Lock background page scroll while the checkout modal is open, so
+  // only the modal's own content scrolls - restored on close/unmount.
+  // html/body/#root are permanently overflow:hidden in this app (see
+  // index.css) - the page actually scrolls inside the separate
+  // .app-content-scrollable wrapper rendered by App.js, so that's the
+  // element that needs locking (body/html are locked too, harmlessly,
+  // as a fallback for any page not wrapped in it).
+  useEffect(() => {
+    const scrollContainer = document.querySelector(".app-content-scrollable");
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const prevContainerOverflow = scrollContainer?.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    if (scrollContainer) scrollContainer.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      if (scrollContainer) scrollContainer.style.overflow = prevContainerOverflow;
+    };
+  }, []);
 
   const [orderData, setOrderData] = useState(null);
 
@@ -403,6 +428,50 @@ function CheckoutModal({
     setStep("review");
   };
 
+  // Final stock check, run right before submitting - cart items may
+  // have gone out of stock (or dropped below the selected quantity)
+  // since they were added or since the cart page's own check last ran.
+  // This is a fast, friendly pre-flight; the actual guarantee against
+  // two customers claiming the same last unit is the atomic check on
+  // the backend at order-creation time (handled below via the 409
+  // response), since a client-side check alone can always be raced.
+  const validateStockBeforeSubmit = async () => {
+    const uniqueProductIds = [
+      ...new Set(cartItems.map((it) => it.productId).filter(Boolean)),
+    ];
+
+    const results = await Promise.all(
+      uniqueProductIds.map(async (productId) => {
+        try {
+          const res = await fetch(buildApiUrl(`/api/products/${productId}`));
+          if (!res.ok) return null;
+          const data = await res.json();
+          return { productId, stock: Number(data.stock ?? 0), name: data.name };
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    const stockByProduct = {};
+    results.forEach((r) => {
+      if (r) stockByProduct[r.productId] = r;
+    });
+
+    const unavailable = cartItems
+      .map((item) => {
+        const info = stockByProduct[item.productId];
+        if (!info) return null;
+        if (item.qty > info.stock) {
+          return { name: item.name || item.title || info.name, available: info.stock };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    return unavailable;
+  };
+
   const handlePlaceOrder = async () => {
     if (!userId) {
       setError("Please create an account before checking out.");
@@ -411,6 +480,23 @@ function CheckoutModal({
 
     setLoading(true);
     setError("");
+
+    const unavailable = await validateStockBeforeSubmit();
+    if (unavailable.length > 0) {
+      setLoading(false);
+      const names = unavailable
+        .map((u) =>
+          u.available > 0
+            ? `${u.name} (only ${u.available} left)`
+            : `${u.name} (out of stock)`,
+        )
+        .join(", ");
+      setError(
+        `Some items changed availability while you were checking out: ${names}. ` +
+        "Please go back to your cart to update your order.",
+      );
+      return;
+    }
 
     try {
       // Prepare order items from cart (include prices and full customizations)
@@ -491,7 +577,13 @@ function CheckoutModal({
     }
   };
 
-  return (
+  // Rendered via a portal straight to <body>: this modal is otherwise
+  // mounted inside the cart page's .fade-in-up wrapper, whose entrance
+  // animation (fill-mode: both) leaves a transform permanently applied
+  // - which makes that div the containing block for any position:fixed
+  // descendant, so the overlay would resolve "fixed" against its box
+  // instead of the real viewport (rendering off-center/clipped).
+  return createPortal(
     <div className="checkout-modal-overlay">
       <div className="checkout-modal">
         {/* HEADER */}
@@ -929,7 +1021,8 @@ function CheckoutModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
