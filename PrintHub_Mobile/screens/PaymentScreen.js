@@ -1,35 +1,59 @@
 import React, { useState, useEffect } from "react";
 import {
-  View,
-  Text,
   StyleSheet,
+  Text,
+  View,
   TouchableOpacity,
   ScrollView,
   Alert,
   ActivityIndicator,
+  StatusBar,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from "../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../config";
 
-export default function PaymentScreen({ route, navigation }) {
-  const { total = 0, items = [] } = route.params || {};
+const COLORS = {
+  background: "#06150D",
+  card: "#0D2519",
+  cardBorder: "#294A32",
+  lime: "#A8FF3E",
+  limeDark: "#8BEA20",
+  white: "#FFFFFF",
+  text: "#F5F7F5",
+  muted: "#89978E",
+};
 
-  const [processing, setProcessing] = useState(false);
+export default function PaymentScreen({
+  route,
+  navigation,
+}) {
+  const {
+    total = 0,
+    items = [],
+  } = route.params || {};
+
+  const [processing, setProcessing] =
+    useState(false);
+
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+
+  const [loading, setLoading] =
+    useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const userStr = await AsyncStorage.getItem("user");
+        const userStr =
+          await AsyncStorage.getItem("user");
 
         if (!userStr) {
           Alert.alert(
             "Error",
             "User session not found. Please login again."
           );
+
           navigation.goBack();
           return;
         }
@@ -47,11 +71,15 @@ export default function PaymentScreen({ route, navigation }) {
         } else {
           Alert.alert(
             "Error",
-            data.message || "Failed to load profile"
+            data.message ||
+              "Failed to load profile"
           );
         }
       } catch (err) {
-        console.error("[PaymentScreen] Profile error:", err);
+        console.error(
+          "[PaymentScreen] Profile error:",
+          err
+        );
 
         Alert.alert(
           "Error",
@@ -68,7 +96,11 @@ export default function PaymentScreen({ route, navigation }) {
   const handlePay = async () => {
     if (processing) return;
 
-    if (!profile || !profile.address || profile.address.trim() === "") {
+    if (
+      !profile ||
+      !profile.address ||
+      profile.address.trim() === ""
+    ) {
       Alert.alert(
         "Missing Address",
         "Please set your shipping address in your profile before checking out.",
@@ -80,7 +112,9 @@ export default function PaymentScreen({ route, navigation }) {
           {
             text: "Edit Profile",
             onPress: () =>
-              navigation.navigate("EditProfile"),
+              navigation.navigate(
+                "EditProfile"
+              ),
           },
         ]
       );
@@ -93,13 +127,15 @@ export default function PaymentScreen({ route, navigation }) {
         "No Items",
         "There are no items selected for checkout."
       );
+
       return;
     }
 
     try {
       setProcessing(true);
 
-      const userStr = await AsyncStorage.getItem("user");
+      const userStr =
+        await AsyncStorage.getItem("user");
 
       if (!userStr) {
         Alert.alert(
@@ -123,31 +159,24 @@ export default function PaymentScreen({ route, navigation }) {
         return;
       }
 
-      /*
-       * Convert mobile cart items into the format
-       * expected by the backend.
-       */
       const orderItems = items.map((item) => ({
         productId: Number(item.productId),
         quantity: Number(item.qty || 1),
         unitPrice: Number(item.price || 0),
-        customizations: item.customizations || {},
-        imageUrl: item.productImage || null,
+        customizations:
+          item.customizations || {},
+        imageUrl:
+          item.productImage || null,
       }));
 
-      /*
-       * Create the order first.
-       *
-       * The backend creates it as awaiting payment
-       * and the customer must wait for admin/design
-       * approval before PayMongo payment is allowed.
-       */
       const payload = {
         userId: Number(user.id),
         items: orderItems,
         shippingCost: 0,
-        shipping_address: profile.address.trim(),
-        billing_address: profile.address.trim(),
+        shipping_address:
+          profile.address.trim(),
+        billing_address:
+          profile.address.trim(),
       };
 
       console.log(
@@ -184,27 +213,17 @@ export default function PaymentScreen({ route, navigation }) {
 
       if (!response.ok) {
         throw new Error(
-          data.message || "Failed to create order"
+          data.message ||
+            "Failed to create order"
         );
       }
 
-      /*
-       * Get the newly created order ID.
-       *
-       * The backend should return the created order
-       * either directly as `order.id` or as `orderId`.
-       */
       const createdOrderId =
         data?.order?.id ||
         data?.orderId ||
         data?.id;
 
       if (!createdOrderId) {
-        console.error(
-          "[PaymentScreen] Missing order ID:",
-          data
-        );
-
         throw new Error(
           "Order was created, but the order ID was not returned by the server."
         );
@@ -215,17 +234,15 @@ export default function PaymentScreen({ route, navigation }) {
         createdOrderId
       );
 
-      /*
-       * Clear the user's cart only AFTER the order
-       * has been successfully created.
-       */
+      /* CLEAR CART */
       try {
-        const clearCartResponse = await fetch(
-          `${API_BASE_URL}/api/user/${user.id}/cart`,
-          {
-            method: "DELETE",
-          }
-        );
+        const clearCartResponse =
+          await fetch(
+            `${API_BASE_URL}/api/user/${user.id}/cart`,
+            {
+              method: "DELETE",
+            }
+          );
 
         if (!clearCartResponse.ok) {
           console.warn(
@@ -240,12 +257,7 @@ export default function PaymentScreen({ route, navigation }) {
         );
       }
 
-      /*
-       * Store the latest order ID locally.
-       *
-       * This can also be useful if the Orders screen
-       * needs to refresh after returning to the app.
-       */
+      /* SAVE LATEST ORDER */
       await AsyncStorage.setItem(
         "latestOrderId",
         String(createdOrderId)
@@ -287,265 +299,438 @@ export default function PaymentScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={styles.loadingScreen}>
+        <StatusBar
+          barStyle="light-content"
+          backgroundColor={COLORS.background}
+        />
+
         <ActivityIndicator
           size="large"
-          color={COLORS.accentCyan}
+          color={COLORS.lime}
         />
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 40 }}
-    >
-      <Text style={styles.pageTitle}>
-        Checkout Summary
-      </Text>
+    <View style={styles.screen}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={COLORS.background}
+      />
 
-      {/* Summary Card */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>
-          Checkout Total
-        </Text>
-
-        <Text style={styles.summaryAmount}>
-          ₱{Number(total).toLocaleString()}
-        </Text>
-
-        <Text style={styles.summaryItems}>
-          {items.length} item(s) included
-        </Text>
-      </View>
-
-      {/* Shipping Address Card */}
-      <View style={styles.addressCard}>
-        <Text style={styles.addressTitle}>
-          Shipping Address
-        </Text>
-
-        <Text style={styles.addressText}>
-          {profile?.address ||
-            "No shipping address set yet."}
-        </Text>
-
-        <TouchableOpacity
-          style={styles.editAddressBtn}
-          onPress={() =>
-            navigation.navigate("EditProfile")
-          }
-        >
-          <Text style={styles.editAddressBtnText}>
-            {profile?.address
-              ? "Change Address"
-              : "Set Address"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Informational Note */}
-      <Text style={styles.sectionHeader}>
-        Important Note
-      </Text>
-
-      <View style={styles.methodCard}>
-        <Ionicons
-          name="information-circle-outline"
-          size={24}
-          color={COLORS.accentGold}
-        />
-
-        <Text style={styles.methodText}>
-          Admin Approval Required
-        </Text>
-      </View>
-
-      <Text style={styles.noteText}>
-        By placing this order, it will be sent to the
-        admin for design approval. Once the design is
-        approved, you will be able to pay for this order
-        through your Orders tab.
-      </Text>
-
-      {/* Place Order */}
-      <TouchableOpacity
-        style={[
-          styles.payBtn,
-          processing && styles.payBtnDisabled,
-        ]}
-        onPress={handlePay}
-        disabled={processing}
-        activeOpacity={0.8}
+      <ScrollView
+        style={styles.background}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
       >
-        {processing ? (
-          <View style={styles.processingContainer}>
-            <ActivityIndicator
-              size="small"
-              color={COLORS.textLight}
+
+        {/* PAGE HEADER */}
+        <Text style={styles.eyebrow}>
+          CHECKOUT
+        </Text>
+
+        <Text style={styles.pageTitle}>
+          Mobile{" "}
+          <Text style={styles.pageTitleAccent}>
+            Checkout
+          </Text>
+        </Text>
+
+        <Text style={styles.subtitle}>
+          Review your order and place it securely.
+        </Text>
+
+        {/* TOTAL CARD */}
+        <View style={styles.totalCard}>
+          <View style={styles.totalTop}>
+            <View style={styles.totalInfo}>
+              <Text style={styles.totalLabel}>
+                Checkout Total
+              </Text>
+
+              <Text style={styles.totalAmount}>
+                ₱{Number(total).toLocaleString()}
+              </Text>
+
+              <Text style={styles.totalItems}>
+                {items.length} item(s) included
+              </Text>
+            </View>
+
+            <Ionicons
+              name="cart-outline"
+              size={54}
+              color={COLORS.lime}
+            />
+          </View>
+        </View>
+
+        {/* SHIPPING ADDRESS HEADER */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderLeft}>
+            <Ionicons
+              name="location"
+              size={21}
+              color={COLORS.lime}
             />
 
-            <Text style={styles.processingText}>
-              Processing...
+            <Text style={styles.sectionHeader}>
+              Shipping Address
             </Text>
           </View>
-        ) : (
-          <Text style={styles.payBtnText}>
-            Place Order (₱
-            {Number(total).toLocaleString()})
+
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate(
+                "EditProfile"
+              )
+            }
+          >
+            <Text style={styles.editText}>
+              Edit
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ADDRESS */}
+        <View style={styles.addressCard}>
+          <Text style={styles.addressText}>
+            {profile?.address ||
+              "No shipping address set yet."}
           </Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate(
+                "EditProfile"
+              )
+            }
+          >
+            <Text style={styles.changeAddress}>
+              {profile?.address
+                ? "Change Address"
+                : "Set Address"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* IMPORTANT NOTE HEADER */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderLeft}>
+            <View style={styles.infoCircle}>
+              <Text style={styles.infoText}>
+                i
+              </Text>
+            </View>
+
+            <Text style={styles.sectionHeader}>
+              Important Note
+            </Text>
+          </View>
+        </View>
+
+        {/* NOTE */}
+        <View style={styles.noteCard}>
+          <Text style={styles.noteText}>
+            By placing this order, it will be sent
+            to the admin for design approval. Once
+            the design is approved, you will be able
+            to pay for this order through your Orders
+            tab.
+          </Text>
+        </View>
+
+        {/* PLACE ORDER */}
+        <TouchableOpacity
+          style={[
+            styles.placeOrderButton,
+            processing &&
+              styles.placeOrderDisabled,
+          ]}
+          onPress={handlePay}
+          disabled={processing}
+          activeOpacity={0.8}
+        >
+          {processing ? (
+            <View
+              style={styles.processingContainer}
+            >
+              <ActivityIndicator
+                size="small"
+                color="#000000"
+              />
+
+              <Text style={styles.processingText}>
+                Processing...
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.buttonContent}>
+              <Text style={styles.placeOrderText}>
+                Place Order (₱
+                {Number(total).toLocaleString()})
+              </Text>
+
+              <Text style={styles.arrow}>
+                →
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* FOOTER */}
+        <View style={styles.footer}>
+          <View style={styles.footerDot} />
+
+          <Text style={styles.footerText}>
+            PRINT. CREATE. DELIVER.
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: COLORS.lightBg,
-    padding: 16,
+    backgroundColor: COLORS.background,
   },
 
-  center: {
+  loadingScreen: {
     flex: 1,
+    backgroundColor: COLORS.background,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: COLORS.lightBg,
+  },
+
+  background: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 30,
+    paddingBottom: 50,
+  },
+
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 22,
+  },
+
+  logo: {
+    width: 175,
+    height: 70,
+  },
+
+  eyebrow: {
+    color: COLORS.lime,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 2.2,
+    marginBottom: 9,
   },
 
   pageTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: COLORS.textPrimary,
-    marginBottom: 14,
-  },
-
-  summaryCard: {
-    backgroundColor: COLORS.primaryDark,
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 20,
-  },
-
-  summaryTitle: {
-    color: COLORS.accentGold,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-
-  summaryAmount: {
-    color: COLORS.textLight,
-    fontSize: 32,
+    color: COLORS.white,
+    fontSize: 34,
     fontWeight: "900",
-    marginTop: 4,
   },
 
-  summaryItems: {
-    color: COLORS.textMuted,
+  pageTitleAccent: {
+    color: COLORS.lime,
+  },
+
+  subtitle: {
+    color: COLORS.muted,
     fontSize: 13,
-    marginTop: 4,
-  },
-
-  addressCard: {
-    backgroundColor: COLORS.cardBg,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    padding: 16,
-    marginBottom: 20,
-  },
-
-  addressTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: COLORS.textMuted,
-    textTransform: "uppercase",
-    marginBottom: 6,
-  },
-
-  addressText: {
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    fontWeight: "600",
     lineHeight: 20,
-    marginBottom: 12,
+    marginTop: 7,
+    marginBottom: 23,
   },
 
-  editAddressBtn: {
-    alignSelf: "flex-start",
+  totalCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.limeDark,
+    borderRadius: 21,
+    padding: 22,
+    marginBottom: 28,
   },
 
-  editAddressBtnText: {
-    color: COLORS.accentCyan,
-    fontWeight: "700",
+  totalTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  totalInfo: {
+    flex: 1,
+  },
+
+  totalLabel: {
+    color: COLORS.lime,
     fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 7,
+  },
+
+  totalAmount: {
+    color: COLORS.lime,
+    fontSize: 38,
+    fontWeight: "900",
+    letterSpacing: -1,
+  },
+
+  totalItems: {
+    color: COLORS.white,
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 
   sectionHeader: {
+    color: COLORS.white,
     fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textMuted,
-    marginBottom: 10,
+    fontWeight: "900",
+    marginLeft: 8,
   },
 
-  methodCard: {
-    backgroundColor: COLORS.cardBg,
-    borderRadius: 14,
+  editText: {
+    color: COLORS.lime,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  addressCard: {
+    backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 17,
+    padding: 19,
+    marginBottom: 27,
   },
 
-  methodText: {
-    flex: 1,
+  addressText: {
+    color: "#D9E0DB",
+    fontSize: 13,
+    lineHeight: 21,
+    fontWeight: "500",
+    marginBottom: 13,
+  },
+
+  changeAddress: {
+    color: COLORS.lime,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  infoCircle: {
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    backgroundColor: COLORS.lime,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  infoText: {
+    color: "#000000",
     fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginLeft: 12,
+    fontWeight: "900",
+  },
+
+  noteCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+    borderRadius: 17,
+    padding: 19,
+    marginBottom: 28,
   },
 
   noteText: {
-    color: COLORS.textMuted,
+    color: "#D0D8D2",
     fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 20,
+    lineHeight: 21,
   },
 
-  payBtn: {
-    backgroundColor: COLORS.accentCyan,
-    borderRadius: 24,
-    paddingVertical: 16,
+  placeOrderButton: {
+    height: 61,
+    backgroundColor: COLORS.lime,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 20,
   },
 
-  payBtnDisabled: {
-    opacity: 0.7,
+  placeOrderDisabled: {
+    opacity: 0.65,
   },
 
-  payBtnText: {
-    color: COLORS.textLight,
-    fontWeight: "800",
-    fontSize: 15,
+  buttonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  placeOrderText: {
+    color: "#000000",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  arrow: {
+    color: "#000000",
+    fontSize: 23,
+    fontWeight: "900",
+    marginLeft: 10,
   },
 
   processingContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
   },
 
   processingText: {
-    color: COLORS.textLight,
-    fontWeight: "800",
-    fontSize: 15,
+    color: "#000000",
+    fontSize: 14,
+    fontWeight: "900",
     marginLeft: 10,
+  },
+
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 27,
+  },
+
+  footerDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.lime,
+    marginRight: 8,
+  },
+
+  footerText: {
+    color: "#425348",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.8,
   },
 });
