@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./User-dashboard.css";
 import AppModal from "../components/AppModal";
+import LogoutConfirmModal from "../components/LogoutConfirmModal";
 
 function CustomerDashboard() {
     const navigate = useNavigate();
@@ -12,6 +13,7 @@ function CustomerDashboard() {
     const [searchResults, setSearchResults] = useState([]);
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [noticeModal, setNoticeModal] = useState(null);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     // swipe tracking
     let touchStartX = 0;
@@ -65,6 +67,11 @@ function CustomerDashboard() {
     };
 
     const handleLogout = () => {
+        setShowLogoutConfirm(true);
+    };
+
+    const confirmLogout = () => {
+        setShowLogoutConfirm(false);
         console.log("Logging out...");
 
         localStorage.removeItem("token");
@@ -334,6 +341,12 @@ function CustomerDashboard() {
                     window.location.href = "/";
                 }}
             />
+            {showLogoutConfirm && (
+                <LogoutConfirmModal
+                    onCancel={() => setShowLogoutConfirm(false)}
+                    onConfirm={confirmLogout}
+                />
+            )}
         </div>
     );
 }

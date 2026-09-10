@@ -1036,7 +1036,8 @@ function ProductOverview() {
                             product.id
                           }
                           type="button"
-                          className="po-card"
+                          className={`po-card${product.stock <= 0 ? " po-card-out-of-stock" : ""
+                            }`}
                           onClick={() =>
                             handleViewProduct(
                               product.id
@@ -1067,6 +1068,12 @@ function ProductOverview() {
 
                               }}
                             />
+
+                            {product.stock <= 0 && (
+                              <span className="po-sold-out-badge">
+                                Sold Out
+                              </span>
+                            )}
 
                           </div>
 
@@ -1112,7 +1119,9 @@ function ProductOverview() {
                             <div className="po-card-footer">
 
                               <span>
-                                View Product
+                                {product.stock <= 0
+                                  ? "Sold Out"
+                                  : "View Product"}
                               </span>
 
                               <span className="po-card-arrow">

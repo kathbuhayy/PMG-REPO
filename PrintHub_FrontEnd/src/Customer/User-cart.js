@@ -28,6 +28,19 @@ function UserCartPage() {
   // Stock lookup for out-of-stock validation
   const [productStockMap, setProductStockMap] = useState({});
 
+  // Non-blocking toast notices (e.g. "we only have 2 left, updated your
+  // quantity") - deliberately separate from AlertModal, which is a
+  // blocking popup and wrong for this kind of background correction.
+  const [stockToasts, setStockToasts] = useState([]);
+  const dismissStockToast = (toastId) => {
+    setStockToasts((prev) => prev.filter((t) => t.id !== toastId));
+  };
+  const pushStockToast = (message) => {
+    const toastId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setStockToasts((prev) => [...prev, { id: toastId, message }]);
+    setTimeout(() => dismissStockToast(toastId), 7000);
+  };
+
   useEffect(() => {
     const fetchStocks = async () => {
       const productIds = [
@@ -54,6 +67,26 @@ function UserCartPage() {
 
     fetchStocks();
   }, [cartItems]);
+
+  // Re-validation: if a cart item's quantity now exceeds the product's
+  // CURRENT stock (stock may have dropped since it was added, but isn't
+  // fully depleted - the stock===0 case is handled separately as an
+  // "Out of Stock" row instead), auto-correct the quantity down and
+  // tell the customer via a dismissible toast rather than silently
+  // changing their order or blocking them with a popup.
+  useEffect(() => {
+    cartItems.forEach((item) => {
+      const stock = productStockMap[item.productId];
+      if (stock === undefined || stock <= 0) return;
+      if (item.qty > stock) {
+        updateQuantity(item.id, stock);
+        pushStockToast(
+          `We only have ${stock} left of "${item.name || item.title}" — updated your quantity.`,
+        );
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productStockMap]);
 
   const hasOosItem = cartItems
     .filter((item) => selectedItemIds.includes(item.id))
@@ -205,13 +238,26 @@ function UserCartPage() {
 
   return (
     <div>
+      {stockToasts.length > 0 && (
+        <div className="ucart-toast-stack">
+          {stockToasts.map((t) => (
+            <div key={t.id} className="ucart-toast">
+              <span>{t.message}</span>
+              <button
+                type="button"
+                onClick={() => dismissStockToast(t.id)}
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="ucart-page fade-in-up">
         {/* TOP BAR */}
         <div className="uo-top">
           <h1 className="uo-title">My Cart</h1>
-          <p className="uo-subtitle">
-            Review your selected print products and options before checkout.
-          </p>
         </div>
 
         <div className="ucart-wrap">
@@ -231,8 +277,13 @@ function UserCartPage() {
               </label>
             </div>
 
-            {cartItems.map((item) => (
-              <div key={item.id} className="ucart-item">
+            {cartItems.map((item) => {
+              const isOos =
+                item.stock === 0 ||
+                item.product?.stock === 0 ||
+                productStockMap[item.productId] === 0;
+              return (
+              <div key={item.id} className={`ucart-item${isOos ? " ucart-item-oos" : ""}`}>
                 <input
                   type="checkbox"
                   className="ucart-item-checkbox"
@@ -256,10 +307,8 @@ function UserCartPage() {
                 <div className="ucart-info">
                   <div className="ucart-name">
                     {item.name || item.title}
-                    {(item.stock === 0 ||
-                      item.product?.stock === 0 ||
-                      productStockMap[item.productId] === 0) && (
-                      <span className="ucart-oos-badge">Out of Stock</span>
+                    {isOos && (
+                      <span className="ucart-oos-badge">No longer available</span>
                     )}
                   </div>
                   {item.customizations && (
@@ -328,7 +377,8 @@ function UserCartPage() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Order summary */}

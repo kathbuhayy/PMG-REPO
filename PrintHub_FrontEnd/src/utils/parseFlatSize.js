@@ -35,7 +35,7 @@ export function parseFlatSize(sizeStr) {
 
   // 2. Regular expression for WxH formats anywhere in the string: e.g. "folded 3.5x2"
   // Handles decimal numbers, spaces, and optional units
-  const regex = /([\d.]+)\s*[x×*]\s*([\d.]+)\s*(in|inch|inches|cm|centimeter|centimeters|mm|millimeter|millimeters|")?/;
+  const regex = /([\d.]+)\s*[x×*]\s*([\d.]+)\s*(in|inch|inches|ft|feet|foot|cm|centimeter|centimeters|mm|millimeter|millimeters|")?/;
   const match = cleanStr.match(regex);
 
   if (match) {
@@ -54,6 +54,9 @@ export function parseFlatSize(sizeStr) {
     } else if (unit === "mm" || unit === "millimeter" || unit === "millimeters") {
       w = w / 25.4;
       h = h / 25.4;
+    } else if (unit === "ft" || unit === "feet" || unit === "foot") {
+      w = w * 12;
+      h = h * 12;
     }
 
     // Apply scaling factor of 2
@@ -98,7 +101,7 @@ export function parseSizeInchesRaw(sizeStr) {
     return { width: size.width, height: size.height };
   }
 
-  const regex = /([\d.]+)\s*[x×*]\s*([\d.]+)\s*(in|inch|inches|cm|centimeter|centimeters|mm|millimeter|millimeters|")?/;
+  const regex = /([\d.]+)\s*[x×*]\s*([\d.]+)\s*(in|inch|inches|ft|feet|foot|cm|centimeter|centimeters|mm|millimeter|millimeters|")?/;
   const match = cleanStr.match(regex);
   if (!match) return null;
 
@@ -116,6 +119,9 @@ export function parseSizeInchesRaw(sizeStr) {
   } else if (unit === "mm" || unit === "millimeter" || unit === "millimeters") {
     w = w / 25.4;
     h = h / 25.4;
+  } else if (unit === "ft" || unit === "feet" || unit === "foot") {
+    w = w * 12;
+    h = h * 12;
   }
 
   return { width: Number(w.toFixed(3)), height: Number(h.toFixed(3)) };

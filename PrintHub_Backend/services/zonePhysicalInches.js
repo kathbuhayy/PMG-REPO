@@ -48,7 +48,7 @@ function parseSizeInchesRaw(sizeStr) {
   }
 
   const match = cleanStr.match(
-    /([\d.]+)\s*[x×*]\s*([\d.]+)\s*(in|inch|inches|cm|centimeter|centimeters|mm|millimeter|millimeters|")?/
+    /([\d.]+)\s*[x×*]\s*([\d.]+)\s*(in|inch|inches|ft|feet|foot|cm|centimeter|centimeters|mm|millimeter|millimeters|")?/
   );
   if (!match) return null;
 
@@ -63,6 +63,9 @@ function parseSizeInchesRaw(sizeStr) {
   } else if (unit === "mm" || unit === "millimeter" || unit === "millimeters") {
     w = w / 25.4;
     h = h / 25.4;
+  } else if (unit === "ft" || unit === "feet" || unit === "foot") {
+    w = w * 12;
+    h = h * 12;
   }
 
   return { width: Number(w.toFixed(3)), height: Number(h.toFixed(3)) };
