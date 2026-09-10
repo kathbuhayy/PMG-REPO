@@ -257,35 +257,22 @@ async function decrementMaterialsForOrder(tx, orderId) {
               : null,
         });
       } else if (entry.type === "unit") {
-        const amount = entry.usagePerUnit * item.quantity;
-        const updated = await tx.inventoryUnit.updateMany({
-          where: { itemName: entry.name, branchId },
-          data: { stockUnits: { decrement: amount } },
-        });
-        const current = await tx.inventoryUnit.findFirst({
-          where: { itemName: entry.name, branchId },
-        });
-        results.push({
-          type: "unit",
-          materialName: entry.name,
-          amount,
-          matched: updated.count,
-          remainingStock: current?.stockUnits ?? null,
-          safetyThreshold: current?.safetyThreshold ?? null,
-          belowThreshold: current
-            ? current.stockUnits <= current.safetyThreshold
-            : false,
-        });
+        // RAW BLANK GARMENT STOCK IS ALREADY DEDUCTED
+        // WHEN THE CUSTOMER CREATES THE ORDER.
+        //
+        // Do NOT deduct InventoryUnit again when the order
+        // moves to PRINTING_QUEUE.
+        //
+        // Substrate and ink are still deducted above.
+
         itemBreakdown.push({
           type: "unit",
           name: entry.name,
           unit: "pcs",
-          amount,
-          unitCost: current?.costPerUnit ?? null,
-          lineCost:
-            current?.costPerUnit != null
-              ? Number((amount * current.costPerUnit).toFixed(2))
-              : null,
+          amount: 0,
+          unitCost: null,
+          lineCost: 0,
+          deductedAt: "ORDER_CREATION",
         });
       }
     }

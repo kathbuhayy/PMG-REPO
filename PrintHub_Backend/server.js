@@ -1340,26 +1340,82 @@ app.post("/api/orders", async (req, res) => {
         .json({ message: "One or more products not found" });
     }
 
-    // Check stock availability for all items
-    const productMap = new Map(products.map((p) => [p.id, p]));
-    for (const item of items) {
-      const product = productMap.get(item.productId);
-      const lineQty = Number(item.quantity || 1);
-      const pcsPerItem = extractPcsFromCustomizations(item.customizations);
-      const requestedStock = pcsPerItem * lineQty;
+// Check stock availability for all items.
+//
+// For products connected to raw blank/unit materials,
+// InventoryUnit.stockUnits is the source of truth.
+//
+// Example:
+// Sweatshirt + Cotton
+// -> Plain Cotton Sweatshirt
+// -> check InventoryUnit.stockUnits
+//
+// Products without a matching raw unit material continue
+// using Product.stock.
+const productMap = new Map(products.map((p) => [p.id, p]));
 
-      if (product.stock < requestedStock) {
-        return res.status(400).json({
-          message:
-            `Insufficient stock for ${product.name}. ` +
-            `Available: ${product.stock}, Requested: ${requestedStock}`,
-          productId: item.productId,
-          productName: product.name,
-          available: product.stock,
-          requested: requestedStock,
-        });
-      }
+for (const item of items) {
+  const product = productMap.get(item.productId);
+
+  const lineQty = Number(item.quantity || 1);
+  const pcsPerItem = extractPcsFromCustomizations(item.customizations);
+  const requestedStock = pcsPerItem * lineQty;
+
+  const branchForStock = branchId
+    ? parseInt(branchId)
+    : product.branchId ?? null;
+
+  // Try to identify the exact raw blank material selected
+  // by the customer.
+  const selectedMaterial =
+    typeof item.customizations?.material === "object"
+      ? item.customizations?.material?.label
+      : item.customizations?.material;
+
+  const selectedRawMaterial = await getSelectedMaterialStock(
+    prisma,
+    product,
+    selectedMaterial,
+    branchForStock
+  );
+
+  if (selectedRawMaterial) {
+    const available = Number(selectedRawMaterial.stockUnits || 0);
+
+    if (available < requestedStock) {
+      return res.status(400).json({
+        message:
+          `Insufficient stock for ${product.name} ` +
+          `(${selectedRawMaterial.itemName}). ` +
+          `Available: ${available}, Requested: ${requestedStock}`,
+        productId: item.productId,
+        productName: product.name,
+        material: selectedRawMaterial.itemName,
+        available,
+        requested: requestedStock,
+      });
     }
+
+    // Raw material has sufficient stock.
+    continue;
+  }
+
+  // No selected raw material was found.
+  //
+  // Fall back to Product.stock so existing products that
+  // don't use InventoryUnit continue working normally.
+  if (product.stock < requestedStock) {
+    return res.status(400).json({
+      message:
+        `Insufficient stock for ${product.name}. ` +
+        `Available: ${product.stock}, Requested: ${requestedStock}`,
+      productId: item.productId,
+      productName: product.name,
+      available: product.stock,
+      requested: requestedStock,
+    });
+  }
+}
 
     let itemsTotal = 0;
 
@@ -1453,17 +1509,92 @@ app.post("/api/orders", async (req, res) => {
         include: { items: true },
       });
 
-      // Deduct stock for each item based on requestedStock
-      for (const item of items) {
-        const lineQty = Number(item.quantity || 1);
-        const pcsPerItem = extractPcsFromCustomizations(item.customizations);
-        const requestedStock = pcsPerItem * lineQty;
+// ------------------------------------------------------------
+// Deduct inventory stock.
+//
+// Raw blank/unit materials are the source of truth for products
+// that are linked to InventoryUnit.
+//
+// Products without a raw blank mapping continue using Product.stock.
+// ------------------------------------------------------------
+for (const item of items) {
+  const product = productMap.get(item.productId);
 
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: requestedStock } },
-        });
-      }
+  const lineQty = Number(item.quantity || 1);
+  const pcsPerItem = extractPcsFromCustomizations(item.customizations);
+  const requestedStock = pcsPerItem * lineQty;
+
+  const branchForStock = branchId
+    ? parseInt(branchId)
+    : product.branchId ?? null;
+
+  const selectedMaterial =
+    typeof item.customizations?.material === "object"
+      ? item.customizations?.material?.label
+      : item.customizations?.material;
+
+  const selectedRawMaterial = await getSelectedMaterialStock(
+    tx,
+    product,
+    selectedMaterial,
+    branchForStock
+  );
+
+  // ----------------------------------------------------------
+  // RAW BLANK MATERIAL
+  // ----------------------------------------------------------
+  if (selectedRawMaterial) {
+    const updated = await tx.inventoryUnit.updateMany({
+      where: {
+        id: selectedRawMaterial.id,
+        branchId: branchForStock,
+        stockUnits: {
+          gte: requestedStock,
+        },
+      },
+      data: {
+        stockUnits: {
+          decrement: requestedStock,
+        },
+      },
+    });
+
+    // This should never be 0 because we already checked stock
+    // above, but the condition protects against concurrent orders.
+    if (updated.count === 0) {
+      throw new Error(
+        `Inventory changed while creating order. ` +
+        `Insufficient stock for ${selectedRawMaterial.itemName}.`
+      );
+    }
+
+    console.log(
+      `📦 Raw material deducted: ` +
+      `${selectedRawMaterial.itemName} -${requestedStock} pcs`
+    );
+
+    continue;
+  }
+
+  // ----------------------------------------------------------
+  // LEGACY PRODUCT STOCK
+  // ----------------------------------------------------------
+  await tx.product.update({
+    where: {
+      id: item.productId,
+    },
+    data: {
+      stock: {
+        decrement: requestedStock,
+      },
+    },
+  });
+
+  console.log(
+    `📦 Product stock deducted: ` +
+    `${product.name} -${requestedStock} pcs`
+  );
+}
 
       return newOrder;
     });
@@ -3786,7 +3917,7 @@ app.put("/api/inquiries/:id/convert", async (req, res) => {
 // PRODUCTS API
 // =================================================
 
-// GET all products with pagination
+// GET all active products with synchronized raw-material stock
 app.get("/api/products", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -3794,18 +3925,54 @@ app.get("/api/products", async (req, res) => {
     const skip = (page - 1) * limit;
 
     const products = await prisma.product.findMany({
-      where: { active: true, deleted_at: null },
+      where: {
+        active: true,
+        deleted_at: null,
+      },
       skip,
       take: limit,
-      orderBy: { createdAt: "desc" },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
+    const syncedProducts = await Promise.all(
+      products.map(async (product) => {
+        const stockInfo = await getProductRawStock(
+          prisma,
+          product,
+          product.branchId ?? null
+        );
+
+        return {
+          ...product,
+
+          stock: stockInfo.stock,
+
+          stockSource: stockInfo.synced
+            ? "raw_inventory"
+            : "product",
+
+          rawMaterialStock: stockInfo.synced
+            ? stockInfo.materials.map((unit) => ({
+                id: unit.id,
+                itemName: unit.itemName,
+                stockUnits: Number(unit.stockUnits || 0),
+              }))
+            : [],
+        };
+      })
+    );
+
     const total = await prisma.product.count({
-      where: { active: true, deleted_at: null },
+      where: {
+        active: true,
+        deleted_at: null,
+      },
     });
 
     res.json({
-      products,
+      products: syncedProducts,
       pagination: {
         page,
         limit,
@@ -3814,30 +3981,64 @@ app.get("/api/products", async (req, res) => {
       },
     });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Failed to fetch products" });
+    console.error("Failed to fetch products:", e);
+
+    res.status(500).json({
+      message: "Failed to fetch products",
+    });
   }
 });
-
 // GET single product by ID
 app.get("/api/products/:id", async (req, res) => {
   try {
     const product = await prisma.product.findUnique({
-      where: { id: parseInt(req.params.id) },
-      include: { orderItems: true },
+      where: {
+        id: parseInt(req.params.id),
+      },
+      include: {
+        orderItems: true,
+      },
     });
 
     if (!product || product.deleted_at) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({
+        message: "Product not found",
+      });
     }
 
-    res.json(product);
+    // Get stock from raw blank materials.
+    const stockInfo = await getProductRawStock(
+      prisma,
+      product,
+      product.branchId ?? null
+    );
+
+    res.json({
+      ...product,
+
+      // Raw blank material stock becomes Product stock.
+      stock: stockInfo.stock,
+
+      stockSource: stockInfo.synced
+        ? "raw_inventory"
+        : "product",
+
+      rawMaterialStock: stockInfo.synced
+        ? stockInfo.materials.map((unit) => ({
+            id: unit.id,
+            itemName: unit.itemName,
+            stockUnits: Number(unit.stockUnits || 0),
+          }))
+        : [],
+    });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Failed to fetch product" });
+    console.error("Failed to fetch product:", e);
+
+    res.status(500).json({
+      message: "Failed to fetch product",
+    });
   }
 });
-
 // POST /api/products/:id/estimate-price — live design-based price quote.
 // Called repeatedly by the frontend as the customer edits their design,
 // so this must stay fast and read-only (no writes, no inventory decrement).
@@ -4278,6 +4479,215 @@ app.delete("/api/products/:id", async (req, res) => {
     res.status(500).json({ message: "Failed to delete product" });
   }
 });
+
+// ============================================================
+// RAW BLANK MATERIAL STOCK SYNC
+// ============================================================
+
+function normalizeStockText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Returns the InventoryUnit rows that belong to a product.
+ *
+ * Priority:
+ * 1. Product.materialUsageMap.material
+ * 2. Product.unitMaterialName
+ * 3. Product name + material matching against InventoryUnit.itemName
+ */
+async function getProductRawUnitMaterials(tx, product, branchId = null) {
+  const units = await tx.inventoryUnit.findMany({
+    where: {
+      ...(branchId != null ? { branchId } : {}),
+    },
+    orderBy: {
+      itemName: "asc",
+    },
+  });
+
+  const productName = normalizeStockText(product?.name);
+  const productCategory = normalizeStockText(product?.category);
+
+  if (!productName && !productCategory) {
+    return [];
+  }
+
+  /*
+   * Determine the exact product type that should be matched.
+   *
+   * IMPORTANT:
+   * We do NOT use:
+   *
+   *   itemName.includes(productName)
+   *
+   * because "tshirt" and "sweatshirt" can cause
+   * incorrect matches.
+   */
+
+  let expectedProductType = null;
+
+  if (
+    productName === "t shirt" ||
+    productName === "tshirt" ||
+    productCategory === "tshirt" ||
+    productCategory === "t shirt"
+  ) {
+    expectedProductType = "tshirt";
+  } else if (
+    productName.includes("sweatshirt") ||
+    productCategory === "sweatshirt"
+  ) {
+    expectedProductType = "sweatshirt";
+  } else if (
+    productName.includes("hoodie") ||
+    productCategory === "hoodie"
+  ) {
+    expectedProductType = "hoodie";
+  } else if (
+    productName.includes("cap") ||
+    productCategory === "cap"
+  ) {
+    expectedProductType = "cap";
+  } else if (
+    productName.includes("mug") ||
+    productCategory === "mug"
+  ) {
+    expectedProductType = "mug";
+  }
+
+  /*
+   * Products without raw InventoryUnit mappings continue
+   * using Product.stock.
+   */
+  if (!expectedProductType) {
+    return [];
+  }
+
+  const matchingUnits = units.filter((unit) => {
+    const itemName = normalizeStockText(unit.itemName);
+
+    const isRawBlank =
+      itemName.includes("plain") ||
+      itemName.includes("blank") ||
+      itemName.includes("raw");
+
+    if (!isRawBlank) {
+      return false;
+    }
+
+    /*
+     * InventoryUnit naming convention:
+     *
+     * plain_cotton_tshirt
+     * plain_polyester_tshirt
+     * plain_cotton_sweatshirt
+     * plain_heavyweight_sweatshirt
+     *
+     * normalizeStockText() converts "_" into spaces:
+     *
+     * plain cotton tshirt
+     * plain polyester tshirt
+     * plain cotton sweatshirt
+     *
+     * Therefore we check the FINAL word.
+     */
+
+    const words = itemName.split(" ");
+
+    const inventoryProductType = words[words.length - 1];
+
+    return inventoryProductType === expectedProductType;
+  });
+
+  return matchingUnits;
+}
+
+/**
+ * Calculates the total available stock for a product.
+ *
+ * Example:
+ *
+ * Plain Cotton Sweatshirt       100
+ * Plain Heavyweight Sweatshirt   50
+ * Plain Fleece Sweatshirt        30
+ *
+ * Product Sweatshirt = 180
+ */
+async function getProductRawStock(tx, product, branchId = null) {
+  const materials = await getProductRawUnitMaterials(
+    tx,
+    product,
+    branchId
+  );
+
+  // No raw blank materials found.
+  // Keep the normal Product.stock.
+  if (materials.length === 0) {
+    return {
+      stock: Number(product?.stock || 0),
+      materials: [],
+      synced: false,
+    };
+  }
+
+  // Raw blank materials ARE the product stock.
+  const totalStock = materials.reduce(
+    (total, material) =>
+      total + Number(material.stockUnits || 0),
+    0
+  );
+
+  return {
+    stock: totalStock,
+    materials,
+    synced: true,
+  };
+}
+
+/**
+ * Returns the stock available for the exact material selected
+ * by the customer.
+ *
+ * Example:
+ *
+ * Sweatshirt + Cotton
+ * -> Plain Cotton Sweatshirt
+ * -> stockUnits
+ */
+async function getSelectedMaterialStock(
+  tx,
+  product,
+  selectedMaterial,
+  branchId = null
+) {
+  if (!selectedMaterial) {
+    return null;
+  }
+
+  const materials = await getProductRawUnitMaterials(
+    tx,
+    product,
+    branchId
+  );
+
+  const selected = normalizeStockText(selectedMaterial);
+
+  const matched = materials.find((material) => {
+    const inventoryName = normalizeStockText(material.itemName);
+
+    return (
+      inventoryName.includes(selected) ||
+      selected.includes(inventoryName)
+    );
+  });
+
+  return matched || null;
+}
 
 // =================================================
 // ORDERS API

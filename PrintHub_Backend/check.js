@@ -1,44 +1,156 @@
-// reset-orders.js
-// Wipes all Order and OrderItem rows and resets their id sequences back to 1.
-// Run with: node reset-orders.js
-
 const { PrismaClient } = require("@prisma/client");
+
 const prisma = new PrismaClient();
 
-async function main() {
-  // Rating and ProductReview both hold RESTRICT foreign keys into
-  // Order/OrderItem, so they must be cleared first or the deletes below
-  // will fail with a foreign key constraint error.
-  const deletedRatings = await prisma.rating.deleteMany({});
-  console.log(`Deleted ${deletedRatings.count} Rating rows.`);
+const inventoryItems = [
+  {
+    itemName: "plain_ceramic_mug",
+    stockUnits: 300,
+    safetyThreshold: 15,
+    costPerUnit: 40,
+    branchId: null,
+  },
+  {
+    itemName: "plain_cap",
+    stockUnits: 200,
+    safetyThreshold: 15,
+    costPerUnit: 60,
+    branchId: null,
+  },
+  {
+    itemName: "plain_cotton_tshirt",
+    stockUnits: 98,
+    safetyThreshold: 15,
+    costPerUnit: 60,
+    branchId: null,
+  },
+  {
+    itemName: "plain_polyester_tshirt",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 50,
+    branchId: null,
+  },
+  {
+    itemName: "plain_cotton_sweatshirt",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 100,
+    branchId: null,
+  },
+  {
+    itemName: "plain_cotton_poly_sweatshirt",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 100,
+    branchId: null,
+  },
+  {
+    itemName: "plain_heavyweight_sweatshirt",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 110,
+    branchId: null,
+  },
+  {
+    itemName: "plain_cotton_hoodie",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 120,
+    branchId: null,
+  },
+  {
+    itemName: "plain_cotton_poly_hoodie",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 110,
+    branchId: null,
+  },
+  {
+    itemName: "plain_heavyweight_hoodie",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 130,
+    branchId: null,
+  },
+  {
+    itemName: "plain_jersey_poly_140",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 100,
+    branchId: null,
+  },
+  {
+    itemName: "plain_jersey_poly_160",
+    stockUnits: 110,
+    safetyThreshold: 15,
+    costPerUnit: 110,
+    branchId: null,
+  },
+  {
+    itemName: "plain_jersey_moisture_wicking",
+    stockUnits: 100,
+    safetyThreshold: 15,
+    costPerUnit: 120,
+    branchId: null,
+  },
+];
 
-  const deletedReviews = await prisma.productReview.deleteMany({});
-  console.log(`Deleted ${deletedReviews.count} ProductReview rows.`);
+async function restoreInventory() {
+  try {
+    console.log("Checking InventoryUnit...\n");
 
-  // OrderItem must go before Order — it holds the foreign key (orderId) into Order.
-  const deletedItems = await prisma.orderItem.deleteMany({});
-  console.log(`Deleted ${deletedItems.count} OrderItem rows.`);
+    for (const item of inventoryItems) {
+      const existing = await prisma.inventoryUnit.findFirst({
+        where: {
+          itemName: item.itemName,
+        },
+      });
 
-  const deletedOrders = await prisma.order.deleteMany({});
-  console.log(`Deleted ${deletedOrders.count} Order rows.`);
+      if (existing) {
+        console.log(
+          `✓ Already exists: ${item.itemName} (ID: ${existing.id})`
+        );
+        continue;
+      }
 
-  // Reset auto-increment counters so the next created row starts back at id 1.
-  await prisma.$executeRawUnsafe(
-    `ALTER SEQUENCE "Order_id_seq" RESTART WITH 1;`
-  );
-  await prisma.$executeRawUnsafe(
-    `ALTER SEQUENCE "OrderItem_id_seq" RESTART WITH 1;`
-  );
-  console.log("Reset Order_id_seq and OrderItem_id_seq to 1.");
+      const created = await prisma.inventoryUnit.create({
+        data: {
+          itemName: item.itemName,
+          stockUnits: item.stockUnits,
+          safetyThreshold: item.safetyThreshold,
+          costPerUnit: item.costPerUnit,
+          branchId: item.branchId,
+        },
+      });
 
-  console.log("Done — Order and OrderItem are both empty.");
+      console.log(
+        `+ Added: ${created.itemName} (ID: ${created.id})`
+      );
+    }
+
+    console.log("\n================================");
+    console.log("Inventory restoration complete!");
+    console.log("================================\n");
+
+    const allItems = await prisma.inventoryUnit.findMany({
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    console.log(`Total records: ${allItems.length}\n`);
+
+    for (const item of allItems) {
+      console.log(
+        `${item.id} | ${item.itemName} | Stock: ${item.stockUnits} | Branch: ${item.branchId}`
+      );
+    }
+  } catch (error) {
+    console.error("\n❌ Error:", error);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((err) => {
-    console.error("Reset failed:", err);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+restoreInventory();

@@ -116,11 +116,46 @@ const SIZE_SURCHARGES = {
   "2x large": 30,
 };
 
-function getSizeSurcharge(size) {
-  const key = String(size || "").toLowerCase().trim();
-  return SIZE_SURCHARGES[key] ?? 0;
-}
+function getSelectedRawMaterialStock(
+  rawMaterials,
+  selectedMaterial
+) {
+  if (!Array.isArray(rawMaterials) || !selectedMaterial) {
+    return null;
+  }
 
+  const selectedLabel =
+    typeof selectedMaterial === "object"
+      ? selectedMaterial.label
+      : selectedMaterial;
+
+  const selected = String(
+    selectedLabel || ""
+  )
+    .toLowerCase()
+    .trim();
+
+  if (!selected) {
+    return null;
+  }
+
+  const match = rawMaterials.find((unit) => {
+    const inventoryName = String(
+      unit.itemName || ""
+    )
+      .toLowerCase()
+      .trim();
+
+    return (
+      inventoryName.includes(selected) ||
+      selected.includes(inventoryName)
+    );
+  });
+
+  return match
+    ? Number(match.stockUnits || 0)
+    : null;
+}
 /**
  * Maps each "Printed Sides" dropdown label to the zone IDs it implies.
  * The filteredZones logic intersects this with the product's actual
@@ -311,6 +346,12 @@ function mapApiProduct(data) {
       (s) => !/contact\s*us/i.test(s),
     ),
     materials: parseOptions(data.material_options),
+
+    // Raw blank material inventory returned by the backend.
+    rawMaterialStock: Array.isArray(data.rawMaterialStock)
+      ? data.rawMaterialStock
+      : [],
+
     sides: data.side_options || [],
     finishing: data.finishing_options || [],
     colors: data.color_options || [],
@@ -1524,6 +1565,17 @@ function ProductDetail() {
       "",
     ).toLowerCase();
 
+    const selectedRawMaterialStock =
+  useMemo(() => {
+    return getSelectedRawMaterialStock(
+      product?.rawMaterialStock,
+      selectedMaterial
+    );
+  }, [
+    product?.rawMaterialStock,
+    selectedMaterial,
+  ]);
+
   const previewSurface =
     selectedSideLower.includes(
       "back",
@@ -2007,16 +2059,26 @@ function ProductDetail() {
         return;
       }
 
-      if (
-        product.stock ===
-        0
-      ) {
-        setShowOosConfirmModal(
-          true,
-        );
+const availableStock =
+  selectedRawMaterialStock !== null
+    ? selectedRawMaterialStock
+    : Number(product.stock || 0);
 
-        return;
-      }
+if (
+  availableStock <= 0 ||
+  selectedQuantityNumber > availableStock
+) {
+  setNoticeModal({
+    title: "Not enough stock",
+    message:
+      selectedRawMaterialStock !== null
+        ? `Only ${availableStock} unit(s) of ${selectedMaterial?.label || "this material"} are available.`
+        : `Only ${availableStock} unit(s) are available.`,
+    tone: "warning",
+  });
+
+  return;
+}
 
       const hasPrintZones =
         product.print_zones
