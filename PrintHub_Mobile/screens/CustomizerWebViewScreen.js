@@ -1213,15 +1213,18 @@ export default function CustomizerWebViewScreen({ route, navigation }) {
       }
 
       if (data.type === "DESIGN_COMPLETED") {
-        Alert.alert("Success", "Added to cart with custom options!", [
-          {
-            text: "OK",
-            onPress: () =>
-              navigation.navigate("Main", {
-                screen: "CartTab",
-              }),
-          },
-        ]);
+        // The customizer's only job is to produce the design. Actually
+        // adding to the cart — with price, qty, and every other selected
+        // option — happens back on ProductDetail via the normal
+        // "Add to Cart" flow, the same one used for non-customized orders.
+        const completedDesign = data.design || data.payload || data;
+
+        navigation.navigate("ProductDetail", {
+          product,
+          completedDesign,
+        });
+
+        return;
       }
     } catch (err) {
       console.error("[handleWebViewMessage] {ParseEvent}: " + err.message);
