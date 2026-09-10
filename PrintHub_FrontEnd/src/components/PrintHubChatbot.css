@@ -360,3 +360,53 @@
   background: #ef4444;
   border: 2px solid #fff;
 }
+
+/* ── Image attachments ──────────────────────────────────────────── */
+.phc-attach-btn {
+  background: #f3f4f6;
+  border: 1.5px solid var(--phc-border);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.phc-attach-btn:hover:not(:disabled) { background: var(--phc-primary-light); }
+.phc-attach-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.phc-msg-image {
+  display: block;
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.phc-image-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--phc-border);
+  background: #f9fafb;
+}
+.phc-image-preview-bar img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.phc-image-remove {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 700;
+}

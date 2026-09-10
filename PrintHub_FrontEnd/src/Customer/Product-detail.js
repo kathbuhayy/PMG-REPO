@@ -1425,6 +1425,34 @@ function ProductDetail() {
 
     const timer = setTimeout(async () => {
       try {
+        let branchIdToUse = null;
+
+        const savedBranchId = localStorage.getItem(
+          "checkout_selected_branch_id",
+        );
+
+        if (savedBranchId) {
+          branchIdToUse = parseInt(savedBranchId, 10);
+        } else {
+          try {
+            const branchesRes = await fetch(buildApiUrl("/api/branches"));
+            const branchesData = await branchesRes.json();
+
+            if (
+              branchesRes.ok &&
+              Array.isArray(branchesData) &&
+              branchesData.length > 0
+            ) {
+              branchIdToUse = branchesData[0].id;
+            }
+          } catch (branchErr) {
+            console.error(
+              "[ProductDetail] Default branch fetch error:",
+              branchErr,
+            );
+          }
+        }
+
         const res = await fetch(
           buildApiUrl(`/api/products/${product.id}/estimate-price`),
           {
@@ -1437,6 +1465,7 @@ function ProductDetail() {
                 material: selectedMaterial,
               },
               quantity: selectedQuantityNumber,
+              branchId: branchIdToUse,
             }),
           },
         );

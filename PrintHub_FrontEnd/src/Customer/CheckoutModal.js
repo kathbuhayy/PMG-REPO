@@ -92,6 +92,9 @@ function CheckoutModal({
                 body: JSON.stringify({
                   customizations: item.customizations || {},
                   quantity: item.qty,
+                  branchId: formData.branchId
+                    ? parseInt(formData.branchId, 10)
+                    : null,
                 }),
               },
             );

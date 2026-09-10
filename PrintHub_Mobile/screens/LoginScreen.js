@@ -59,6 +59,7 @@ export default function LoginScreen({ navigation }) {
       }
 
       await AsyncStorage.setItem("user", JSON.stringify(data.user));
+      await AsyncStorage.setItem("authToken", data.token);
       Alert.alert("Success", "Login successful!");
 
       navigation.reset({

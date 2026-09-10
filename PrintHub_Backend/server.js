@@ -14,6 +14,57 @@ const mockupRoutes = require("./routes/mockup");
 const { generateImage: generateFalImage } = require("./services/falai");
 const { generateWithCloudflare } = require("./services/cloudflareAI");
 const { computeItemPrice } = require("./services/pricingEngine");
+
+/**
+ * Loads material cost-per-unit lookups, optionally scoped to one branch.
+ * Falls back to the cheapest cost across all branches for any material
+ * type that has no rows for the given branch, so pricing never breaks
+ * for branches with partial inventory tracking.
+ */
+async function getMaterialCostsForBranch(branchId) {
+  const where = branchId ? { branchId } : {};
+
+  const [substrates, inks, units] = await Promise.all([
+    prisma.inventorySubstrate.findMany({
+      where,
+      select: { materialName: true, costPerMeter: true },
+      orderBy: { costPerMeter: "asc" },
+    }),
+    prisma.inventoryInk.findMany({
+      where,
+      select: { colorChannel: true, costPerMl: true },
+      orderBy: { costPerMl: "asc" },
+    }),
+    prisma.inventoryUnit.findMany({
+      where,
+      select: { itemName: true, costPerUnit: true },
+      orderBy: { costPerUnit: "asc" },
+    }),
+  ]);
+
+  // Branch has no tracked materials at all — fall back to global costs.
+  if (
+    branchId &&
+    substrates.length === 0 &&
+    inks.length === 0 &&
+    units.length === 0
+  ) {
+    return getMaterialCostsForBranch(null);
+  }
+
+  const materialCosts = {};
+  substrates.forEach((s) => {
+    materialCosts[s.materialName] = s.costPerMeter;
+  });
+  inks.forEach((i) => {
+    materialCosts[i.colorChannel] = i.costPerMl;
+  });
+  units.forEach((u) => {
+    materialCosts[u.itemName] = u.costPerUnit;
+  });
+
+  return materialCosts;
+}
 const {
   logActivity,
   resolveUserDisplayName,
@@ -152,14 +203,14 @@ app.use(identifyActor(prisma));
 // AI CHATBOT API (Gemini)
 // =================================================
 app.post("/api/chat", async (req, res) => {
-  const { messages } = req.body;
+  const { messages, image } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ reply: "Invalid messages format." });
   }
 
   try {
-    const reply = await handleChat(messages);
+    const reply = await handleChat(messages, image);
     res.json({ reply });
   } catch (err) {
     console.error("Gemini API error:", err);
@@ -1317,30 +1368,9 @@ app.post("/api/orders", async (req, res) => {
     // branch tracks its own separate stock). Prices are meant to be the
     // same everywhere, but ordering deterministically (lowest cost wins
     // on a name collision) keeps this safe even if that ever drifts.
-    const [substratesForCheck, inksForCheck, unitsForCheck] = await Promise.all([
-      prisma.inventorySubstrate.findMany({
-        select: { materialName: true, costPerMeter: true },
-        orderBy: { costPerMeter: "asc" },
-      }),
-      prisma.inventoryInk.findMany({
-        select: { colorChannel: true, costPerMl: true },
-        orderBy: { costPerMl: "asc" },
-      }),
-      prisma.inventoryUnit.findMany({
-        select: { itemName: true, costPerUnit: true },
-        orderBy: { costPerUnit: "asc" },
-      }),
-    ]);
-    const materialCostsForCheck = {};
-    substratesForCheck.forEach((s) => {
-      materialCostsForCheck[s.materialName] = s.costPerMeter;
-    });
-    inksForCheck.forEach((i) => {
-      materialCostsForCheck[i.colorChannel] = i.costPerMl;
-    });
-    unitsForCheck.forEach((u) => {
-      materialCostsForCheck[u.itemName] = u.costPerUnit;
-    });
+    const materialCostsForCheck = await getMaterialCostsForBranch(
+      branchId ? parseInt(branchId) : null,
+    );
 
     for (const it of items) {
       const product = productMap.get(it.productId);
@@ -3701,7 +3731,7 @@ app.get("/api/products/:id", async (req, res) => {
 app.post("/api/products/:id/estimate-price", async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    const { customizations, quantity } = req.body || {};
+    const { customizations, quantity, branchId } = req.body || {};
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
@@ -3711,32 +3741,11 @@ app.post("/api/products/:id/estimate-price", async (req, res) => {
     }
 
     // Gather cost-per-unit for every material this product could touch,
-    // in one batch, so computeItemPrice never needs its own DB access.
-    const [substrates, inks, units] = await Promise.all([
-      prisma.inventorySubstrate.findMany({
-        select: { materialName: true, costPerMeter: true },
-        orderBy: { costPerMeter: "asc" },
-      }),
-      prisma.inventoryInk.findMany({
-        select: { colorChannel: true, costPerMl: true },
-        orderBy: { costPerMl: "asc" },
-      }),
-      prisma.inventoryUnit.findMany({
-        select: { itemName: true, costPerUnit: true },
-        orderBy: { costPerUnit: "asc" },
-      }),
-    ]);
-
-    const materialCosts = {};
-    substrates.forEach((s) => {
-      materialCosts[s.materialName] = s.costPerMeter;
-    });
-    inks.forEach((i) => {
-      materialCosts[i.colorChannel] = i.costPerMl;
-    });
-    units.forEach((u) => {
-      materialCosts[u.itemName] = u.costPerUnit;
-    });
+    // scoped to the selected branch when provided, so computeItemPrice
+    // never needs its own DB access.
+    const materialCosts = await getMaterialCostsForBranch(
+      branchId ? parseInt(branchId) : null,
+    );
 
     const result = computeItemPrice(
       product,
@@ -6537,7 +6546,8 @@ function setupChatWebSocket(wss) {
         // --- CUSTOMER SENDS MESSAGE ---
       if (data.type === "customer_message" && ws.userRole === "customer") {
         const body = String(data.body || "").trim();
-        if (!body) return;
+        const imageUrl = data.imageUrl ? String(data.imageUrl).trim() : null;
+        if (!body && !imageUrl) return;
 
         const priorMessageCount = await prisma.message.count({
           where: { conversationId: ws.conversationId },
@@ -6555,6 +6565,7 @@ function setupChatWebSocket(wss) {
             senderId: ws.userId,
             senderRole: "customer",
             body,
+            imageUrl,
           },
         });
 
@@ -6610,7 +6621,9 @@ function setupChatWebSocket(wss) {
             await createNotification({
               userId,
               title: `New message from ${ws.userName}`,
-              body: message.body.length > 80 ? message.body.slice(0, 80) + "…" : message.body,
+              body: message.body
+                ? (message.body.length > 80 ? message.body.slice(0, 80) + "…" : message.body)
+                : "📷 Sent an image",
               type: "support_chat",
               link: "/admin/supportInbox",
             });
@@ -6634,8 +6647,9 @@ function setupChatWebSocket(wss) {
       // --- STAFF SENDS MESSAGE ---
       if (data.type === "staff_message" && ws.userRole === "staff") {
         const body = String(data.body || "").trim();
+        const imageUrl = data.imageUrl ? String(data.imageUrl).trim() : null;
         const conversationId = parseInt(data.conversationId);
-        if (!body || !conversationId) return;
+        if ((!body && !imageUrl) || !conversationId) return;
 
         const message = await prisma.message.create({
           data: {
@@ -6643,6 +6657,7 @@ function setupChatWebSocket(wss) {
             senderId: ws.userId,
             senderRole: "staff",
             body,
+            imageUrl,
           },
         });
 

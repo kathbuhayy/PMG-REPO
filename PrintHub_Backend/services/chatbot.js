@@ -205,8 +205,20 @@ const formatGeminiMessages = (messages = []) => {
 
 
 // Processes message history and fetches a reply from Gemini or local catalog.
-async function handleChat(messages) {
+async function handleChat(messages, image) {
   const formattedMessages = formatGeminiMessages(messages);
+
+  if (image) {
+    const lastMessage = formattedMessages[formattedMessages.length - 1];
+    if (lastMessage && lastMessage.role === "user") {
+      lastMessage.parts.push({
+        inlineData: {
+          mimeType: "image/jpeg",
+          data: image,
+        },
+      });
+    }
+  }
 
   const SYSTEM_PROMPT =
     "You are PrintHub Assistant, a friendly and knowledgeable AI chatbot " +

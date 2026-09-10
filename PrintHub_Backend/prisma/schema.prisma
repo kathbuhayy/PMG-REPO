@@ -80,6 +80,7 @@ model Message {
   senderId       Int          @map("sender_id")
   senderRole     String       @map("sender_role")
   body           String
+  imageUrl       String?      @map("image_url")
   readAt         DateTime?    @map("read_at")
   createdAt      DateTime     @default(now()) @map("created_at")
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
