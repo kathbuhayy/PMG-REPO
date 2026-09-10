@@ -1,5 +1,4 @@
-// PrintHub_Mobile/screens/CustomizerWebViewScreen.js
-
+//customizerWebViewScreen.js
 import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
@@ -13,103 +12,32 @@ import {
 } from "react-native";
 import { WebView } from "react-native-webview";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
 import { WEB_APP_URL, API_BASE_URL } from "../config";
 
-/*
-|--------------------------------------------------------------------------
-| DESIGN TOOL MENU
-|--------------------------------------------------------------------------
-| Templates intentionally removed.
-|--------------------------------------------------------------------------
-*/
-
 const CUSTOMIZE_CATEGORIES = [
-  {
-    key: "COLORS",
-    label: "Colors",
-    description: "Change shirt color",
-    icon: "color-palette-outline",
-    target: "COLORS",
-  },
-  {
-    key: "TEXT",
-    label: "Text",
-    description: "Add and edit text",
-    icon: "text-outline",
-    target: "TEXT",
-  },
-  {
-    key: "GRAPHICS",
-    label: "Graphics & Shapes",
-    description: "Add icons, shapes, etc.",
-    icon: "shapes-outline",
-    target: "GRAPHICS",
-  },
-  {
-    key: "MORE",
-    label: "Uploads",
-    description: "Upload your own design",
-    icon: "cloud-upload-outline",
-    target: "GALLERY",
-  },
-  {
-    key: "AI",
-    label: "AI Design",
-    description: "Generate with AI",
-    icon: "sparkles-outline",
-    target: "AI",
-  },
-  {
-    key: "LAYERS",
-    label: "Layers",
-    description: "Manage design layers",
-    icon: "layers-outline",
-    target: "LAYERS_PANEL",
-  },
-  {
-    key: "MEASUREMENTS",
-    label: "Measurements",
-    description: "Print area & size guide",
-    icon: "resize-outline",
-    target: "SPECS",
-  },
-  {
-    key: "HELP",
-    label: "Help",
-    description: "Tips and guides",
-    icon: "help-circle-outline",
-    target: null,
-  },
+  { key: "COLORS", label: "Colors", icon: "🎨", target: "COLORS" },
+  { key: "SPECS", label: "Specs", icon: "📐", target: "SPECS" },
+  { key: "TEMPLATES", label: "Templates", icon: "🗂", target: "TEMPLATES" },
+  { key: "GRAPHICS", label: "Graphics & Shapes", icon: "✦", target: "GRAPHICS" },
+  { key: "TEXT", label: "Text", icon: "A", target: "TEXT" },
+  { key: "AI", label: "AI Design", icon: "✨", target: "AI" },
+  { key: "LAYERS", label: "Layers", icon: "▤", target: "LAYERS_PANEL" },
+  { key: "MORE", label: "Uploads", icon: "⋯", target: "GALLERY" },
 ];
 
 const SIDES = ["Front", "Back", "Left", "Right"];
 
-export default function CustomizerWebViewScreen({
-  route,
-  navigation,
-}) {
+export default function CustomizerWebViewScreen({ route, navigation }) {
   const { product, selectedOptions } = route.params || {};
   const productId = product?.id;
 
   const [userJson, setUserJson] = useState(null);
   const [designDirty, setDesignDirty] = useState(false);
-
-  // Native Design Tools drawer
   const [sheetOpen, setSheetOpen] = useState(false);
-
-  // Current native 2D / 3D mode
-  const [viewMode, setViewMode] = useState("2D");
-
+  const [activeCategory, setActiveCategory] = useState(null);
   const [activeSide, setActiveSide] = useState("Front");
 
   const webViewRef = useRef(null);
-
-  /*
-  |--------------------------------------------------------------------------
-  | LOAD LOCAL USER
-  |--------------------------------------------------------------------------
-  */
 
   useEffect(() => {
     getLocalUser();
@@ -129,11 +57,9 @@ export default function CustomizerWebViewScreen({
     }
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | BUILD WEB CUSTOMIZER URL
-  |--------------------------------------------------------------------------
-  */
+  // ---------------------------------------------------------
+  // BUILD URL
+  // ---------------------------------------------------------
 
   const queryParts = [
     "customizer=true",
@@ -181,33 +107,20 @@ export default function CustomizerWebViewScreen({
     `${WEB_APP_URL}/product/${productId}?` +
     queryParts.join("&");
 
-  /*
-  |--------------------------------------------------------------------------
-  | WEBVIEW SCRIPT HELPER
-  |--------------------------------------------------------------------------
-  */
+  // ---------------------------------------------------------
+  // DESIGN ACTIONS
+  // ---------------------------------------------------------
 
   const runWebViewScript = (script) => {
     if (!webViewRef.current) return;
 
     webViewRef.current.injectJavaScript(`
       (function() {
-        try {
-          ${script}
-        } catch (e) {
-          console.log("[PMG RN Bridge]", e);
-        }
+        ${script}
       })();
-
       true;
     `);
   };
-
-  /*
-  |--------------------------------------------------------------------------
-  | CLEAR ALL
-  |--------------------------------------------------------------------------
-  */
 
   const handleClearAll = () => {
     runWebViewScript(`
@@ -220,12 +133,6 @@ export default function CustomizerWebViewScreen({
       }
     `);
   };
-
-  /*
-  |--------------------------------------------------------------------------
-  | USE THIS DESIGN
-  |--------------------------------------------------------------------------
-  */
 
   const handleUseThisDesign = () => {
     if (!designDirty) return;
@@ -244,67 +151,19 @@ export default function CustomizerWebViewScreen({
     `);
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | CHANGE FRONT / BACK / LEFT / RIGHT
-  |--------------------------------------------------------------------------
-  */
-
   const handleSideChange = (side) => {
     setActiveSide(side);
 
     runWebViewScript(`
       if (window.__PMG_SET_VIEW__) {
-        window.__PMG_SET_VIEW__(
-          ${JSON.stringify(side.toLowerCase())}
-        );
+        window.__PMG_SET_VIEW__(${JSON.stringify(side.toLowerCase())});
       }
     `);
   };
-
-  /*
-  |--------------------------------------------------------------------------
-  | CHANGE 2D / 3D VIEW
-  |--------------------------------------------------------------------------
-  |
-  | IMPORTANT:
-  | We are NOT touching TshirtPreview3D.js.
-  |
-  | The existing web customizer already has its own mobile 2D/3D
-  | state. We simply trigger its existing button.
-  |--------------------------------------------------------------------------
-  */
-
-  
-
-  const handleViewModeChange = (mode) => {
-    setViewMode(mode);
-
-    runWebViewScript(`
-      if (window.__PMG_SET_MOBILE_VIEW__) {
-        window.__PMG_SET_MOBILE_VIEW__(
-          ${JSON.stringify(mode.toLowerCase())}
-        );
-      }
-    `);
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | OPEN DESIGN TOOL
-  |--------------------------------------------------------------------------
-  */
 
   const openCategory = (cat) => {
     setSheetOpen(false);
-
-    if (!cat.target) {
-      Alert.alert(
-        "Help",
-        "Use the design canvas to select, move, resize, and customize your design."
-      );
-      return;
-    }
+    setActiveCategory(cat.key);
 
     if (cat.target === "LAYERS_PANEL") {
       runWebViewScript(`
@@ -312,464 +171,205 @@ export default function CustomizerWebViewScreen({
           window.__PMG_OPEN_LAYERS__();
         }
       `);
-
       return;
     }
 
     runWebViewScript(`
       if (window.__PMG_OPEN_CATEGORY__) {
-        window.__PMG_OPEN_CATEGORY__(
-          ${JSON.stringify(cat.target)}
-        );
+        window.__PMG_OPEN_CATEGORY__(${JSON.stringify(cat.target)});
       }
     `);
   };
 
-  const [activeTool, setActiveTool] =
-  useState(null);
+  const closeActiveCategory = () => {
+    setActiveCategory(null);
 
-  /*
-  |--------------------------------------------------------------------------
-  | PRELOAD JAVASCRIPT
-  |--------------------------------------------------------------------------
-  */
+    runWebViewScript(`
+      if (window.__PMG_CLOSE_CATEGORY__) {
+        window.__PMG_CLOSE_CATEGORY__();
+      }
+    `);
+  };
+
+  // ---------------------------------------------------------
+  // PRELOAD
+  // ---------------------------------------------------------
 
   const injectedPreLoadJS = `
     (function() {
       try {
-        sessionStorage.setItem(
-          "pmg_splash_seen",
-          "true"
-        );
+        sessionStorage.setItem("pmg_splash_seen", "true");
 
         ${
           userJson
-            ? `localStorage.setItem(
-                "user",
-                JSON.stringify(${userJson})
-              );`
-            : `localStorage.setItem(
-                "user",
-                JSON.stringify({
-                  role: "guest"
-                })
-              );`
+            ? `localStorage.setItem("user", JSON.stringify(${userJson}));`
+            : `localStorage.setItem("user", JSON.stringify({ role: "guest" }));`
         }
       } catch (e) {
-        console.log(
-          "[PMG] preload error",
-          e
-        );
+        console.log("[PMG] preload error", e);
       }
     })();
-
     true;
   `;
 
-  /*
-  |--------------------------------------------------------------------------
-  | WEBVIEW JAVASCRIPT
-  |--------------------------------------------------------------------------
-  */
+  // ---------------------------------------------------------
+  // WEBVIEW JAVASCRIPT
+  // ---------------------------------------------------------
 
   const injectedPostLoadJS = `
     (function() {
 
-      /*
-      |--------------------------------------------------------------------------
-      | ERROR CAPTURE
-      |--------------------------------------------------------------------------
-      */
-
-      window.addEventListener(
-        "error",
-        function(e) {
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(
-              JSON.stringify({
-                type: "PMG_DEBUG_ERROR",
-                message: e.message,
-                source: e.filename,
-                line: e.lineno,
-              })
-            );
-          }
+      // --- error/network capture, sent back to RN console ---
+      window.addEventListener("error", function(e) {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: "PMG_DEBUG_ERROR",
+            message: e.message,
+            source: e.filename,
+            line: e.lineno,
+          }));
         }
-      );
+      });
 
-      window.addEventListener(
-        "unhandledrejection",
-        function(e) {
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(
-              JSON.stringify({
-                type: "PMG_DEBUG_ERROR",
-                message:
-                  "Unhandled rejection: " +
-                  (
-                    e.reason?.message ||
-                    e.reason
-                  ),
-              })
-            );
-          }
+      window.addEventListener("unhandledrejection", function(e) {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: "PMG_DEBUG_ERROR",
+            message: "Unhandled rejection: " + (e.reason?.message || e.reason),
+          }));
         }
-      );
-
-      /*
-      |--------------------------------------------------------------------------
-      | FETCH ERROR CAPTURE
-      |--------------------------------------------------------------------------
-      */
+      });
 
       var _origFetch = window.fetch;
-
       window.fetch = function() {
-        return _origFetch
-          .apply(this, arguments)
-          .catch(function(err) {
-
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(
-                JSON.stringify({
-                  type: "PMG_DEBUG_ERROR",
-                  message:
-                    "Fetch failed: " +
-                    arguments[0] +
-                    " — " +
-                    err.message,
-                })
-              );
-            }
-
-            throw err;
-          });
+        return _origFetch.apply(this, arguments).catch(function(err) {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: "PMG_DEBUG_ERROR",
+              message: "Fetch failed: " + arguments[0] + " — " + err.message,
+            }));
+          }
+          throw err;
+        });
       };
-
-      /*
-      |--------------------------------------------------------------------------
-      | STYLE ID
-      |--------------------------------------------------------------------------
-      */
-
-      var STYLE_ID =
-        "pmg-mobile-customizer-style";
-
-      /*
-      |--------------------------------------------------------------------------
-      | FIND ORIGINAL BUTTON
-      |--------------------------------------------------------------------------
-      */
+      var STYLE_ID = "pmg-mobile-customizer-style";
 
       function findRealButton(label) {
-        var wanted = String(label)
-          .toLowerCase()
-          .trim();
+        var wanted = String(label).toLowerCase().trim();
 
         var buttons = Array.from(
-          document.querySelectorAll(
-            ".tsc-root button, button"
-          )
+          document.querySelectorAll(".tsc-root button, button")
         );
 
-        return buttons.find(
-          function(button) {
-
-            var text =
-              (
-                button.innerText ||
-                button.textContent ||
-                ""
-              )
-                .replace(/\\s+/g, " ")
-                .trim()
-                .toLowerCase();
-
-            return (
-              text === wanted ||
-              text.indexOf(
-                wanted + " "
-              ) === 0 ||
-              text.indexOf(
-                " " + wanted + " "
-              ) !== -1 ||
-              text.indexOf(
-                wanted
-              ) !== -1
-            );
-          }
-        );
-      }
-
-      window.__PMG_FIND_BUTTON__ =
-        findRealButton;
-
-      /*
-      |--------------------------------------------------------------------------
-      | OPEN WEB CUSTOMIZER CATEGORY
-      |--------------------------------------------------------------------------
-      */
-
-      window.__PMG_OPEN_CATEGORY__ =
-        function(label) {
-
-          var button =
-            findRealButton(label);
-
-          if (button) {
-            button.click();
-
-            document.body.classList.add(
-              "pmg-tool-open"
-            );
-          }
-        };
-
-      /*
-      |--------------------------------------------------------------------------
-      | CLOSE CATEGORY
-      |--------------------------------------------------------------------------
-      */
-
-      window.__PMG_CLOSE_CATEGORY__ =
-        function() {
-          closePanel();
-        };
-
-      /*
-      |--------------------------------------------------------------------------
-      | OPEN LAYERS
-      |--------------------------------------------------------------------------
-      */
-
-      window.__PMG_OPEN_LAYERS__ =
-        function() {
-
-          document.body.classList.add(
-            "pmg-tool-open"
-          );
-
-          var scrollToBottom =
-            function() {
-
-              var container =
-                document.querySelector(
-                  ".tsc-left-docked, .tsc-sidebar"
-                );
-
-              if (container) {
-                container.scrollTo({
-                  top:
-                    container.scrollHeight,
-                  behavior:
-                    "smooth",
-                });
-              }
-            };
-
-          setTimeout(
-            scrollToBottom,
-            300
-          );
-
-          setTimeout(
-            scrollToBottom,
-            700
-          );
-        };
-
-      /*
-      |--------------------------------------------------------------------------
-      | MOBILE 2D / 3D VIEW BRIDGE
-      |--------------------------------------------------------------------------
-      |
-      | The actual mobileViewMode state belongs to
-      | TshirtCustomizerPanel.js.
-      |
-      | We only trigger the EXISTING control.
-      |
-      |--------------------------------------------------------------------------
-      */
-
-      window.__PMG_SET_MOBILE_VIEW__ =
-        function(mode) {
-
-          var wantedMode =
-            String(mode)
+        return buttons.find(function(button) {
+          var text =
+            (button.innerText ||
+              button.textContent ||
+              "")
+              .replace(/\\s+/g, " ")
+              .trim()
               .toLowerCase();
 
-          var currentModeButton =
-            wantedMode === "3d"
-              ? findRealButton("3D View")
-              : findRealButton("Edit");
+          return (
+            text === wanted ||
+            text.indexOf(wanted + " ") === 0 ||
+            text.indexOf(" " + wanted + " ") !== -1 ||
+            text.indexOf(wanted) !== -1
+          );
+        });
+      }
 
-          if (currentModeButton) {
-            currentModeButton.click();
-            return;
-          }
+      window.__PMG_FIND_BUTTON__ = findRealButton;
 
-          /*
-          | Fallback:
-          | The existing customizer's button can have slightly
-          | different text depending on its rendered state.
-          */
+      window.__PMG_OPEN_CATEGORY__ = function(label) {
+        var button = findRealButton(label);
 
-          var buttons =
-            Array.from(
-              document.querySelectorAll(
-                ".tsc-root button, button"
-              )
-            );
+        if (button) {
+          button.click();
+          document.body.classList.add("pmg-tool-open");
+          setDesignDirty(true);
+        }
+      };
 
-          if (wantedMode === "3d") {
+      window.__PMG_CLOSE_CATEGORY__ = function() {
+        closePanel();
+      };
 
-            var threeButton =
-              buttons.find(
-                function(button) {
+      // Layers has no tab button of its own - LayersPanel renders
+      // persistently under whichever tab is active - so this just
+      // reveals the sidebar and scrolls it into view instead of
+      // clicking anything.
+      window.__PMG_OPEN_LAYERS__ = function() {
+        document.body.classList.add("pmg-tool-open");
 
-                  var text =
-                    (
-                      button.innerText ||
-                      button.textContent ||
-                      ""
-                    )
-                      .replace(
-                        /\\s+/g,
-                        " "
-                      )
-                      .trim()
-                      .toLowerCase();
-
-                  return (
-                    text.indexOf(
-                      "3d view"
-                    ) !== -1
-                  );
-                }
-              );
-
-            if (threeButton) {
-              threeButton.click();
-            }
-
-          } else {
-
-            var editButton =
-              buttons.find(
-                function(button) {
-
-                  var text =
-                    (
-                      button.innerText ||
-                      button.textContent ||
-                      ""
-                    )
-                      .replace(
-                        /\\s+/g,
-                        " "
-                      )
-                      .trim()
-                      .toLowerCase();
-
-                  return (
-                    text === "edit" ||
-                    text.indexOf(
-                      "edit"
-                    ) === 0
-                  );
-                }
-              );
-
-            if (editButton) {
-              editButton.click();
-            }
+        var scrollToBottom = function() {
+          var container = document.querySelector(".tsc-left-docked, .tsc-sidebar");
+          if (container) {
+            container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
           }
         };
 
-      /*
-      |--------------------------------------------------------------------------
-      | DESIGN STATE
-      |--------------------------------------------------------------------------
-      */
+        // Two passes: once the sheet has finished sliding up, and again
+        // shortly after in case layer thumbnails are still loading and
+        // changing the sidebar's scrollHeight out from under the first scroll.
+        setTimeout(scrollToBottom, 300);
+        setTimeout(scrollToBottom, 700);
+      };
 
       var DESIGN_DIRTY = false;
-      var DESIGN_STATE_INITIALIZED =
-        false;
-
-      var DESIGN_CHANGE_LISTENER_READY =
-        false;
-
+      var DESIGN_STATE_INITIALIZED = false;
+      var DESIGN_CHANGE_LISTENER_READY = false;
       var LAST_SENT_DIRTY = null;
 
-      function reportDesignState() {
+      // -------------------------------------------------------
+      // DESIGN STATE
+      // -------------------------------------------------------
 
-        if (
-          LAST_SENT_DIRTY ===
-          DESIGN_DIRTY
-        ) {
+      function reportDesignState() {
+        if (LAST_SENT_DIRTY === DESIGN_DIRTY) {
           return;
         }
 
-        LAST_SENT_DIRTY =
-          DESIGN_DIRTY;
+        LAST_SENT_DIRTY = DESIGN_DIRTY;
 
-        if (
-          window.ReactNativeWebView
-        ) {
+        if (window.ReactNativeWebView) {
           window.ReactNativeWebView.postMessage(
             JSON.stringify({
-              type:
-                "DESIGN_STATE",
-              dirty:
-                DESIGN_DIRTY,
+              type: "DESIGN_STATE",
+              dirty: DESIGN_DIRTY,
             })
           );
         }
       }
 
-      function setDesignDirty(
-        isDirty
-      ) {
-        DESIGN_DIRTY =
-          !!isDirty;
-
-        reportDesignState();
-      }
-
       function detectInitialDesignState() {
-
-        if (
-          DESIGN_STATE_INITIALIZED
-        ) {
+        if (DESIGN_STATE_INITIALIZED) {
           return;
         }
 
         var clearButton =
-          findRealButton(
-            "Clear All"
-          );
+          findRealButton("Clear All");
 
         if (!clearButton) {
           return;
         }
 
-        DESIGN_DIRTY =
-          false;
-
-        DESIGN_STATE_INITIALIZED =
-          true;
+        DESIGN_DIRTY = false;
+        DESIGN_STATE_INITIALIZED = true;
 
         reportDesignState();
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | FIND ORIGINAL TOOLBAR
-      |--------------------------------------------------------------------------
-      */
+      function setDesignDirty(isDirty) {
+        DESIGN_DIRTY = !!isDirty;
+        reportDesignState();
+      }
+
+      // -------------------------------------------------------
+      // FIND ORIGINAL TOOLBAR
+      // -------------------------------------------------------
 
       function findOriginalToolbar() {
-
         var labels = [
           "SPECS",
           "COLORS",
@@ -778,71 +378,52 @@ export default function CustomizerWebViewScreen({
           "TEXT",
         ];
 
-        var buttons =
-          labels
-            .map(function(label) {
-              return {
-                label:
-                  label,
-                button:
-                  findRealButton(
-                    label
-                  ),
-              };
-            })
-            .filter(
-              function(item) {
-                return !!item.button;
-              }
-            );
+        var buttons = labels
+          .map(function(label) {
+            return {
+              label: label,
+              button: findRealButton(label),
+            };
+          })
+          .filter(function(item) {
+            return item.button;
+          });
 
-        if (
-          buttons.length === 0
-        ) {
+        if (buttons.length === 0) {
           return null;
         }
 
         var parent =
-          buttons[0]
-            .button
-            .parentElement;
+          buttons[0].button.parentElement;
 
         var depth = 0;
 
         while (
           parent &&
-          parent !==
-            document.body &&
+          parent !== document.body &&
           depth < 8
         ) {
-
           var containsAll =
-            buttons.every(
-              function(item) {
-                return parent.contains(
-                  item.button
-                );
-              }
-            );
+            buttons.every(function(item) {
+              return parent.contains(
+                item.button
+              );
+            });
 
           if (containsAll) {
-
             var rect =
               parent.getBoundingClientRect();
 
             if (
               rect.height < 150 ||
               rect.width >
-                window.innerWidth *
-                  0.6
+                window.innerWidth * 0.6
             ) {
               return parent;
             }
           }
 
-          parent =
-            parent.parentElement;
-
+          parent = parent.parentElement;
           depth++;
         }
 
@@ -850,7 +431,6 @@ export default function CustomizerWebViewScreen({
       }
 
       function hideOriginalToolbar() {
-
         var toolbar =
           findOriginalToolbar();
 
@@ -870,43 +450,31 @@ export default function CustomizerWebViewScreen({
         );
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | HIDE WEB PAGE EXTRA WHITE HEADER
-      |--------------------------------------------------------------------------
-      */
+      // -------------------------------------------------------
+      // REMOVE EXTRA WHITE NAVIGATION
+      // -------------------------------------------------------
 
       function hideExtraWhiteNavigation() {
+        var elements = Array.from(
+          document.querySelectorAll("body *")
+        );
 
-        var elements =
-          Array.from(
-            document.querySelectorAll(
-              "body *"
-            )
-          );
+        var title = elements.find(
+          function(element) {
+            var text =
+              (
+                element.innerText ||
+                element.textContent ||
+                ""
+              )
+                .replace(/\\s+/g, " ")
+                .trim();
 
-        var title =
-          elements.find(
-            function(element) {
-
-              var text =
-                (
-                  element.innerText ||
-                  element.textContent ||
-                  ""
-                )
-                  .replace(
-                    /\\s+/g,
-                    " "
-                  )
-                  .trim();
-
-              return (
-                text ===
-                "Design Customizer"
-              );
-            }
-          );
+            return (
+              text === "Design Customizer"
+            );
+          }
+        );
 
         if (!title) {
           return;
@@ -919,11 +487,9 @@ export default function CustomizerWebViewScreen({
           depth < 7;
           depth++
         ) {
-
           if (
             !element ||
-            element ===
-              document.body
+            element === document.body
           ) {
             return;
           }
@@ -956,13 +522,11 @@ export default function CustomizerWebViewScreen({
 
           if (
             rect.width >=
-              window.innerWidth *
-                0.8 &&
+              window.innerWidth * 0.8 &&
             rect.height >= 50 &&
             rect.height <= 220 &&
             isWhiteBackground
           ) {
-
             element.setAttribute(
               "data-pmg-extra-white-navigation",
               "hidden"
@@ -982,18 +546,13 @@ export default function CustomizerWebViewScreen({
         }
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | HIDE ORIGINAL WEB DESIGN ACTIONS
-      |--------------------------------------------------------------------------
-      */
+      // -------------------------------------------------------
+      // HIDE ORIGINAL DESIGN ACTIONS
+      // -------------------------------------------------------
 
       function hideOriginalDesignActions() {
-
         var clearButton =
-          findRealButton(
-            "Clear All"
-          );
+          findRealButton("Clear All");
 
         var useButton =
           findRealButton(
@@ -1019,11 +578,9 @@ export default function CustomizerWebViewScreen({
 
         while (
           parent &&
-          parent !==
-            document.body &&
+          parent !== document.body &&
           depth < 8
         ) {
-
           var containsAll =
             buttons.every(
               function(button) {
@@ -1034,17 +591,13 @@ export default function CustomizerWebViewScreen({
             );
 
           if (containsAll) {
-
             var text =
               (
                 parent.innerText ||
                 parent.textContent ||
                 ""
               )
-                .replace(
-                  /\\s+/g,
-                  " "
-                )
+                .replace(/\\s+/g, " ")
                 .trim()
                 .toLowerCase();
 
@@ -1056,7 +609,6 @@ export default function CustomizerWebViewScreen({
                 "use this design"
               ) !== -1
             ) {
-
               parent.setAttribute(
                 "data-pmg-original-design-actions",
                 "hidden"
@@ -1078,15 +630,11 @@ export default function CustomizerWebViewScreen({
           depth++;
         }
       }
-
-      /*
-      |--------------------------------------------------------------------------
-      | DESIGN CHANGE DETECTION
-      |--------------------------------------------------------------------------
-      */
+      // -------------------------------------------------------
+      // DESIGN CHANGE DETECTION
+      // -------------------------------------------------------
 
       function setupDesignChangeDetection() {
-
         if (
           DESIGN_CHANGE_LISTENER_READY
         ) {
@@ -1096,14 +644,9 @@ export default function CustomizerWebViewScreen({
         DESIGN_CHANGE_LISTENER_READY =
           true;
 
-        /*
-        | Text inputs, selects, colors, etc.
-        */
-
         document.addEventListener(
           "input",
           function(event) {
-
             if (
               event.target &&
               event.target.matches(
@@ -1121,7 +664,6 @@ export default function CustomizerWebViewScreen({
         document.addEventListener(
           "change",
           function(event) {
-
             if (
               event.target &&
               event.target.matches(
@@ -1136,14 +678,9 @@ export default function CustomizerWebViewScreen({
           true
         );
 
-        /*
-        | Buttons and editor interactions.
-        */
-
         document.addEventListener(
           "click",
           function(event) {
-
             var target =
               event.target;
 
@@ -1161,10 +698,6 @@ export default function CustomizerWebViewScreen({
                 "Use This Design"
               );
 
-            /*
-            | Clear All resets the dirty state.
-            */
-
             if (
               clearButton &&
               (
@@ -1175,7 +708,6 @@ export default function CustomizerWebViewScreen({
                 )
               )
             ) {
-
               setTimeout(
                 function() {
                   setDesignDirty(
@@ -1187,11 +719,6 @@ export default function CustomizerWebViewScreen({
 
               return;
             }
-
-            /*
-            | Use This Design itself does not make
-            | the design dirty.
-            */
 
             if (
               useButton &&
@@ -1206,13 +733,7 @@ export default function CustomizerWebViewScreen({
               return;
             }
 
-            /*
-            | Any interaction with the sidebar
-            | means the design may have changed.
-            */
-
             var sidebar =
-              target.closest &&
               target.closest(
                 ".tsc-left-docked, .tsc-sidebar"
               );
@@ -1223,18 +744,12 @@ export default function CustomizerWebViewScreen({
               );
             }
 
-            /*
-            | Other interactive controls.
-            */
-
             var interactive =
-              target.closest &&
               target.closest(
                 "button, [role='button'], [contenteditable='true'], input, textarea, select"
               );
 
             if (interactive) {
-
               var interactiveText =
                 (
                   interactive.innerText ||
@@ -1277,14 +792,9 @@ export default function CustomizerWebViewScreen({
               }
             }
 
-            /*
-            | Canvas interaction.
-            */
-
             var previewArea =
-              target.closest &&
               target.closest(
-                ".tsc-center-placeholders, .tsc-right-preview, .tsc-preview-panel, .tsc-preview-3d, canvas"
+                ".tsc-right-preview, .tsc-preview-panel, .tsc-preview-3d, canvas"
               );
 
             if (previewArea) {
@@ -1296,21 +806,15 @@ export default function CustomizerWebViewScreen({
           true
         );
 
-        /*
-        | Drag / resize / rotate on Fabric canvas.
-        */
-
         [
           "pointerdown",
           "touchstart",
           "mousedown",
         ].forEach(
           function(eventName) {
-
             document.addEventListener(
               eventName,
               function(event) {
-
                 var target =
                   event.target;
 
@@ -1318,14 +822,14 @@ export default function CustomizerWebViewScreen({
                   return;
                 }
 
-                var editorArea =
+                var previewArea =
                   target.closest &&
                   target.closest(
-                    ".tsc-center-placeholders, .tsc-right-preview, .tsc-preview-panel, .tsc-preview-3d, canvas"
+                    ".tsc-right-preview, .tsc-preview-panel, .tsc-preview-3d, canvas"
                   );
 
                 if (
-                  editorArea
+                  previewArea
                 ) {
                   setDesignDirty(
                     true
@@ -1338,14 +842,11 @@ export default function CustomizerWebViewScreen({
         );
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | MOBILE STYLES
-      |--------------------------------------------------------------------------
-      */
+      // -------------------------------------------------------
+      // STYLES
+      // -------------------------------------------------------
 
       function applyStyles() {
-
         if (
           !document.head ||
           !document.body
@@ -1359,7 +860,6 @@ export default function CustomizerWebViewScreen({
           );
 
         if (!style) {
-
           style =
             document.createElement(
               "style"
@@ -1373,488 +873,227 @@ export default function CustomizerWebViewScreen({
           );
         }
 
-        style.innerHTML = \`
+        style.innerHTML =
 
-          /*
-          |--------------------------------------------------------------------------
-          | FULL PAGE
-          |--------------------------------------------------------------------------
-          */
+          // FULL PAGE
+          "html,body,#root,.pd-page,.po-page,.pd-customizer-page-wrapper,.pd-customizer-page-body {" +
+          "margin:0 !important;" +
+          "padding:0 !important;" +
+          "width:100% !important;" +
+          "max-width:100vw !important;" +
+          "height:100% !important;" +
+          "min-height:100% !important;" +
+          "background:#1d2333 !important;" +
+          "overflow:hidden !important;" +
+          "}" +
 
-          html,
-          body,
-          #root,
-          .pd-page,
-          .po-page,
-          .pd-customizer-page-wrapper,
-          .pd-customizer-page-body {
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            max-width: 100vw !important;
-            height: 100% !important;
-            min-height: 100% !important;
-            background: #ffffff !important;
-            overflow: hidden !important;
-          }
+          // CUSTOMIZER ROOT
+          ".tsc-root {" +
+          "position:relative !important;" +
+          "width:100% !important;" +
+          "max-width:100vw !important;" +
+          "height:100% !important;" +
+          "min-height:100% !important;" +
+          "margin:0 !important;" +
+          "padding:0 !important;" +
+          "background:#1d2333 !important;" +
+          "overflow:hidden !important;" +
+          "}" +
 
-          /*
-          |--------------------------------------------------------------------------
-          | CUSTOMIZER ROOT
-          |--------------------------------------------------------------------------
-          */
+          // MAIN LAYOUT
+          ".tsc-3col-layout,.tsc-4col-layout {" +
+          "position:relative !important;" +
+          "display:flex !important;" +
+          "flex-direction:column !important;" +
+          "width:100% !important;" +
+          "max-width:100vw !important;" +
+          "height:100% !important;" +
+          "min-height:100% !important;" +
+          "margin:0 !important;" +
+          "padding:0 !important;" +
+          "background:#1d2333 !important;" +
+          "overflow:hidden !important;" +
+          "}" +
 
-          .tsc-root {
-            position: relative !important;
-            width: 100% !important;
-            max-width: 100vw !important;
-            height: 100% !important;
-            min-height: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-            overflow: hidden !important;
-          }
+          // 3D PREVIEW
+          ".tsc-right-preview {" +
+          "position:relative !important;" +
+          "width:100% !important;" +
+          "height:100% !important;" +
+          "flex:1 1 auto !important;" +
+          "margin:0 !important;" +
+          "padding:0 !important;" +
+          "background:#1d2333 !important;" +
+          "border:none !important;" +
+          "display:flex !important;" +
+          "flex-direction:column !important;" +
+          "align-items:stretch !important;" +
+          "justify-content:flex-start !important;" +
+          "overflow:hidden !important;" +
+          "z-index:1 !important;" +
+          "pointer-events:auto !important;" +
+          "}" +
 
-          /*
-          |--------------------------------------------------------------------------
-          | MAIN LAYOUT
-          |--------------------------------------------------------------------------
-          */
+          ".tsc-right-preview .tsc-preview-panel {" +
+          "height:100% !important;" +
+          "min-height:0 !important;" +
+          "flex:1 1 auto !important;" +
+          "}" +
 
-          .tsc-3col-layout,
-          .tsc-4col-layout {
-            position: relative !important;
-            display: flex !important;
-            flex-direction: column !important;
-            width: 100% !important;
-            max-width: 100vw !important;
-            height: 100% !important;
-            min-height: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-            overflow: hidden !important;
-          }
+          ".tsc-right-preview .tsc-preview-3d {" +
+          "height:100% !important;" +
+          "min-height:0 !important;" +
+          "max-height:none !important;" +
+          "flex:1 1 auto !important;" +
+          "}" +
 
-          /*
-          |--------------------------------------------------------------------------
-          | EXISTING WHITE 2D EDITOR
-          |--------------------------------------------------------------------------
-          |
-          | IMPORTANT:
-          | Do not recreate the Fabric editor.
-          |
-          | This keeps the existing FabricZoneCanvas exactly as the
-          | editor surface and only gives it the available mobile area.
-          |--------------------------------------------------------------------------
-          */
+          ".tsc-preview-panel {" +
+          "width:100% !important;" +
+          "height:100% !important;" +
+          "min-height:100% !important;" +
+          "margin:0 !important;" +
+          "padding:0 !important;" +
+          "background:#1d2333 !important;" +
+          "border:none !important;" +
+          "display:flex !important;" +
+          "align-items:center !important;" +
+          "justify-content:center !important;" +
+          "overflow:hidden !important;" +
+          "pointer-events:auto !important;" +
+          "}" +
 
-          .tsc-center-placeholders {
-            position: relative !important;
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 0 !important;
-            flex: 1 1 auto !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background: #ffffff !important;
-            overflow: hidden !important;
-            box-sizing: border-box !important;
-            padding: 0 !important;
-          }
+          ".tsc-preview-3d {" +
+          "width:100% !important;" +
+          "height:100% !important;" +
+          "min-height:100% !important;" +
+          "margin:0 !important;" +
+          "padding:0 !important;" +
+          "background:#1d2333 !important;" +
+          "border:none !important;" +
+          "box-shadow:none !important;" +
+          "display:flex !important;" +
+          "align-items:center !important;" +
+          "justify-content:center !important;" +
+          "overflow:hidden !important;" +
+          "pointer-events:auto !important;" +
+          "}" +
 
-          .tsc-center-placeholders
-          .tsc-zone-stage {
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background: #ffffff !important;
-            overflow: hidden !important;
-          }
+          // HIDDEN NODES
+          '[data-pmg-original-toolbar="hidden"] {' +
+          "display:none !important;" +
+          "}" +
 
-          .tsc-center-placeholders
-          .tsc-zone-wrapper {
-            width: 100% !important;
-            height: 100% !important;
-            max-width: none !important;
-            background: #ffffff !important;
-            overflow: hidden !important;
-          }
+          '[data-pmg-original-design-actions="hidden"] {' +
+          "display:none !important;" +
+          "}" +
 
-          /*
-          | Keep the actual Fabric canvas untouched.
-          */
+          '[data-pmg-extra-white-navigation="hidden"] {' +
+          "display:none !important;" +
+          "}" +
 
-          .tsc-center-placeholders canvas {
-            max-width: 100% !important;
-            max-height: 100% !important;
-          }
+          // ---------------------------------------------------
+          // ORIGINAL SIDEBAR
+          // ---------------------------------------------------
 
-          /*
-          |--------------------------------------------------------------------------
-          | HIDE DESKTOP TOOLBAR
-          |--------------------------------------------------------------------------
-          */
+          ".tsc-left-docked,.tsc-sidebar {" +
+          "position:fixed !important;" +
+          "top:auto !important;" +
+          "left:0 !important;" +
+          "right:0 !important;" +
+          "bottom:0 !important;" +
+          "width:100% !important;" +
+          "max-width:100% !important;" +
+          "max-height:78% !important;" +
+          "background:#1d2333 !important;" +
+          "border-radius:20px 20px 0 0 !important;" +
+          "padding:14px 16px 20px !important;" +
+          "overflow-y:auto !important;" +
+          "overflow-x:hidden !important;" +
+          "-webkit-overflow-scrolling:touch !important;" +
+          "z-index:99998 !important;" +
+          "pointer-events:none !important;" +
+          "opacity:0 !important;" +
+          "visibility:hidden !important;" +
+          "transform:translateY(24px) !important;" +
+          "transition:transform 0.25s ease,opacity 0.25s ease,visibility 0.25s !important;" +
+          "box-shadow:0 -8px 30px rgba(0,0,0,0.45) !important;" +
+          "border:1px solid rgba(255,255,255,0.08) !important;" +
+          "border-bottom:none !important;" +
+          "box-sizing:border-box !important;" +
+          "}" +
 
-          [data-pmg-original-toolbar="hidden"] {
-            display: none !important;
-          }
+          "body.pmg-tool-open .tsc-left-docked,body.pmg-tool-open .tsc-sidebar {" +
+          "pointer-events:auto !important;" +
+          "opacity:1 !important;" +
+          "visibility:visible !important;" +
+          "transform:translateY(0) !important;" +
+          "}" +
 
-          /*
-          |--------------------------------------------------------------------------
-          | HIDE ORIGINAL BOTTOM ACTIONS
-          |--------------------------------------------------------------------------
-          */
+          ".tsc-left-docked::before,.tsc-sidebar::before {" +
+          "content:'' !important;" +
+          "display:block !important;" +
+          "width:36px !important;" +
+          "height:4px !important;" +
+          "border-radius:4px !important;" +
+          "background:rgba(255,255,255,0.25) !important;" +
+          "margin:0 auto 12px !important;" +
+          "}" +
 
-          [data-pmg-original-design-actions="hidden"] {
-            display: none !important;
-          }
+          ".tsc-sidebar-section {" +
+          "border-radius:14px !important;" +
+          "}" +
 
-          /*
-          |--------------------------------------------------------------------------
-          | HIDE EXTRA WEB NAVIGATION
-          |--------------------------------------------------------------------------
-          */
+          ".tsc-left-docked *,.tsc-sidebar * {" +
+          "pointer-events:auto !important;" +
+          "}" +
 
-          [data-pmg-extra-white-navigation="hidden"] {
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: hidden !important;
-}
+          ".tsc-right-preview {" +
+          "cursor:pointer !important;" +
+          "}" +
 
-          /*
-          |--------------------------------------------------------------------------
-          | ORIGINAL WEB SIDEBAR
-          |--------------------------------------------------------------------------
-          |
-          | This remains the real design-tool panel.
-          | Native mobile menu simply opens it.
-          |--------------------------------------------------------------------------
-          */
+          ".tsc-root button,.tsc-root input,.tsc-root select,.tsc-root textarea,.tsc-root label,.tsc-root [role='button'] {" +
+          "pointer-events:auto !important;" +
+          "}" +
 
-          .tsc-left-docked,
-          .tsc-sidebar {
-            position: fixed !important;
-            top: auto !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            max-height: 78% !important;
+          // ---------------------------------------------------
+          // HIDE CHATBOT
+          // ---------------------------------------------------
 
-            background: #ffffff !important;
+          ".phc-fab,.phc-window,.chatbot-container,.chatbot-toggle-btn,.ph-chatbot-fab,.chatbot-wrapper,#printhub-chatbot-root,.printhub-chatbot-btn {" +
+          "display:none !important;" +
+          "}" +
 
-            border-radius:
-              24px 24px 0 0 !important;
+          // ---------------------------------------------------
+          // REMOVE SCROLLBARS
+          // ---------------------------------------------------
 
-            padding:
-              16px 16px 24px !important;
+          "*::-webkit-scrollbar {" +
+          "display:none !important;" +
+          "width:0 !important;" +
+          "height:0 !important;" +
+          "}" +
 
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-
-            -webkit-overflow-scrolling:
-              touch !important;
-
-            z-index: 99998 !important;
-
-            pointer-events: none !important;
-
-            opacity: 0 !important;
-            visibility: hidden !important;
-
-            transform:
-              translateY(30px) !important;
-
-            transition:
-              transform .25s ease,
-              opacity .25s ease,
-              visibility .25s !important;
-
-            box-shadow:
-              0 -10px 35px
-              rgba(0,0,0,.20) !important;
-
-            border:
-              1px solid #edf1ef !important;
-
-            border-bottom: none !important;
-
-            box-sizing:
-              border-box !important;
-          }
-
-          body.pmg-tool-open
-          .tsc-left-docked,
-
-          body.pmg-tool-open
-          .tsc-sidebar {
-            pointer-events: auto !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-            transform: translateY(0) !important;
-          }
-
-          /*
-          |--------------------------------------------------------------------------
-          | SIDEBAR HANDLE
-          |--------------------------------------------------------------------------
-          */
-
-          .tsc-left-docked::before,
-          .tsc-sidebar::before {
-            content: "" !important;
-
-            display: block !important;
-
-            width: 38px !important;
-            height: 4px !important;
-
-            border-radius: 5px !important;
-
-            background: #d7e2dd !important;
-
-            margin:
-              0 auto 14px !important;
-          }
-
-          /*
-          |--------------------------------------------------------------------------
-          | SIDEBAR CONTENT
-          |--------------------------------------------------------------------------
-          */
-
-          .tsc-sidebar-section {
-            border-radius: 16px !important;
-          }
-
-          .tsc-left-docked *,
-          .tsc-sidebar * {
-            pointer-events: auto !important;
-          }
-
-          /*
-          |--------------------------------------------------------------------------
-          | BUTTONS / INPUTS
-          |--------------------------------------------------------------------------
-          */
-
-          .tsc-root button,
-          .tsc-root input,
-          .tsc-root select,
-          .tsc-root textarea,
-          .tsc-root label,
-          .tsc-root [role="button"] {
-            pointer-events: auto !important;
-          }
-
-          /*
-          |--------------------------------------------------------------------------
-          | CHATBOT
-          |--------------------------------------------------------------------------
-          */
-
-          .phc-fab,
-          .phc-window,
-          .chatbot-container,
-          .chatbot-toggle-btn,
-          .ph-chatbot-fab,
-          .chatbot-wrapper,
-          #printhub-chatbot-root,
-          .printhub-chatbot-btn {
-            display: none !important;
-          }
-
-          /*
-          |--------------------------------------------------------------------------
-          | REMOVE SCROLLBARS
-          |--------------------------------------------------------------------------
-          */
-
-          *::-webkit-scrollbar {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-          }
-
-          * {
-            scrollbar-width: none !important;
-            -ms-overflow-style: none !important;
-          }
-
-          /*
-          |--------------------------------------------------------------------------
-          | EXISTING 3D PREVIEW
-          |--------------------------------------------------------------------------
-          |
-          | No 3D implementation is changed.
-          | These are only layout rules.
-          |--------------------------------------------------------------------------
-          */
-
-          .tsc-right-preview {
-            position: relative !important;
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 0 !important;
-            flex: 1 1 auto !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #1d2333 !important;
-            border: none !important;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: stretch !important;
-            justify-content: flex-start !important;
-            overflow: hidden !important;
-            z-index: 1 !important;
-            pointer-events: auto !important;
-          }
-
-          .tsc-right-preview
-          .tsc-preview-panel {
-            height: 100% !important;
-            min-height: 0 !important;
-            flex: 1 1 auto !important;
-          }
-
-          .tsc-right-preview
-          .tsc-preview-3d {
-            height: 100% !important;
-            min-height: 0 !important;
-            max-height: none !important;
-            flex: 1 1 auto !important;
-          }
-
-          .tsc-preview-panel {
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #1d2333 !important;
-            border: none !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            overflow: hidden !important;
-            pointer-events: auto !important;
-          }
-
-          .tsc-preview-3d {
-            width: 100% !important;
-            height: 100% !important;
-            min-height: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #1d2333 !important;
-            border: none !important;
-            box-shadow: none !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            overflow: hidden !important;
-            pointer-events: auto !important;
-          }
-        \`;
+          "* {" +
+          "scrollbar-width:none !important;" +
+          "-ms-overflow-style:none !important;" +
+          "}";
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | CLOSE WEB TOOL PANEL
-      |--------------------------------------------------------------------------
-      */
+      // -------------------------------------------------------
+      // CLOSE PANEL
+      // -------------------------------------------------------
 
-function closePanel() {
-  document.body.classList.remove(
-    "pmg-tool-open"
-  );
+      function closePanel() {
+        document.body.classList.remove(
+          "pmg-tool-open"
+        );
+      }
 
-  var closeLabels = [
-    "Close",
-    "Cancel",
-    "Done",
-    "Back"
-  ];
-
-  var buttons = Array.from(
-    document.querySelectorAll(
-      ".tsc-root button, button, [role='button']"
-    )
-  );
-
-  for (
-    var i = 0;
-    i < closeLabels.length;
-    i++
-  ) {
-    var wanted =
-      closeLabels[i].toLowerCase();
-
-    var closeButton =
-      buttons.find(
-        function(button) {
-          var text =
-            (
-              button.innerText ||
-              button.textContent ||
-              button.getAttribute("aria-label") ||
-              ""
-            )
-              .replace(/\s+/g, " ")
-              .trim()
-              .toLowerCase();
-
-          return (
-            text === wanted ||
-            text.indexOf(
-              wanted
-            ) === 0
-          );
-        }
-      );
-
-    if (closeButton) {
-      closeButton.click();
-
-      setTimeout(
-        function() {
-          document.body.classList.remove(
-            "pmg-tool-open"
-          );
-        },
-        100
-      );
-
-      return;
-    }
-  }
-
-  document.body.classList.remove(
-    "pmg-tool-open"
-  );
-}
-
-      /*
-      |--------------------------------------------------------------------------
-      | CLOSE TOOL PANEL WHEN CLICKING 3D BACKGROUND
-      |--------------------------------------------------------------------------
-      */
+      // -------------------------------------------------------
+      // CLOSE ON BACKGROUND
+      // -------------------------------------------------------
 
       function addCloseOnBackgroundClick() {
-
         var preview =
           document.querySelector(
             ".tsc-right-preview"
@@ -1867,7 +1106,6 @@ function closePanel() {
         preview.addEventListener(
           "click",
           function(e) {
-
             if (
               !document.body.classList.contains(
                 "pmg-tool-open"
@@ -1877,7 +1115,8 @@ function closePanel() {
             }
 
             if (
-              e.target === preview ||
+              e.target ===
+                preview ||
               e.target.classList.contains(
                 "tsc-preview-panel"
               )
@@ -1888,36 +1127,21 @@ function closePanel() {
         );
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | INITIALIZE
-      |--------------------------------------------------------------------------
-      */
+      // -------------------------------------------------------
+      // INITIALIZE
+      // -------------------------------------------------------
 
       function initialize() {
-
         hideOriginalToolbar();
-
         hideExtraWhiteNavigation();
-
         hideOriginalDesignActions();
-
         applyStyles();
-
         addCloseOnBackgroundClick();
-
         setupDesignChangeDetection();
-
         detectInitialDesignState();
       }
 
       initialize();
-
-      /*
-      |--------------------------------------------------------------------------
-      | RE-INITIALIZE AFTER WEB CUSTOMIZER LOAD
-      |--------------------------------------------------------------------------
-      */
 
       [
         300,
@@ -1927,7 +1151,6 @@ function closePanel() {
         3000,
       ].forEach(
         function(delay) {
-
           setTimeout(
             initialize,
             delay
@@ -1935,30 +1158,22 @@ function closePanel() {
         }
       );
 
-      /*
-      |--------------------------------------------------------------------------
-      | MUTATION OBSERVER
-      |--------------------------------------------------------------------------
-      */
+      // -------------------------------------------------------
+      // MUTATION OBSERVER
+      // -------------------------------------------------------
 
       var observer =
         new MutationObserver(
           function() {
-
             hideOriginalToolbar();
-
             hideExtraWhiteNavigation();
-
             hideOriginalDesignActions();
-
             applyStyles();
-
             detectInitialDesignState();
           }
         );
 
       if (document.body) {
-
         observer.observe(
           document.body,
           {
@@ -1978,280 +1193,136 @@ function closePanel() {
     true;
   `;
 
-  /*
-  |--------------------------------------------------------------------------
-  | WEBVIEW MESSAGE HANDLER
-  |--------------------------------------------------------------------------
-  */
+  // ---------------------------------------------------------
+  // WEBVIEW MESSAGE
+  // ---------------------------------------------------------
 
   const handleWebViewMessage = (event) => {
     try {
-      const data = JSON.parse(
-        event.nativeEvent.data
-      );
+      const data = JSON.parse(event.nativeEvent.data);
 
-      /*
-      | Design changed / cleared.
-      */
-
-      if (
-        data.type ===
-        "DESIGN_STATE"
-      ) {
-        setDesignDirty(
-          !!data.dirty
-        );
+      if (data.type === "DESIGN_STATE") {
+        setDesignDirty(!!data.dirty);
 
         return;
       }
 
-      /*
-      | Debug errors.
-      */
-
-      if (
-        data.type ===
-        "PMG_DEBUG_ERROR"
-      ) {
-        console.log(
-          "[PMG_DEBUG_ERROR]",
-          data.message,
-          data.source,
-          data.line
-        );
-
+      if (data.type === "PMG_DEBUG_ERROR") {
+        console.log("[PMG_DEBUG_ERROR]", data.message, data.source, data.line);
         return;
       }
 
       if (data.type === "DESIGN_COMPLETED") {
-        // The customizer's only job is to produce the design. Actually
-        // adding to the cart — with price, qty, and every other selected
-        // option — happens back on ProductDetail via the normal
-        // "Add to Cart" flow, the same one used for non-customized orders.
-        const completedDesign = data.design || data.payload || data;
-
-        navigation.navigate("ProductDetail", {
-          product,
-          completedDesign,
-        });
-
-        return;
+        Alert.alert("Success", "Added to cart with custom options!", [
+          {
+            text: "OK",
+            onPress: () =>
+              navigation.navigate("Main", {
+                screen: "CartTab",
+              }),
+          },
+        ]);
       }
-
     } catch (err) {
-
-      console.error(
-        "[handleWebViewMessage] {ParseEvent}: " +
-          err.message
-      );
+      console.error("[handleWebViewMessage] {ParseEvent}: " + err.message);
     }
   };
 
-  /*
-  |--------------------------------------------------------------------------
-  | RENDER
-  |--------------------------------------------------------------------------
-  */
+  // ---------------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------------
 
   return (
     <SafeAreaView
       style={styles.safeArea}
     >
-
       <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#ffffff"
+        barStyle="light-content"
+        backgroundColor="#071323"
       />
 
-      {/* =====================================================
-          HEADER
-          ===================================================== */}
-
       <View style={styles.header}>
-
-        {/* BACK */}
-
         <TouchableOpacity
-          onPress={() =>
-            navigation.goBack()
-          }
-          style={
-            styles.headerIconButton
-          }
-          activeOpacity={0.7}
+          onPress={() => navigation.goBack()}
+          style={styles.headerIconButton}
         >
-          <Ionicons
-            name="arrow-back"
-            size={29}
-            color="#173d34"
-          />
+          <Text style={styles.headerIconText}>←</Text>
         </TouchableOpacity>
 
-        {/* TITLE */}
-
-        <View
-          style={
-            styles.headerTitleContainer
-          }
-        >
-          <Text
-            style={
-              styles.headerTitle
-            }
-          >
-            T-Shirt Customizer
-          </Text>
-
-          <Text
-            style={
-              styles.headerSubtitle
-            }
-          >
-            Design Your Own T-shirt
-          </Text>
-        </View>
-
-        {/* MENU */}
+        <Text style={styles.headerTitle}>Customize</Text>
 
         <TouchableOpacity
-          onPress={() =>
-            setSheetOpen(true)
-          }
-          style={
-            styles.menuButton
-          }
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="menu"
-            size={29}
-            color="#173d34"
-          />
-        </TouchableOpacity>
-
-      </View>
-
-      {/* =====================================================
-          2D / 3D SWITCHER
-          ===================================================== */}
-
-      <View
-        style={
-          styles.viewSwitcher
-        }
-      >
-
-        <TouchableOpacity
-          style={[
-            styles.viewOption,
-            viewMode === "2D" &&
-              styles.viewOptionActive,
-          ]}
-          onPress={() =>
-            handleViewModeChange(
-              "2D"
-            )
-          }
-          activeOpacity={0.85}
+          onPress={handleUseThisDesign}
+          disabled={!designDirty}
+          style={styles.headerIconButton}
         >
           <Text
             style={[
-              styles.viewOptionText,
-              viewMode === "2D" &&
-                styles.viewOptionTextActive,
+              styles.headerCheckText,
+              !designDirty && styles.headerCheckTextDisabled,
             ]}
           >
-            2D Editor
+            ✓
           </Text>
         </TouchableOpacity>
+      </View>
 
+      <View style={styles.clearRow}>
         <TouchableOpacity
-          style={[
-            styles.viewOption,
-            viewMode === "3D" &&
-              styles.viewOptionActive,
-          ]}
-          onPress={() =>
-            handleViewModeChange(
-              "3D"
-            )
-          }
-          activeOpacity={0.85}
+          onPress={handleClearAll}
+          disabled={!designDirty}
+          style={styles.clearChip}
         >
           <Text
             style={[
-              styles.viewOptionText,
-              viewMode === "3D" &&
-                styles.viewOptionTextActive,
+              styles.clearChipText,
+              !designDirty && styles.clearChipTextDisabled,
             ]}
           >
-            3D Preview
+            Clear All
           </Text>
         </TouchableOpacity>
-
       </View>
-
-      {/* =====================================================
-          EXISTING WEB EDITOR
-          ===================================================== */}
 
       <View
         style={
           styles.webviewContainer
         }
       >
-
         <WebView
           ref={webViewRef}
-
           source={{
             uri: targetUrl,
           }}
-
           injectedJavaScriptBeforeContentLoaded={
             injectedPreLoadJS
           }
-
           injectedJavaScript={
             injectedPostLoadJS
           }
-
           onMessage={
             handleWebViewMessage
           }
-
-          style={
-            styles.webview
-          }
-
+          style={styles.webview}
           javaScriptEnabled={true}
-
           domStorageEnabled={true}
-
           originWhitelist={[
             "*",
           ]}
-
           mixedContentMode="always"
-
           allowFileAccess={true}
-
           allowUniversalAccessFromFileURLs={
             true
           }
-
           showsVerticalScrollIndicator={
             false
           }
-
           showsHorizontalScrollIndicator={
             false
           }
-
           onError={(
             syntheticEvent
           ) => {
-
             const {
               nativeEvent,
             } =
@@ -2263,828 +1334,304 @@ function closePanel() {
             );
           }}
         />
-
       </View>
 
-      {/* =====================================================
-          FRONT / BACK / LEFT / RIGHT
-          ===================================================== */}
-
-      <View
-        style={
-          styles.sideTabsRow
-        }
-      >
-
-        {SIDES.map(
-          (side) => (
-
-            <TouchableOpacity
-              key={side}
-              onPress={() =>
-                handleSideChange(
-                  side
-                )
-              }
-              style={[
-                styles.sideTab,
-                activeSide ===
-                  side &&
-                  styles.sideTabActive,
-              ]}
-              activeOpacity={0.8}
-            >
-
-              <Text
-                style={[
-                  styles.sideTabText,
-                  activeSide ===
-                    side &&
-                    styles.sideTabTextActive,
-                ]}
-              >
-                {side}
-              </Text>
-
-            </TouchableOpacity>
-
-          )
-        )}
-
-      </View>
-
-      {/* =====================================================
-          USE THIS DESIGN
-          ===================================================== */}
-
-      <View
-        style={
-          styles.bottomBar
-        }
-      >
-
-        <TouchableOpacity
-          style={[
-            styles.useDesignButton,
-            !designDirty &&
-              styles.useDesignButtonDisabled,
-          ]}
-          onPress={
-            handleUseThisDesign
-          }
-          disabled={
-            !designDirty
-          }
-          activeOpacity={0.85}
-        >
-
-          <Ionicons
-            name="cart-outline"
-            size={27}
-            color="#ffffff"
-          />
-
-          <Text
-            style={
-              styles.useDesignButtonText
-            }
+      <View style={styles.sideTabsRow}>
+        {SIDES.map((side) => (
+          <TouchableOpacity
+            key={side}
+            onPress={() => handleSideChange(side)}
+            style={[
+              styles.sideTab,
+              activeSide === side && styles.sideTabActive,
+            ]}
           >
-            Use This Design
-          </Text>
-
-        </TouchableOpacity>
-
+            <Text
+              style={[
+                styles.sideTabText,
+                activeSide === side && styles.sideTabTextActive,
+              ]}
+            >
+              {side}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* =====================================================
-          DESIGN TOOLS DRAWER
-          ===================================================== */}
+      <View style={styles.bottomBar}>
+        {activeCategory ? (
+          <TouchableOpacity
+            style={styles.customizeButtonActive}
+            onPress={closeActiveCategory}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.customizeButtonText}>
+              ✕ Close{" "}
+              {
+                CUSTOMIZE_CATEGORIES.find(
+                  (c) => c.key === activeCategory
+                )?.label
+              }
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.customizeButton}
+            onPress={() => setSheetOpen(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.customizeButtonText}>☰ Customize</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       <Modal
         visible={sheetOpen}
-        transparent={true}
+        transparent
         animationType="slide"
-        onRequestClose={() =>
-          setSheetOpen(false)
-        }
+        onRequestClose={() => setSheetOpen(false)}
       >
+        <TouchableOpacity
+          style={styles.sheetBackdrop}
+          activeOpacity={1}
+          onPress={() => setSheetOpen(false)}
+        />
 
-        <View
-          style={
-            styles.drawerOverlay
-          }
-        >
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Customize</Text>
 
-          {/* BACKDROP */}
-
-          <TouchableOpacity
-            style={
-              styles.drawerBackdrop
-            }
-            activeOpacity={1}
-            onPress={() =>
-              setSheetOpen(false)
-            }
-          />
-
-          {/* DRAWER */}
-
-          <View
-            style={
-              styles.drawer
-            }
-          >
-
-            {/* HEADER */}
-
-            <View
-              style={
-                styles.drawerHeader
-              }
-            >
-
-              <View>
-                <Text
-                  style={
-                    styles.drawerTitle
-                  }
-                >
-                  Design Tools
-                </Text>
-
-                <Text
-                  style={
-                    styles.drawerSubtitle
-                  }
-                >
-                  Create. Customize. Print.
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={() =>
-                  setSheetOpen(false)
-                }
-                style={
-                  styles.drawerClose
-                }
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="close"
-                  size={31}
-                  color="#173d34"
-                />
-              </TouchableOpacity>
-
-            </View>
-
-            {/* TOOL LIST */}
-
-            <View
-              style={
-                styles.drawerItems
-              }
-            >
-
-              {CUSTOMIZE_CATEGORIES.map(
-                (cat) => (
-
-                  <TouchableOpacity
-                    key={cat.key}
-                    style={
-                      styles.drawerItem
-                    }
-                    activeOpacity={0.82}
-                    onPress={() =>
-                      openCategory(
-                        cat
-                      )
-                    }
-                  >
-
-                    {/* ICON */}
-
-                    <View
-                      style={
-                        styles.drawerIconCircle
-                      }
-                    >
-
-                      <Ionicons
-                        name={
-                          cat.icon
-                        }
-                        size={25}
-                        color="#173d34"
-                      />
-
-                    </View>
-
-                    {/* TEXT */}
-
-                    <View
-                      style={
-                        styles.drawerItemText
-                      }
-                    >
-
-                      <Text
-                        style={
-                          styles.drawerItemTitle
-                        }
-                      >
-                        {cat.label}
-                      </Text>
-
-                      <Text
-                        style={
-                          styles.drawerItemDescription
-                        }
-                      >
-                        {
-                          cat.description
-                        }
-                      </Text>
-
-                    </View>
-
-                    {/* ARROW */}
-
-                    <Ionicons
-                      name="chevron-forward"
-                      size={21}
-                      color="#7b8782"
-                    />
-
-                  </TouchableOpacity>
-
-                )
-              )}
-
-            </View>
-
+            <TouchableOpacity onPress={() => setSheetOpen(false)}>
+              <Text style={styles.sheetClose}>✕</Text>
+            </TouchableOpacity>
           </View>
 
+          <View style={styles.sheetGrid}>
+            {CUSTOMIZE_CATEGORIES.map((cat) => (
+              <TouchableOpacity
+                key={cat.key}
+                style={styles.sheetItem}
+                onPress={() => openCategory(cat)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.sheetItemIcon}>{cat.icon}</Text>
+                <Text style={styles.sheetItemLabel}>{cat.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-
       </Modal>
-
     </SafeAreaView>
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| STYLES
-|--------------------------------------------------------------------------
-*/
+// ---------------------------------------------------------
+// STYLES
+// ---------------------------------------------------------
 
 const styles =
   StyleSheet.create({
-
-    /*
-    |--------------------------------------------------------------------------
-    | SCREEN
-    |--------------------------------------------------------------------------
-    */
-
     safeArea: {
       flex: 1,
       backgroundColor:
-        "#ffffff",
+        "#1e2434",
     },
 
-    /*
-    |--------------------------------------------------------------------------
-    | HEADER
-    |--------------------------------------------------------------------------
-    */
-
-header: {
-  height: 78,
-
-  backgroundColor:
-    "#ffffff",
-
-  flexDirection:
-    "row",
-
-  alignItems:
-    "center",
-
-  justifyContent:
-    "space-between",
-
-  paddingHorizontal:
-    14,
-
-  borderBottomWidth:
-    1,
-
-  borderBottomColor:
-    "#edf1ef",
-},
+    header: {
+      backgroundColor: "#1e2434",
+      height: 52,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: "rgba(255,255,255,0.06)",
+    },
 
     headerIconButton: {
-      width: 44,
-      height: 44,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
+      width: 36,
+      height: 36,
+      alignItems: "center",
+      justifyContent: "center",
     },
 
-    headerTitleContainer: {
-      flex: 1,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
+    headerIconText: {
+      color: "#dbe7f4",
+      fontSize: 20,
+      fontWeight: "600",
     },
 
     headerTitle: {
-      color:
-        "#173d34",
-
-      fontSize:
-        21,
-
-      fontWeight:
-        "800",
-
-      letterSpacing:
-        -0.3,
+      color: "#ffffff",
+      fontSize: 15,
+      fontWeight: "700",
     },
 
-    headerSubtitle: {
-      marginTop:
-        2,
-
-      color:
-        "#89958f",
-
-      fontSize:
-        12,
-
-      fontWeight:
-        "500",
+    headerCheckText: {
+      color: "#10b981",
+      fontSize: 20,
+      fontWeight: "800",
     },
 
-    menuButton: {
-      width: 48,
-      height: 48,
-
-      borderRadius:
-        24,
-
-      backgroundColor:
-        "#edf7f2",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
+    headerCheckTextDisabled: {
+      color: "#4a5568",
     },
 
-    /*
-    |--------------------------------------------------------------------------
-    | 2D / 3D SWITCHER
-    |--------------------------------------------------------------------------
-    */
-
-    viewSwitcher: {
-      alignSelf:
-        "center",
-
-      width:
-        "76%",
-
-      height:
-        50,
-
-      marginTop:
-        12,
-
-      marginBottom:
-        8,
-
-      padding:
-        4,
-
-      borderRadius:
-        26,
-
-      backgroundColor:
-        "#eaf1ed",
-
-      flexDirection:
-        "row",
+    clearRow: {
+      backgroundColor: "#1e2434",
+      paddingHorizontal: 12,
+      paddingBottom: 8,
+      alignItems: "flex-start",
     },
 
-    viewOption: {
+    clearChip: {
+      height: 30,
+      paddingHorizontal: 12,
+      borderRadius: 60,
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.12)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    clearChipText: {
+      color: "#dbe7f4",
+      fontSize: 12,
+      fontWeight: "600",
+    },
+
+    clearChipTextDisabled: {
+      color: "#5b6472",
+    },
+
+    sideTabsRow: {
+      backgroundColor: "#1e2434",
+      flexDirection: "row",
+      justifyContent: "center",
+      paddingVertical: 8,
+      gap: 8,
+    },
+
+    sideTab: {
+      minWidth: 64,
+      height: 32,
+      paddingHorizontal: 14,
+      borderRadius: 60,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    sideTabActive: {
+      backgroundColor: "#10b981",
+    },
+
+    sideTabText: {
+      color: "#9aa7b8",
+      fontSize: 12,
+      fontWeight: "600",
+    },
+
+    sideTabTextActive: {
+      color: "#ffffff",
+    },
+
+    bottomBar: {
+      backgroundColor: "#1e2434",
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+
+    customizeButton: {
+      height: 46,
+      borderRadius: 60,
+      backgroundColor: "#10b981",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    customizeButtonActive: {
+      height: 46,
+      borderRadius: 60,
+      backgroundColor: "#3a4557",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    customizeButtonText: {
+      color: "#ffffff",
+      fontSize: 14,
+      fontWeight: "700",
+    },
+
+    sheetBackdrop: {
       flex: 1,
-
-      borderRadius:
-        22,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
+      backgroundColor: "rgba(0,0,0,0.5)",
     },
 
-    viewOptionActive: {
-      backgroundColor:
-        "#164f3f",
+    sheet: {
+      backgroundColor: "#1e2434",
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingHorizontal: 16,
+      paddingTop: 14,
+      paddingBottom: 28,
     },
 
-    viewOptionText: {
-      color:
-        "#173d34",
-
-      fontSize:
-        14,
-
-      fontWeight:
-        "600",
+    sheetHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 14,
     },
 
-    viewOptionTextActive: {
-      color:
-        "#ffffff",
-
-      fontWeight:
-        "700",
+    sheetTitle: {
+      color: "#ffffff",
+      fontSize: 16,
+      fontWeight: "700",
     },
 
-    /*
-    |--------------------------------------------------------------------------
-    | WEBVIEW
-    |--------------------------------------------------------------------------
-    */
+    sheetClose: {
+      color: "#9aa7b8",
+      fontSize: 18,
+      fontWeight: "700",
+    },
+
+    sheetGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+    },
+
+    sheetItem: {
+      width: "48%",
+      height: 72,
+      borderRadius: 14,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+    },
+
+    sheetItemIcon: {
+      fontSize: 20,
+    },
+
+    sheetItemLabel: {
+      color: "#dbe7f4",
+      fontSize: 12,
+      fontWeight: "600",
+    },
 
     webviewContainer: {
       flex: 1,
-
       backgroundColor:
-        "#ffffff",
-
-      marginHorizontal:
-        12,
-
-      marginTop:
-        3,
-
-      borderRadius:
-        20,
-
-      overflow:
-        "hidden",
+        "#1d2333",
     },
 
     webview: {
       flex: 1,
-
       backgroundColor:
-        "#ffffff",
-    },
-
-    /*
-    |--------------------------------------------------------------------------
-    | FRONT / BACK / LEFT / RIGHT
-    |--------------------------------------------------------------------------
-    */
-
-    sideTabsRow: {
-      backgroundColor:
-        "#ffffff",
-
-      flexDirection:
-        "row",
-
-      justifyContent:
-        "space-between",
-
-      paddingHorizontal:
-        14,
-
-      paddingTop:
-        10,
-
-      paddingBottom:
-        8,
-
-      gap:
-        7,
-    },
-
-    sideTab: {
-      flex: 1,
-
-      height:
-        50,
-
-      borderRadius:
-        15,
-
-      backgroundColor:
-        "#f4f7f5",
-
-      borderWidth:
-        1,
-
-      borderColor:
-        "#e3ebe7",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    sideTabActive: {
-      backgroundColor:
-        "#dff2e9",
-
-      borderColor:
-        "#1e604e",
-    },
-
-    sideTabText: {
-      color:
-        "#7c8783",
-
-      fontSize:
-        12,
-
-      fontWeight:
-        "600",
-    },
-
-    sideTabTextActive: {
-      color:
-        "#173d34",
-
-      fontWeight:
-        "700",
-    },
-
-    /*
-    |--------------------------------------------------------------------------
-    | BOTTOM USE DESIGN
-    |--------------------------------------------------------------------------
-    */
-
-    bottomBar: {
-      backgroundColor:
-        "#ffffff",
-
-      paddingHorizontal:
-        14,
-
-      paddingTop:
-        3,
-
-      paddingBottom:
-        12,
-    },
-
-    useDesignButton: {
-      height:
-        58,
-
-      borderRadius:
-        18,
-
-      backgroundColor:
-        "#1f604d",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        10,
-    },
-
-    useDesignButtonDisabled: {
-      opacity:
-        0.55,
-    },
-
-    useDesignButtonText: {
-      color:
-        "#ffffff",
-
-      fontSize:
-        16,
-
-      fontWeight:
-        "800",
-    },
-
-    /*
-    |--------------------------------------------------------------------------
-    | DESIGN TOOLS DRAWER
-    |--------------------------------------------------------------------------
-    */
-
-    drawerOverlay: {
-      flex: 1,
-
-      flexDirection:
-        "row",
-
-      backgroundColor:
-        "transparent",
-    },
-
-    drawerBackdrop: {
-      flex: 1,
-
-      backgroundColor:
-        "rgba(0,0,0,0.42)",
-    },
-
-    drawer: {
-      width:
-        "82%",
-
-      height:
-        "100%",
-
-      backgroundColor:
-        "#ffffff",
-
-      paddingTop:
-        52,
-
-      paddingHorizontal:
-        18,
-
-      paddingBottom:
-        24,
-
-      shadowColor:
-        "#000000",
-
-      shadowOffset: {
-        width:
-          -4,
-        height:
-          0,
-      },
-
-      shadowOpacity:
-        0.18,
-
-      shadowRadius:
-        18,
-
-      elevation:
-        20,
-    },
-
-    drawerHeader: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-start",
-
-      justifyContent:
-        "space-between",
-
-      marginBottom:
-        22,
-    },
-
-    drawerTitle: {
-      color:
-        "#173d34",
-
-      fontSize:
-        26,
-
-      fontWeight:
-        "800",
-    },
-
-    drawerSubtitle: {
-      color:
-        "#7d8985",
-
-      fontSize:
-        14,
-
-      marginTop:
-        5,
-    },
-
-    drawerClose: {
-      width:
-        42,
-
-      height:
-        42,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    drawerItems: {
-      gap:
-        10,
-    },
-
-    drawerItem: {
-      minHeight:
-        76,
-
-      borderRadius:
-        18,
-
-      backgroundColor:
-        "#fafcfb",
-
-      borderWidth:
-        1,
-
-      borderColor:
-        "#edf2ef",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      paddingHorizontal:
-        12,
-    },
-
-    drawerIconCircle: {
-      width:
-        48,
-
-      height:
-        48,
-
-      borderRadius:
-        24,
-
-      backgroundColor:
-        "#e9f5ef",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      marginRight:
-        12,
-    },
-
-    drawerItemText: {
-      flex: 1,
-    },
-
-    drawerItemTitle: {
-      color:
-        "#17201d",
-
-      fontSize:
-        15,
-
-      fontWeight:
-        "800",
-    },
-
-    drawerItemDescription: {
-      color:
-        "#7d8985",
-
-      fontSize:
-        12,
-
-      marginTop:
-        3,
+        "#1d2333",
     },
   });
