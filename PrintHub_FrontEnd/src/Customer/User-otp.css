@@ -1,316 +1,558 @@
-.user-otp-container {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(340px, 480px);
-  align-items: center;
-  justify-content: center;
-  gap: 44px;
-  font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(200, 162, 74, 0.18), transparent 30%),
-    linear-gradient(135deg, #343d5c 0%, #4d587c 58%, #f8f4e8 58%, #fffdf8 100%);
-  padding: 72px 32px 40px;
-  position: relative;
-}
+/* =========================================================
+   PMG OTP SCREENS (registration + forgot password)
+   Matches the Login / Registration look:
+   dark green background, lime accent, centered card, PMG logo
+   ========================================================= */
 
-.otp-back-button {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  background-color: rgba(255, 253, 248, 0.88);
-  color: #343d5c;
-  border: 1px solid rgba(77, 88, 124, 0.24);
-  padding: 10px 16px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-
-.otp-back-button:hover {
-  background: #fffdf8;
-  transform: translateX(-2px);
-}
-
-.otp-brand-panel {
-  color: #fffdf8;
-  max-width: 520px;
-}
-
-.otp-brand-mark {
-  width: 68px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(255, 253, 248, 0.38);
-  border-left: 4px solid #c8a24a;
-  border-radius: 8px;
-  color: #fffdf8;
-  font-weight: 800;
-  letter-spacing: 0;
-  margin-bottom: 22px;
-  background: rgba(255, 253, 248, 0.1);
-}
-
-.otp-brand-panel h1 {
-  font-size: clamp(34px, 4vw, 56px);
-  line-height: 1.03;
-  margin: 0 0 16px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.otp-brand-panel p {
-  margin: 0;
-  max-width: 430px;
-  color: rgba(255, 253, 248, 0.82);
-  font-size: 16px;
-  line-height: 1.7;
-}
-
-.otp-progress-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 28px;
-  max-width: 360px;
-}
-
-.otp-progress-list span {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(255, 253, 248, 0.22);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: rgba(255, 253, 248, 0.92);
-  background: rgba(31, 40, 56, 0.22);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.otp-progress-list svg {
-  color: #c8a24a;
-  flex: 0 0 auto;
-}
-
-.otp-card {
-  background: rgba(255, 253, 248, 0.96);
-  border-radius: 12px;
-  border: 1px solid rgba(77, 88, 124, 0.14);
-  border-top: 4px solid #c8a24a;
-  box-shadow: 0 24px 60px rgba(31, 40, 56, 0.2);
-  width: 100%;
-  padding: 38px;
-  animation: otpSlideIn 0.35s ease-out;
-}
-
-@keyframes otpSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(-16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.otp-icon {
-  width: 58px;
-  height: 58px;
-  display: grid;
-  place-items: center;
-  margin: 0 auto 18px;
-  border-radius: 12px;
-  color: #343d5c;
-  background: linear-gradient(180deg, rgba(200, 162, 74, 0.22), rgba(77, 88, 124, 0.1));
-  border: 1px solid rgba(200, 162, 74, 0.32);
-  font-size: 24px;
-}
-
-.otp-header {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.otp-header h2 {
-  font-size: 28px;
-  color: #343d5c;
-  margin: 0 0 10px;
-  font-weight: 700;
-}
-
-.otp-header p {
-  font-size: 14px;
-  color: #697184;
-  line-height: 1.6;
-  margin: 0;
-}
-
-.otp-header strong {
-  color: #1f2838;
-  overflow-wrap: anywhere;
-}
-
-.otp-label {
-  display: block;
-  color: #1f2838;
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.otp-input,
-.otp-button {
-  width: 100%;
-  height: 52px;
-  font-size: 16px;
-  border-radius: 6px;
+.user-otp-container,
+.user-otp-container * {
   box-sizing: border-box;
 }
 
-.otp-input {
-  border: 1px solid #ded7c7;
-  background: #fff;
-  text-align: center;
-  letter-spacing: 10px;
-  margin-bottom: 16px;
-  padding: 0 10px 0 20px;
-  color: #1f2838;
-  font-weight: 700;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+/* ---------- Main container ---------- */
+.user-otp-container {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-family: "Poppins", sans-serif;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(102, 255, 0, 0.08), transparent 25%),
+    radial-gradient(circle at 85% 80%, rgba(0, 255, 150, 0.06), transparent 28%),
+    linear-gradient(135deg, #020b07 0%, #03150e 42%, #061c13 72%, #020b07 100%);
 }
 
-.otp-input::placeholder {
-  color: #b8b0a0;
+/* dot pattern */
+.user-otp-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.28;
+  background-image: radial-gradient(rgba(150, 255, 0, 0.32) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(90deg, black, transparent 75%);
+  mask-image: linear-gradient(90deg, black, transparent 75%);
 }
 
-.otp-input:focus {
-  outline: none;
-  border-color: #4d587c;
-  box-shadow: 0 0 0 4px rgba(77, 88, 124, 0.12);
+/* diagonal light streaks */
+.user-otp-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, transparent 0%, rgba(157, 255, 0, 0.035) 45%, transparent 46%),
+    linear-gradient(300deg, transparent 0%, rgba(157, 255, 0, 0.025) 48%, transparent 49%);
 }
 
-.otp-button {
-  background: linear-gradient(135deg, #343d5c 0%, #4d587c 100%);
-  color: white;
-  border: none;
+/* ---------- Decorations ---------- */
+.user-otp-container .otp-decoration {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.7;
+  z-index: 0;
+}
+
+.user-otp-container .otp-decoration-one {
+  width: 280px;
+  height: 120px;
+  top: -40px;
+  left: -45px;
+  transform: rotate(-18deg);
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(157, 255, 0, 0.18) 0 8px,
+    transparent 8px 17px
+  );
+  clip-path: polygon(0 25%, 100% 0, 85% 45%, 100% 70%, 12% 100%);
+}
+
+.user-otp-container .otp-decoration-two {
+  width: 310px;
+  height: 130px;
+  right: -80px;
+  bottom: -40px;
+  transform: rotate(-18deg);
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(157, 255, 0, 0.15) 0 9px,
+    transparent 9px 19px
+  );
+  clip-path: polygon(0 30%, 88% 0, 100% 40%, 70% 100%, 0 80%);
+}
+
+.user-otp-container .otp-dots {
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  pointer-events: none;
+  opacity: 0.42;
+  background-image: radial-gradient(circle, #9dff00 1.5px, transparent 1.6px);
+  background-size: 15px 15px;
+  -webkit-mask-image: radial-gradient(circle, black 0%, transparent 72%);
+  mask-image: radial-gradient(circle, black 0%, transparent 72%);
+}
+
+.user-otp-container .otp-dots-one {
+  top: 4%;
+  right: 3%;
+}
+
+.user-otp-container .otp-dots-two {
+  bottom: 5%;
+  left: 2%;
+}
+
+/* ---------- Back button ---------- */
+.user-otp-container .otp-back-button {
+  position: absolute;
+  top: 28px;
+  left: 30px;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 175px;
+  height: 58px;
+  padding: 0 32px;
+  border: 1px solid rgba(157, 255, 0, 0.15);
+  border-radius: 999px;
+  background: rgba(5, 27, 18, 0.8);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 21px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
-  box-shadow: inset 0 -2px 0 rgba(200, 162, 74, 0.28);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  transition: transform 0.25s ease, border-color 0.25s ease,
+    background 0.25s ease, color 0.25s ease;
 }
 
-.otp-button:hover:not(:disabled) {
-  box-shadow: 0 12px 24px rgba(52, 61, 92, 0.24);
-  transform: translateY(-2px);
+.user-otp-container .otp-back-button span {
+  font-size: 26px;
+  line-height: 1;
+  transition: transform 0.25s ease;
 }
 
-.otp-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
+.user-otp-container .otp-back-button:hover {
+  transform: translateX(-3px);
+  border-color: rgba(157, 255, 0, 0.45);
+  background: rgba(157, 255, 0, 0.1);
+  color: #9dff00;
 }
 
-.otp-button:active {
-  transform: translateY(0);
+.user-otp-container .otp-back-button:hover span {
+  transform: translateX(-3px);
 }
 
-.otp-error {
-  background-color: #f8d7da;
-  color: #721c24;
-  padding: 12px 16px;
-  border-radius: 6px;
-  margin-bottom: 18px;
-  border-left: 4px solid #c21111;
+.user-otp-container .otp-back-button:focus-visible,
+.user-otp-container .otp-button:focus-visible,
+.user-otp-container .otp-resend-button:focus-visible {
+  outline: 2px solid #9dff00;
+  outline-offset: 3px;
+}
+
+/* ---------- Page layout ---------- */
+.user-otp-container .otp-page {
+  position: relative;
+  z-index: 5;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px 30px;
+}
+
+.user-otp-container .otp-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 15px;
+  flex-shrink: 0;
+}
+
+.user-otp-container .otp-brand-logo {
+  width: 175px;
+  height: auto;
+  max-height: 70px;
+  object-fit: contain;
+  display: block;
+}
+
+/* ---------- Card ---------- */
+.user-otp-container .otp-card {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  padding: 34px 40px 28px;
+  border: 1px solid rgba(157, 255, 0, 0.13);
+  border-radius: 25px;
+  background: linear-gradient(
+    145deg,
+    rgba(12, 40, 27, 0.96),
+    rgba(4, 22, 15, 0.97)
+  );
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  overflow: hidden;
+  animation: otpCardIn 0.55s ease both;
+}
+
+.user-otp-container .otp-card-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #9dff00 25%, #9dff00 75%, transparent);
+}
+
+@keyframes otpCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---------- Header ---------- */
+.user-otp-container .otp-header {
+  margin-bottom: 20px;
+}
+
+.user-otp-container .otp-eyebrow {
+  margin-bottom: 9px;
+  color: #9dff00;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.user-otp-container .otp-header h1 {
+  margin: 0 0 7px;
+  color: #ffffff;
+  font-size: 36px;
+  line-height: 1.04;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.user-otp-container .otp-header h1 span {
+  color: #9dff00;
+}
+
+.user-otp-container .otp-header p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.52);
   font-size: 14px;
+  line-height: 1.5;
+}
+
+.user-otp-container .otp-header strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Steps ---------- */
+.user-otp-container .otp-progress-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.user-otp-container .otp-progress-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid rgba(157, 255, 0, 0.14);
+  border-radius: 999px;
+  background: rgba(157, 255, 0, 0.05);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
   font-weight: 600;
 }
 
-.otp-help-strip {
+.user-otp-container .otp-progress-list svg {
+  flex: 0 0 auto;
+  color: #9dff00;
+  font-size: 11px;
+}
+
+/* ---------- Messages ---------- */
+.user-otp-container .otp-error,
+.user-otp-container .otp-success-message {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 15px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.user-otp-container .otp-error {
+  border: 1px solid rgba(255, 80, 80, 0.2);
+  background: rgba(160, 25, 25, 0.13);
+  color: #ff9d9d;
+}
+
+.user-otp-container .otp-success-message {
+  border: 1px solid rgba(157, 255, 0, 0.22);
+  background: rgba(157, 255, 0, 0.08);
+  color: #c9ff7a;
+}
+
+.user-otp-container .otp-message-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 80, 80, 0.16);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.user-otp-container .otp-success-message .otp-message-icon {
+  background: rgba(157, 255, 0, 0.18);
+}
+
+/* ---------- Form ---------- */
+.user-otp-container .otp-form-group {
+  margin-bottom: 15px;
+}
+
+.user-otp-container .otp-label {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.user-otp-container .otp-input {
+  width: 100%;
+  height: 56px;
+  padding: 0 0 0 0.5em; /* offsets the trailing letter-spacing so digits stay centered */
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 10px;
+  outline: none;
+  background: #ffffff;
+  color: #26332d;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.5em;
+  text-align: center;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease,
+    transform 0.22s ease;
+}
+
+.user-otp-container .otp-input::placeholder {
+  color: #c3c8c5;
+  opacity: 1;
+}
+
+.user-otp-container .otp-input:focus {
+  border-color: #9dff00;
+  box-shadow:
+    0 0 0 3px rgba(157, 255, 0, 0.12),
+    0 8px 25px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+.user-otp-container .otp-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------- Primary button ---------- */
+.user-otp-container .otp-button {
+  width: 100%;
+  height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 44px;
-  margin-top: 16px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(200, 162, 74, 0.12);
-  color: #4d587c;
+  border: none;
+  border-radius: 11px;
+  background: #9dff00;
+  color: #06120c;
+  font-family: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 13px 30px rgba(157, 255, 0, 0.12);
+  transition: transform 0.22s ease, box-shadow 0.22s ease,
+    background 0.22s ease;
 }
 
-.otp-help-strip svg {
-  color: #c8a24a;
+.user-otp-container .otp-button-arrow {
+  font-size: 17px;
+  transition: transform 0.22s ease;
 }
 
-.otp-footer {
+.user-otp-container .otp-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: #a8ff1a;
+  box-shadow: 0 17px 38px rgba(157, 255, 0, 0.2);
+}
+
+.user-otp-container .otp-button:hover:not(:disabled) .otp-button-arrow {
+  transform: translateX(4px);
+}
+
+.user-otp-container .otp-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.user-otp-container .otp-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ---------- Help + footer ---------- */
+.user-otp-container .otp-help-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 15px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}
+
+.user-otp-container .otp-help-strip svg {
+  color: #9dff00;
+  flex: 0 0 auto;
+}
+
+.user-otp-container .otp-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 15px;
+  padding-top: 13px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11px;
   text-align: center;
-  margin-top: 18px;
-  font-size: 13px;
-  color: #697184;
 }
 
-@media (max-width: 920px) {
-  .user-otp-container {
-    grid-template-columns: 1fr;
-    gap: 24px;
-    padding: 76px 20px 32px;
-    background:
-      radial-gradient(circle at 18% 12%, rgba(200, 162, 74, 0.16), transparent 30%),
-      linear-gradient(180deg, #343d5c 0%, #4d587c 38%, #fffdf8 38%, #f8f4e8 100%);
-  }
-
-  .otp-brand-panel {
-    max-width: 480px;
-    margin: 0 auto;
-    text-align: center;
-  }
-
-  .otp-brand-mark {
-    margin: 0 auto 16px;
-  }
-
-  .otp-brand-panel h1 {
-    font-size: 34px;
-  }
-
-  .otp-brand-panel p {
-    margin: 0 auto;
-  }
-
-  .otp-progress-list {
-    display: none;
-  }
-
-  .otp-card {
-    max-width: 480px;
-    margin: 0 auto;
-  }
+.user-otp-container .otp-resend-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #9dff00;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
 }
 
-@media (max-width: 520px) {
-  .user-otp-container {
+.user-otp-container .otp-resend-button:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.user-otp-container .otp-resend-button:disabled {
+  color: rgba(255, 255, 255, 0.35);
+  cursor: not-allowed;
+}
+
+/* ---------- Bottom note ---------- */
+.user-otp-container .otp-bottom-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+}
+
+.user-otp-container .otp-lime-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #9dff00;
+  box-shadow: 0 0 10px rgba(157, 255, 0, 0.6);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 700px) {
+  .user-otp-container .otp-back-button {
+    top: 18px;
+    left: 16px;
+    min-width: 140px;
+    height: 48px;
+    padding: 0 24px;
+    font-size: 17px;
+  }
+
+  .user-otp-container .otp-page {
     padding: 76px 16px 24px;
+    justify-content: flex-start;
   }
 
-  .otp-card {
-    padding: 28px 20px;
+  .user-otp-container .otp-card {
+    padding: 28px 22px 24px;
+    border-radius: 22px;
   }
 
-  .otp-brand-panel h1 {
-    font-size: 29px;
+  .user-otp-container .otp-header h1 {
+    font-size: 30px;
   }
 
-  .otp-header h2 {
-    font-size: 24px;
+  .user-otp-container .otp-header p {
+    font-size: 12px;
   }
 
-  .otp-input {
-    letter-spacing: 7px;
-    padding-left: 17px;
+  .user-otp-container .otp-brand-logo {
+    width: 150px;
+  }
+}
+
+@media (max-width: 380px) {
+  .user-otp-container .otp-input {
+    font-size: 21px;
+    letter-spacing: 0.4em;
+    padding-left: 0.4em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-otp-container .otp-card {
+    animation: none;
+  }
+
+  .user-otp-container .otp-back-button,
+  .user-otp-container .otp-back-button span,
+  .user-otp-container .otp-button,
+  .user-otp-container .otp-button-arrow,
+  .user-otp-container .otp-input {
+    transition: none;
   }
 }

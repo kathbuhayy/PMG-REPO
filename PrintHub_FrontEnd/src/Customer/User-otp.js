@@ -7,6 +7,7 @@ import {
   FaShieldAlt,
 } from "react-icons/fa";
 import "./User-otp.css";
+import pmgLogo from "../assets/brand/pmg-logo-nav.png";
 import { buildApiUrl } from "../config/api";
 import AppModal from "../components/AppModal";
 import { loadGuestDesigns, clearGuestDesigns } from "../utils/guestDesigns";
@@ -245,6 +246,12 @@ function UserOtpPage() {
 
   return (
     <div className="user-otp-container">
+      {/* Background decorations */}
+      <div className="otp-decoration otp-decoration-one" />
+      <div className="otp-decoration otp-decoration-two" />
+      <div className="otp-dots otp-dots-one" />
+      <div className="otp-dots otp-dots-two" />
+
       <button
         className="otp-back-button"
         type="button"
@@ -254,128 +261,143 @@ function UserOtpPage() {
           })
         }
       >
+        <span>←</span>
         Back
       </button>
 
-      <div className="otp-brand-panel">
-        <div className="otp-brand-mark">PMG</div>
-
-        <h1>
-          One quick check, then you are in.
-        </h1>
-
-        <p>
-          We sent a secure 6-digit code to protect
-          your new PrintHub account.
-        </p>
-
-        <div className="otp-progress-list">
-          <span>
-            <FaCheckCircle /> Details saved
-          </span>
-
-          <span>
-            <FaEnvelopeOpenText /> Code sent
-          </span>
-
-          <span>
-            <FaShieldAlt /> Verify account
-          </span>
-        </div>
-      </div>
-
-      <div className="otp-card">
-        <div className="otp-icon">
-          <FaEnvelopeOpenText />
-        </div>
-
-        <div className="otp-header">
-          <h2>Email Verification</h2>
-
-          <p>
-            Enter the OTP sent to{" "}
-            <strong>{email}</strong>
-          </p>
-        </div>
-
-        {error && (
-          <div className="otp-error">
-            {error}
-          </div>
-        )}
-
-        {resendMessage && (
-          <div className="otp-success-message">
-            {resendMessage}
-          </div>
-        )}
-
-        <form onSubmit={handleVerify}>
-          <label
-            className="otp-label"
-            htmlFor="registration-otp"
-          >
-            Verification code
-          </label>
-
-          <input
-            id="registration-otp"
-            type="text"
-            inputMode="numeric"
-            className="otp-input"
-            placeholder="000000"
-            value={otp}
-            onChange={(e) =>
-              setOtp(
-                e.target.value.replace(/\D/g, "")
-              )
-            }
-            maxLength={6}
-            disabled={loading || resending}
+      <main className="otp-page">
+        <div className="otp-brand">
+          <img
+            src={pmgLogo}
+            alt="PMG Printing House"
+            className="otp-brand-logo"
           />
-
-          <button
-            type="submit"
-            className="otp-button"
-            disabled={loading || resending}
-          >
-            {loading
-              ? "Verifying..."
-              : "Verify OTP"}
-          </button>
-        </form>
-
-        <div className="otp-help-strip">
-          <FaClock />
-
-          <span>
-            The code expires in 5 minutes.
-          </span>
         </div>
 
-        <div className="otp-footer">
-          <span>
-            Didn't receive the code?
-          </span>
+        <div className="otp-card">
+          <div className="otp-card-accent" />
 
-          <button
-            type="button"
-            className="otp-resend-button"
-            onClick={handleResendOtp}
-            disabled={
-              resending ||
-              loading ||
-              resendCooldown > 0
-            }
-          >
-            {resending
-              ? "Sending..."
-              : resendCooldown > 0
-              ? `Resend in ${resendCooldown}s`
-              : "Resend OTP"}
-          </button>
+          <div className="otp-header">
+            <div className="otp-eyebrow">
+              EMAIL VERIFICATION
+            </div>
+
+            <h1>
+              Verify your <span>Email</span>
+            </h1>
+
+            <p>
+              Enter the 6-digit code sent to{" "}
+              <strong>{email}</strong>
+            </p>
+          </div>
+
+          <div className="otp-progress-list">
+            <span>
+              <FaCheckCircle /> Details saved
+            </span>
+
+            <span>
+              <FaEnvelopeOpenText /> Code sent
+            </span>
+
+            <span>
+              <FaShieldAlt /> Verify account
+            </span>
+          </div>
+
+          {error && (
+            <div className="otp-error">
+              <span className="otp-message-icon">!</span>
+              {error}
+            </div>
+          )}
+
+          {resendMessage && (
+            <div className="otp-success-message">
+              <span className="otp-message-icon">✓</span>
+              {resendMessage}
+            </div>
+          )}
+
+          <form onSubmit={handleVerify}>
+            <div className="otp-form-group">
+              <label
+                className="otp-label"
+                htmlFor="registration-otp"
+              >
+                Verification code
+              </label>
+
+              <input
+                id="registration-otp"
+                type="text"
+                inputMode="numeric"
+                className="otp-input"
+                placeholder="000000"
+                value={otp}
+                onChange={(e) =>
+                  setOtp(
+                    e.target.value.replace(/\D/g, "")
+                  )
+                }
+                maxLength={6}
+                disabled={loading || resending}
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="otp-button"
+              disabled={loading || resending}
+            >
+              <span>
+                {loading
+                  ? "Verifying..."
+                  : "Verify OTP"}
+              </span>
+
+              <span className="otp-button-arrow">→</span>
+            </button>
+          </form>
+
+          <div className="otp-help-strip">
+            <FaClock />
+
+            <span>
+              The code expires in 5 minutes.
+            </span>
+          </div>
+
+          <div className="otp-footer">
+            <span>
+              Didn't receive the code?
+            </span>
+
+            <button
+              type="button"
+              className="otp-resend-button"
+              onClick={handleResendOtp}
+              disabled={
+                resending ||
+                loading ||
+                resendCooldown > 0
+              }
+            >
+              {resending
+                ? "Sending..."
+                : resendCooldown > 0
+                ? `Resend in ${resendCooldown}s`
+                : "Resend OTP"}
+            </button>
+          </div>
         </div>
-      </div>
+
+        <div className="otp-bottom-note">
+          <span className="otp-lime-dot" />
+          PRINT. CREATE. DELIVER.
+        </div>
+      </main>
 
       <AppModal
         open={successModal}
