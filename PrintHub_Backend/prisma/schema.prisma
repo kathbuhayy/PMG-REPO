@@ -10,34 +10,36 @@ datasource db {
 }
 
 model User {
-  id                 Int             @id @default(autoincrement())
-  first_name         String?         @map("first_name")
-  last_name          String?         @map("last_name")
-  email              String          @unique
-  password           String
-  phone              String?
-  address            String?
-  role               Int
-  status             String?
-  last_login         DateTime?       @map("last_login")
-  join_date          DateTime?       @map("join_date")
-  gender             String?
-  birthday           DateTime?
-  position           String?
-  createdAt          DateTime        @default(now()) @map("created_at")
-  updatedAt          DateTime        @updatedAt @map("updated_at")
-  avatar_url         String?         @map("avatar_url")
-  branchId           Int?            @map("branch_id")
-  cartItems          CartItem[]
-  supportAssignments Conversation[]  @relation("SupportAssignedStaff")
-  conversations      Conversation[]
-  inquiries          Inquiry[]
-  notifications      Notification[]
-  orders             Order[]
-  productReviews     ProductReview[]
-  ratings            Rating[]
-  branch             Branch?         @relation(fields: [branchId], references: [id])
-  staffRoles         UserStaffRole[]
+  id                  Int               @id @default(autoincrement())
+  first_name          String?           @map("first_name")
+  last_name           String?           @map("last_name")
+  email               String            @unique
+  password            String
+  phone               String?
+  address             String?
+  role                Int
+  status              String?
+  last_login          DateTime?         @map("last_login")
+  join_date           DateTime?         @map("join_date")
+  gender              String?
+  birthday            DateTime?
+  position            String?
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  avatar_url          String?           @map("avatar_url")
+  branchId            Int?              @map("branch_id")
+  cartItems           CartItem[]
+  supportAssignments  Conversation[]    @relation("SupportAssignedStaff")
+  conversations       Conversation[]
+  inquiries           Inquiry[]
+  notifications       Notification[]
+  orders              Order[]
+  productReviews      ProductReview[]
+  ratings             Rating[]
+  branch              Branch?           @relation(fields: [branchId], references: [id])
+  staffRoles          UserStaffRole[]
+  assignmentsReceived OrderAssignment[] @relation("OrderAssignmentAssignedTo")
+  assignmentsCreated  OrderAssignment[] @relation("OrderAssignmentAssignedBy")
 
   @@index([branchId])
 }
@@ -247,50 +249,51 @@ model PurchaseRequisition {
 }
 
 model Order {
-  id                   Int              @id @default(autoincrement())
+  id                   Int               @id @default(autoincrement())
   userId               Int?
-  total                Decimal          @db.Decimal(14, 2)
-  currency             String           @default("PHP")
-  status               String           @default("pending")
+  total                Decimal           @db.Decimal(14, 2)
+  currency             String            @default("PHP")
+  status               String            @default("pending")
   shipping_address     String?
   billing_address      String?
-  proofApproved        Boolean          @default(false)
+  proofApproved        Boolean           @default(false)
   due_date             DateTime?
   delivered_at         DateTime?
-  estimatedFinishTime  String?          @map("estimated_finish_time")
-  createdAt            DateTime         @default(now()) @map("created_at")
-  updatedAt            DateTime         @updatedAt @map("updated_at")
-  deleted_at           DateTime?        @map("deleted_at")
-  payment_status       String           @default("unpaid")
+  estimatedFinishTime  String?           @map("estimated_finish_time")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+  deleted_at           DateTime?         @map("deleted_at")
+  payment_status       String            @default("unpaid")
   checkout_url         String?
   payment_method       String?
   payment_reference    String?
   paymongo_session_id  String?
-  baseColorHex         String?          @map("base_color_hex")
-  mockupImageUrl       String?          @map("mockup_image_url")
-  printHeightInches    Float?           @map("print_height_inches")
-  printWidthInches     Float?           @map("print_width_inches")
-  productionStatus     ProductionStatus @default(PENDING_FILE_CHECK) @map("production_status")
-  amountPaid           Decimal          @default(0) @map("amount_paid") @db.Decimal(14, 2)
-  isBulkOrder          Boolean          @default(false) @map("is_bulk_order")
-  pendingPaymentAmount Decimal?         @map("pending_payment_amount") @db.Decimal(14, 2)
+  baseColorHex         String?           @map("base_color_hex")
+  mockupImageUrl       String?           @map("mockup_image_url")
+  printHeightInches    Float?            @map("print_height_inches")
+  printWidthInches     Float?            @map("print_width_inches")
+  productionStatus     ProductionStatus  @default(PENDING_FILE_CHECK) @map("production_status")
+  amountPaid           Decimal           @default(0) @map("amount_paid") @db.Decimal(14, 2)
+  isBulkOrder          Boolean           @default(false) @map("is_bulk_order")
+  pendingPaymentAmount Decimal?          @map("pending_payment_amount") @db.Decimal(14, 2)
   branchId             Int?
-  designReviewNotes    String?          @map("design_review_notes")
-  designReviewStatus   String?          @default("submitted") @map("design_review_status")
-  designReviewedAt     DateTime?        @map("design_reviewed_at")
-  designReviewedBy     Int?             @map("design_reviewed_by")
-  paymongoRefundId     String?          @map("paymongo_refund_id")
-  refundAmount         Decimal?         @map("refund_amount") @db.Decimal(14, 2)
-  refundNotes          String?          @map("refund_notes")
-  refundReason         String?          @map("refund_reason")
-  refundRequestedAt    DateTime?        @map("refund_requested_at")
-  refundStatus         String?          @map("refund_status")
-  refundedAt           DateTime?        @map("refunded_at")
-  refundedBy           Int?             @map("refunded_by")
-  branch               Branch?          @relation(fields: [branchId], references: [id])
-  user                 User?            @relation(fields: [userId], references: [id])
+  designReviewNotes    String?           @map("design_review_notes")
+  designReviewStatus   String?           @default("submitted") @map("design_review_status")
+  designReviewedAt     DateTime?         @map("design_reviewed_at")
+  designReviewedBy     Int?              @map("design_reviewed_by")
+  paymongoRefundId     String?           @map("paymongo_refund_id")
+  refundAmount         Decimal?          @map("refund_amount") @db.Decimal(14, 2)
+  refundNotes          String?           @map("refund_notes")
+  refundReason         String?           @map("refund_reason")
+  refundRequestedAt    DateTime?         @map("refund_requested_at")
+  refundStatus         String?           @map("refund_status")
+  refundedAt           DateTime?         @map("refunded_at")
+  refundedBy           Int?              @map("refunded_by")
+  branch               Branch?           @relation(fields: [branchId], references: [id])
+  user                 User?             @relation(fields: [userId], references: [id])
   items                OrderItem[]
   rating               Rating?
+  assignments          OrderAssignment[]
 
   @@index([productionStatus])
 }
@@ -340,6 +343,7 @@ model Branch {
   products     Product[]
   requisitions PurchaseRequisition[]
   users        User[]
+  assignments  OrderAssignment[]
 }
 
 model OrderItem {
@@ -466,4 +470,27 @@ enum RequisitionStatus {
   ORDERED
   RECEIVED
   CANCELLED
+}
+
+model OrderAssignment {
+  id           Int       @id @default(autoincrement())
+  orderId      Int       @map("order_id")
+  assignedToId Int       @map("assigned_to_id")
+  assignedById Int       @map("assigned_by_id")
+  branchId     Int       @map("branch_id")
+  status       String    @default("assigned")
+  note         String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  completedAt  DateTime? @map("completed_at")
+
+  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  assignedTo User   @relation("OrderAssignmentAssignedTo", fields: [assignedToId], references: [id], onDelete: Cascade)
+  assignedBy User   @relation("OrderAssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  branch     Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([assignedToId, status])
+  @@index([assignedById])
+  @@index([branchId])
 }

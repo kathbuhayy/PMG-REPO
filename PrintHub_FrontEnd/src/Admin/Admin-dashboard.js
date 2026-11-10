@@ -14,8 +14,9 @@ import AdminProducts from "./AdminProducts";
 import AdminActivityLog from "./AdminActivityLog";
 import NotificationBell from "./NotificationBell";
 import LogoutConfirmModal from "../components/LogoutConfirmModal";
-// import ProductionQueue from "./ProductionQueue";
+import ProductionQueue from "./ProductionQueue";
 import StaffDashboard from "./StaffDashboard";
+import StaffMyTasks from "./StaffMyTasks";
 import AdminReports from "./AdminReports";
 import AdminPayments from "./AdminPayments";
 import AdminSupportInbox from "./AdminSupportInbox";
@@ -501,16 +502,27 @@ function AdminDashboard() {
   const [sidebarUser, setSidebarUser] = useState(storedUser);
 
   const [staffRoles, setStaffRoles] = useState([]);
+  const [staffBranchName, setStaffBranchName] = useState("");
 
   const role = sidebarUser?.role || "user";
 
   useEffect(() => {
-    if (role !== "staff") return;
-    adminFetch(buildApiUrl("/api/me/staff-roles"))
-      .then((res) => res.json())
-      .then((data) => setStaffRoles(data.roles || []))
-      .catch((err) => console.error("Failed to fetch my staff roles:", err));
-  }, [role]);
+  if (role !== "staff") {
+    setStaffRoles([]);
+    setStaffBranchName("");
+    return;
+  }
+
+  adminFetch(buildApiUrl("/api/me/staff-roles"))
+    .then((res) => res.json())
+    .then((data) => {
+      setStaffRoles(data.roles || []);
+      setStaffBranchName(data.branchName || "");
+    })
+    .catch((err) => {
+      console.error("Failed to fetch my staff roles:", err);
+    });
+}, [role]);
 
   const canAccessSupportChat =
     role === "admin" || staffRoles.includes("CUSTOMER_SUPPORT");
@@ -601,7 +613,7 @@ function AdminDashboard() {
         label: "PRODUCTION",
         items: [
           { id: "designApprovals", label: "Design Approvals", icon: <FaClipboardCheck /> },
-          // { id: "productionQueue", label: "Production Queue", icon: <FaListOl /> },
+          { id: "productionQueue", label: "Production Queue", icon: <FaListOl /> },
           { id: "calendar", label: "Production Calendar", icon: <FaCalendarAlt /> },
           { id: "paymentVerification", label: "Payment Verification", icon: <FaMoneyCheckAlt /> },
           { id: "printJobs", label: "Print Jobs", icon: <FaPrint /> },
@@ -1087,15 +1099,15 @@ function AdminDashboard() {
       foot: "View all orders",
       onClick: () => navigate("/admin/orders"),
     },
-    // {
-    //   key: "production",
-    //   label: "In Production",
-    //   value: inProductionCount,
-    //   icon: <FaPrint />,
-    //   tone: "indigo",
-    //   foot: "View production queue",
-    //   onClick: () => navigate("/admin/productionQueue"),
-    // },
+     {
+       key: "production",
+       label: "In Production",
+       value: inProductionCount,
+       icon: <FaPrint />,
+       tone: "indigo",
+       foot: "View production queue",
+       onClick: () => navigate("/admin/productionQueue"),
+     },
     {
       key: "lowstock",
       label: "Low Stock Items",
@@ -2151,7 +2163,7 @@ function AdminDashboard() {
                   : role === "branch_admin"
                     ? "Branch Admin"
                     : role === "staff"
-                      ? "Staff"
+                    ? `${staffBranchName ? `${staffBranchName} ` : ""}Staff`
                       : "Customer"}
               </p>
             </div>
@@ -2383,15 +2395,15 @@ function AdminDashboard() {
                   </div>
                   <div className="urgent-list">
                     {[
-                      // deadlineSoonCount > 0 && {
-                      //   id: "deadline",
-                      //   tone: "red",
-                      //   icon: <FaExclamationTriangle />,
-                      //   title: `${deadlineSoonCount} order${deadlineSoonCount === 1 ? "" : "s"} approaching their deadline`,
-                      //   subtitle: "Check production queue",
-                      //   actionLabel: "View Jobs",
-                      //   actionTab: "productionQueue",
-                      // },
+                      deadlineSoonCount > 0 && {
+                         id: "deadline",
+                         tone: "red",
+                         icon: <FaExclamationTriangle />,
+                         title: `${deadlineSoonCount} order${deadlineSoonCount === 1 ? "" : "s"} approaching their deadline`,
+                         subtitle: "Check production queue",
+                         actionLabel: "View Jobs",
+                         actionTab: "productionQueue",
+                       },
                       designApprovalCount > 0 && {
                         id: "designs",
                         tone: "blue",
@@ -2677,6 +2689,8 @@ function AdminDashboard() {
 
           {/* Orders — real component */}
           {activeItem === "orders" && <AdminOrders />}
+          {/* Staff: My Assigned Tasks */}
+          {activeItem === "myTasks" && role === "staff" && <StaffMyTasks />}
 
           {activeItem === "calendar" && <AdminProductionCalendar />}
           {activeItem === "activity" && <AdminActivityLog />}
@@ -2692,7 +2706,7 @@ function AdminDashboard() {
           {/* New sections without a page yet — placeholders */}
           {activeItem === "quotations" && <AdminInquiries/>}
           {activeItem === "supportInbox" && <AdminSupportInbox chat={chat} />}
-          {/* {activeItem === "productionQueue" && <ProductionQueue />} */}
+          {activeItem === "productionQueue" && <ProductionQueue />}
           {activeItem === "inventory" && <AdminInventory />}
           {activeItem === "payments" && <AdminPayments />}
           {activeItem === "reports" && <AdminReports />}

@@ -1,20 +1,48 @@
-//auth.js
-// Converts string role name to its corresponding database integer code.
+// auth.js
+
+// Database role IDs — preserve these values for compatibility.
+const ROLE_IDS = Object.freeze({
+  admin: 0,
+  staff: 1,
+  customer: 2,
+  branch_admin: 3,
+});
+
+// Convert role name to database integer.
 const roleToDb = (role = "customer") => {
-  if (role === "admin") return 0;
-  if (role === "staff") return 1;
-  if (role === "branch_admin") return 3;
-  return 2;
+  return ROLE_IDS[role] ?? ROLE_IDS.customer;
 };
 
-// Converts database integer code back to its string role name.
-// 3 = branch_admin: same admin-level access as role 0, but every module's
-// queries are scoped to the user's assigned branch (see services/branchScope.js).
+// Convert database integer to role name.
 const roleFromDb = (num) => {
-  if (num === 0) return "admin";
-  if (num === 1) return "staff";
-  if (num === 3) return "branch_admin";
-  return "customer";
+  switch (Number(num)) {
+    case 0:
+      return "admin";
+    case 1:
+      return "staff";
+    case 2:
+      return "customer";
+    case 3:
+      return "branch_admin";
+    default:
+      return "customer";
+  }
+};
+
+// Display names only. The underlying role remains "staff".
+const roleDisplayName = (role) => {
+  switch (role) {
+    case "admin":
+      return "General Admin";
+    case "staff":
+      return "Branch Staff";
+    case "branch_admin":
+      return "Branch Admin";
+    case "customer":
+      return "Customer";
+    default:
+      return "Customer";
+  }
 };
 
 const jwt = require("jsonwebtoken");
@@ -24,13 +52,16 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
 
 if (!JWT_SECRET) {
   console.warn(
-    "⚠️ JWT_SECRET is not set. Authentication tokens cannot be signed or verified."
+    "JWT_SECRET is not set. Authentication tokens cannot be signed or verified."
   );
 }
 
 function signAuthToken(user) {
   return jwt.sign(
-    { id: user.id, role: roleFromDb(user.role) },
+    {
+      id: user.id,
+      role: roleFromDb(user.role),
+    },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
@@ -41,8 +72,10 @@ function verifyAuthToken(token) {
 }
 
 module.exports = {
+  ROLE_IDS,
   roleToDb,
   roleFromDb,
+  roleDisplayName,
   signAuthToken,
   verifyAuthToken,
 };

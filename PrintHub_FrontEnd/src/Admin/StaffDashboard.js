@@ -20,9 +20,9 @@ function StaffDashboard({ userName }) {
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await adminFetch(buildApiUrl("/api/production/my-tasks"));
+      const res = await adminFetch(buildApiUrl("/api/me/assignments"));
       const data = await res.json();
-      if (res.ok) setTasks(data.tasks || []);
+      if (res.ok) setTasks(data.assignments || []);
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
     } finally {
@@ -89,7 +89,7 @@ function StaffDashboard({ userName }) {
             <thead>
               <tr>
                 <th>Order</th>
-                <th>Role</th>
+                <th>Assigned By</th>
                 <th>Stage</th>
                 <th>Due</th>
               </tr>
@@ -103,7 +103,11 @@ function StaffDashboard({ userName }) {
                 tasks.slice(0, 5).map((t) => (
                   <tr key={t.id}>
                     <td>#{t.order?.id}</td>
-                    <td>{t.role.replace(/_/g, " ")}</td>
+                    <td>
+                      {t.assignedBy
+                        ? `${t.assignedBy.first_name} ${t.assignedBy.last_name}`
+                        : "—"}
+                    </td>
                     <td>
                       <span className="dashpage-pill status-pending">
                         {PRODUCTION_STATUS_LABELS[t.order?.productionStatus] || t.order?.productionStatus}

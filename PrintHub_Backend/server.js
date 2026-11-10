@@ -11,6 +11,7 @@ const bcrypt = require("bcrypt");
 const multer = require("multer");
 const supabase = require("./db/supabase");
 const mockupRoutes = require("./routes/mockup");
+const createOrderAssignmentRouter = require("./routes/orderAssignments");
 const { generateImage: generateFalImage } = require("./services/falai");
 const { generateWithCloudflare } = require("./services/cloudflareAI");
 const { computeItemPrice } = require("./services/pricingEngine");
@@ -200,6 +201,8 @@ app.use(bodyParser.json({
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 
 app.use(identifyActor(prisma));
+
+app.use("/api", createOrderAssignmentRouter(prisma));
 
 // =================================================
 // AI CHATBOT API (Gemini)
@@ -1950,14 +1953,28 @@ app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff",
     };
 
     let scopedToStatuses = null;
-    if (req.actor.role === "staff") {
-      const relevantStatuses = await getRelevantProductionStatuses(req.actor.id);
-      if (relevantStatuses.length === 0) {
-        return res.json({ statuses: PRODUCTION_STATUSES, queue: [], scoped: true });
-      }
-      scopedToStatuses = relevantStatuses;
-      where.productionStatus = { in: relevantStatuses };
-    }
+
+if (req.actor.role === "staff") {
+  if (req.actor.branchId == null) {
+    return res.status(403).json({
+      message: "Your account has no assigned branch.",
+    });
+  }
+
+  // Staff see orders from their own branch according to their job roles.
+  const relevantStatuses = await getRelevantProductionStatuses(req.actor.id);
+
+  if (relevantStatuses.length === 0) {
+    return res.json({
+      statuses: PRODUCTION_STATUSES,
+      queue: [],
+      scoped: true,
+    });
+  }
+
+  scopedToStatuses = relevantStatuses;
+  where.productionStatus = { in: relevantStatuses };
+}
 
     const orders = await prisma.order.findMany({
       where,
@@ -1994,17 +2011,44 @@ app.get("/api/admin/production-queue", requireAuth(prisma), requireRole("staff",
   }
 });
 
-// GET /api/me/staff-roles — the logged-in user's own active job roles
+// GET /api/me/staff-roles — logged-in staff member's roles and branch
 app.get("/api/me/staff-roles", requireAuth(prisma), async (req, res) => {
   try {
-    const roles = await prisma.userStaffRole.findMany({
-      where: { userId: req.actor.id, unassignedAt: null },
-      select: { role: true },
+    const [roles, user] = await Promise.all([
+      prisma.userStaffRole.findMany({
+        where: {
+          userId: req.actor.id,
+          unassignedAt: null,
+        },
+        select: {
+          role: true,
+        },
+      }),
+
+      prisma.user.findUnique({
+        where: {
+          id: req.actor.id,
+        },
+        select: {
+          branch: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return res.json({
+      roles: roles.map((r) => r.role),
+      branchName: user?.branch?.name || "",
     });
-    res.json({ roles: roles.map((r) => r.role) });
-  } catch (e) {
-    console.error("Fetch my staff roles error:", e.message);
-    res.status(500).json({ message: "Failed to fetch staff roles" });
+  } catch (error) {
+    console.error("Fetch my staff roles error:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch staff roles",
+    });
   }
 });
 
@@ -2119,18 +2163,23 @@ app.put("/api/production/orders/:id/status", requireAuth(prisma), requireRole("s
   }
 
   try {
-    const existing = await prisma.order.findUnique({ where: { id: orderId } });
-    if (!existing) return res.status(404).json({ message: "Order not found" });
-    if (!canActOnBranch(req.actor, existing.branchId)) return denyCrossBranch(res);
+  const existing = await prisma.order.findUnique({ where: { id: orderId } });
 
-    if (productionStatus === "PRINTING_QUEUE") {
-      if (!existing.proofApproved) {
-        return res.status(403).json({
-          message:
-            "This order cannot enter the print queue until the design proof has been approved.",
-        });
-      }
+  if (!existing) {
+    return res.status(404).json({ message: "Order not found" });
+  }
 
+  if (!canActOnBranch(req.actor, existing.branchId)) {
+    return denyCrossBranch(res);
+  }
+
+  if (productionStatus === "PRINTING_QUEUE") {
+    if (!existing.proofApproved) {
+      return res.status(403).json({
+        message:
+          "This order cannot enter the print queue until the design proof has been approved.",
+      });
+    }
       if (!hasMetProductionPaymentThreshold(existing)) {
         const total = parseFloat(existing.total);
         const paid = parseFloat(existing.amountPaid);
